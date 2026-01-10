@@ -99,6 +99,11 @@ builder.Services.AddSignalR();
 // reservation cleanup
 builder.Services.AddHostedService<HMS.API.Infrastructure.Pharmacy.ReservationCleanupService>();
 
+// Cloud sync client
+builder.Services.AddHttpClient<HMS.API.Application.Sync.ICloudSyncClient, HMS.API.Infrastructure.Sync.CloudSyncClient>();
+builder.Services.AddScoped<HMS.API.Application.Sync.ISyncManager, HMS.API.Infrastructure.Sync.SyncManager>();
+builder.Services.AddHostedService<HMS.API.Infrastructure.Sync.BackgroundSyncService>();
+
 var app = builder.Build();
 
 // Apply EF migrations on startup
