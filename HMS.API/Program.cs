@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using HMS.API.Infrastructure.Outbox;
+using HMS.API.Hubs;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -36,6 +37,9 @@ builder.Services.AddScoped<HMS.API.Application.Payments.IPaymentService, HMS.API
 
 // Lab service
 builder.Services.AddScoped<HMS.API.Application.Lab.ILabService, HMS.API.Application.Lab.LabService>();
+
+// Pharmacy service
+builder.Services.AddScoped<HMS.API.Application.Pharmacy.IPharmacyService, HMS.API.Application.Pharmacy.PharmacyService>();
 
 // Current user
 builder.Services.AddHttpContextAccessor();
@@ -86,6 +90,15 @@ builder.Services.AddTransient<CurrentUserMiddleware>();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
+// Notification service
+builder.Services.AddSingleton<HMS.API.Application.Common.INotificationService, HMS.API.Infrastructure.Common.NotificationService>();
+
+// Add SignalR
+builder.Services.AddSignalR();
+
+// reservation cleanup
+builder.Services.AddHostedService<HMS.API.Infrastructure.Pharmacy.ReservationCleanupService>();
+
 var app = builder.Build();
 
 // Apply EF migrations on startup
@@ -122,6 +135,7 @@ app.UseMiddleware<CurrentUserMiddleware>();
 app.UseAuthorization();
 
 app.MapControllers();
+app.MapHub<NotificationHub>("/hubs/notifications");
 
 app.Run();
 

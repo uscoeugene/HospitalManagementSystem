@@ -41,6 +41,13 @@ namespace HMS.API.Infrastructure.Persistence
         public DbSet<HMS.API.Domain.Lab.LabRequest> LabRequests { get; set; } = null!;
         public DbSet<HMS.API.Domain.Lab.LabRequestItem> LabRequestItems { get; set; } = null!;
 
+        // Pharmacy
+        public DbSet<HMS.API.Domain.Pharmacy.Drug> Drugs { get; set; } = null!;
+        public DbSet<HMS.API.Domain.Pharmacy.Prescription> Prescriptions { get; set; } = null!;
+        public DbSet<HMS.API.Domain.Pharmacy.PrescriptionItem> PrescriptionItems { get; set; } = null!;
+        public DbSet<HMS.API.Domain.Pharmacy.DispenseLog> DispenseLogs { get; set; } = null!;
+        public DbSet<HMS.API.Domain.Pharmacy.Reservation> Reservations { get; set; } = null!;
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -163,6 +170,47 @@ namespace HMS.API.Infrastructure.Persistence
                 b.Property(i => i.Price).HasColumnType("decimal(18,2)");
                 b.Property(i => i.Currency).HasMaxLength(3);
                 b.HasOne(i => i.LabTest).WithMany().HasForeignKey(i => i.LabTestId);
+            });
+
+            // Pharmacy mappings
+            modelBuilder.Entity<HMS.API.Domain.Pharmacy.Drug>(b =>
+            {
+                b.HasKey(d => d.Id);
+                b.Property(d => d.Code).IsRequired().HasMaxLength(100);
+                b.Property(d => d.Name).IsRequired().HasMaxLength(200);
+                b.Property(d => d.Price).HasColumnType("decimal(18,2)");
+                b.Property(d => d.Currency).HasMaxLength(3);
+                b.Property(d => d.ReservedStock).HasDefaultValue(0);
+            });
+
+            modelBuilder.Entity<HMS.API.Domain.Pharmacy.Prescription>(b =>
+            {
+                b.HasKey(p => p.Id);
+                b.HasMany(p => p.Items).WithOne(i => i.Prescription).HasForeignKey(i => i.PrescriptionId);
+            });
+
+            modelBuilder.Entity<HMS.API.Domain.Pharmacy.PrescriptionItem>(b =>
+            {
+                b.HasKey(i => i.Id);
+                b.Property(i => i.Price).HasColumnType("decimal(18,2)");
+                b.Property(i => i.Currency).HasMaxLength(3);
+                b.HasOne(i => i.Drug).WithMany().HasForeignKey(i => i.DrugId);
+            });
+
+            modelBuilder.Entity<HMS.API.Domain.Pharmacy.DispenseLog>(b =>
+            {
+                b.HasKey(d => d.Id);
+                b.Property(d => d.DispensedAt).IsRequired();
+            });
+
+            // Pharmacy reservations
+            modelBuilder.Entity<HMS.API.Domain.Pharmacy.Reservation>(b =>
+            {
+                b.HasKey(r => r.Id);
+                b.Property(r => r.Quantity).IsRequired();
+                b.Property(r => r.ExpiresAt).IsRequired();
+                b.Property(r => r.Processed).HasDefaultValue(false);
+                b.Property(r => r.CreatedAt).IsRequired();
             });
 
             // Apply global query filter for soft-delete
