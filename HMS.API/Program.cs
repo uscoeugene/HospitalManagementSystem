@@ -1,13 +1,96 @@
+using System.Text;
+using HMS.API.Application.Auth;
+using HMS.API.Application.Common;
+using HMS.API.Infrastructure.Auth;
+using HMS.API.Infrastructure.Persistence;
+using HMS.API.Middleware;
+using HMS.API.Security;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
-
 builder.Services.AddControllers();
+
+// Configure DbContexts
+var conn = builder.Configuration.GetConnectionString("Default") ?? "Server=(localdb)\\MSSQLLocalDB;Database=HmsDb;Trusted_Connection=True;";
+builder.Services.AddDbContext<AuthDbContext>(options => options.UseSqlServer(conn));
+builder.Services.AddDbContext<HmsDbContext>(options => options.UseSqlServer(conn));
+
+// Application services
+builder.Services.AddScoped<IPasswordHasher, PasswordHasher>();
+builder.Services.AddScoped<IAuthService, AuthService>();
+
+// Patient service
+builder.Services.AddScoped<HMS.API.Application.Patient.IPatientService, HMS.API.Application.Patient.PatientService>();
+
+// Current user
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
+
+// Authentication - JWT
+var jwtKey = builder.Configuration["Jwt:Key"] ?? "dev-insecure-key-change";
+var keyBytes = Encoding.UTF8.GetBytes(jwtKey);
+
+builder.Services.AddAuthentication(options =>
+{
+    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+})
+.AddJwtBearer(options =>
+{
+    options.RequireHttpsMetadata = false;
+    options.SaveToken = true;
+    options.TokenValidationParameters = new TokenValidationParameters
+    {
+        ValidateIssuerSigningKey = true,
+        IssuerSigningKey = new SymmetricSecurityKey(keyBytes),
+        ValidateIssuer = false,
+        ValidateAudience = false,
+        ClockSkew = TimeSpan.FromSeconds(30)
+    };
+});
+
+// Authorization - permission based
+builder.Services.AddSingleton<IAuthorizationHandler, PermissionAuthorizationHandler>();
+builder.Services.AddSingleton<IAuthorizationPolicyProvider, PermissionPolicyProvider>();
+
+builder.Services.AddAuthorization(options =>
+{
+    // dynamic policy provider handles permission: policies
+});
+
+// Middleware
+builder.Services.AddTransient<CurrentUserMiddleware>();
+
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
 var app = builder.Build();
+
+// Apply EF migrations on startup
+using (var scope = app.Services.CreateScope())
+{
+    try
+    {
+        var db = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
+        db.Database.Migrate();
+
+        var hdb = scope.ServiceProvider.GetRequiredService<HmsDbContext>();
+        hdb.Database.Migrate();
+
+        var hasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher>();
+        await SeedData.EnsureSeedDataAsync(db, hasher);
+    }
+    catch
+    {
+        // swallow migration errors in development; in production log and fail fast
+    }
+}
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
@@ -18,6 +101,8 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
+app.UseAuthentication();
+app.UseMiddleware<CurrentUserMiddleware>();
 app.UseAuthorization();
 
 app.MapControllers();
