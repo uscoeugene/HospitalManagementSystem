@@ -29,12 +29,21 @@ namespace HMS.API.Infrastructure.Auth
 
             db.Permissions.AddRange(permManageUsers, permManageRoles, permAuthLogin, permPatientsManage, permPatientsView, permBillingCreate, permBillingView, permBillingApply, permBillingExport, permPaymentsCreate, permPaymentsView);
 
+            // add permissions
+            var permLabRequest = new Permission { Code = "lab.request", Description = "Create lab requests" };
+            var permLabProcess = new Permission { Code = "lab.process", Description = "Process lab requests" };
+            var permLabView = new Permission { Code = "lab.view", Description = "View lab tests and requests" };
+            var permLabManage = new Permission { Code = "lab.manage", Description = "Manage lab test catalog" };
+
+            db.Permissions.AddRange(permLabRequest, permLabProcess, permLabView, permLabManage);
+
             // create roles
             var adminRole = new Role { Name = "Admin", Description = "Administrator" };
             var userRole = new Role { Name = "User", Description = "Default user" };
             var cashierRole = new Role { Name = "Cashier", Description = "Cashier role for payments" };
+            var labRole = new Role { Name = "LabTech", Description = "Laboratory technician" };
 
-            db.Roles.AddRange(adminRole, userRole, cashierRole);
+            db.Roles.AddRange(adminRole, userRole, cashierRole, labRole);
 
             await db.SaveChangesAsync();
 
@@ -50,11 +59,20 @@ namespace HMS.API.Infrastructure.Auth
             db.RolePermissions.Add(new RolePermission { Role = adminRole, Permission = permBillingExport });
             db.RolePermissions.Add(new RolePermission { Role = adminRole, Permission = permPaymentsCreate });
             db.RolePermissions.Add(new RolePermission { Role = adminRole, Permission = permPaymentsView });
+            db.RolePermissions.Add(new RolePermission { Role = adminRole, Permission = permLabRequest });
+            db.RolePermissions.Add(new RolePermission { Role = adminRole, Permission = permLabProcess });
+            db.RolePermissions.Add(new RolePermission { Role = adminRole, Permission = permLabView });
+            db.RolePermissions.Add(new RolePermission { Role = adminRole, Permission = permLabManage });
 
             // assign permissions to cashier
             db.RolePermissions.Add(new RolePermission { Role = cashierRole, Permission = permPaymentsCreate });
             db.RolePermissions.Add(new RolePermission { Role = cashierRole, Permission = permPaymentsView });
             db.RolePermissions.Add(new RolePermission { Role = cashierRole, Permission = permBillingView });
+
+            // assign permissions to lab role
+            db.RolePermissions.Add(new RolePermission { Role = labRole, Permission = permLabRequest });
+            db.RolePermissions.Add(new RolePermission { Role = labRole, Permission = permLabProcess });
+            db.RolePermissions.Add(new RolePermission { Role = labRole, Permission = permLabView });
 
             await db.SaveChangesAsync();
 

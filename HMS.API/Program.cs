@@ -34,6 +34,9 @@ builder.Services.AddScoped<HMS.API.Application.Billing.IBillingService, HMS.API.
 // Register PaymentService
 builder.Services.AddScoped<HMS.API.Application.Payments.IPaymentService, HMS.API.Application.Payments.PaymentService>();
 
+// Lab service
+builder.Services.AddScoped<HMS.API.Application.Lab.ILabService, HMS.API.Application.Lab.LabService>();
+
 // Current user
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();

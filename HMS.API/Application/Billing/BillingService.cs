@@ -219,5 +219,74 @@ namespace HMS.API.Application.Billing
 
             return new PagedResult<InvoicePaymentDto> { Items = dtos, TotalCount = total, Page = page, PageSize = pageSize };
         }
+
+        public async Task<InvoiceDto> CreateInvoiceFromLabRequestAsync(CreateInvoiceFromLabRequest request)
+        {
+            // validate patient
+            var patientExists = await _db.Patients.AnyAsync(p => p.Id == request.PatientId && !p.IsDeleted);
+            if (!patientExists) throw new InvalidOperationException("Patient not found");
+
+            if (request.VisitId.HasValue)
+            {
+                var visitExists = await _db.Visits.AnyAsync(v => v.Id == request.VisitId.Value && !v.IsDeleted);
+                if (!visitExists) throw new InvalidOperationException("Visit not found");
+            }
+
+            using var tx = await _db.Database.BeginTransactionAsync();
+            try
+            {
+                var invoice = new Invoice
+                {
+                    PatientId = request.PatientId,
+                    VisitId = request.VisitId,
+                    InvoiceNumber = GenerateInvoiceNumber(),
+                    Status = InvoiceStatus.UNPAID,
+                    TotalAmount = 0m,
+                    AmountPaid = 0m,
+                    Currency = request.Currency
+                };
+
+                foreach (var item in request.Items)
+                {
+                    var ii = new InvoiceItem
+                    {
+                        Description = item.Description,
+                        UnitPrice = item.UnitPrice,
+                        Quantity = item.Quantity,
+                        SourceId = item.SourceId,
+                        SourceType = item.SourceType
+                    };
+                    invoice.Items.Add(ii);
+                    invoice.TotalAmount += ii.LineTotal;
+                }
+
+                _db.Invoices.Add(invoice);
+                await _db.SaveChangesAsync();
+
+                // audit
+                var userId = _currentUserService.UserId ?? Guid.Empty;
+                _db.BillingAudits.Add(new BillingAudit { UserId = userId, Action = "CreateInvoiceFromLab", Details = $"Invoice {invoice.InvoiceNumber} created from lab request" });
+                await _db.SaveChangesAsync();
+
+                await tx.CommitAsync();
+
+                // write outbox event for invoice created/charged
+                var outbox = new OutboxMessage
+                {
+                    Type = "LabInvoiceCreated",
+                    Content = JsonSerializer.Serialize(new { InvoiceId = invoice.Id, PatientId = invoice.PatientId, VisitId = invoice.VisitId }),
+                    OccurredAt = DateTimeOffset.UtcNow
+                };
+                _db.OutboxMessages.Add(outbox);
+                await _db.SaveChangesAsync();
+
+                return await GetInvoiceAsync(invoice.Id) ?? throw new InvalidOperationException("Failed to load created invoice");
+            }
+            catch
+            {
+                await tx.RollbackAsync();
+                throw;
+            }
+        }
     }
 }

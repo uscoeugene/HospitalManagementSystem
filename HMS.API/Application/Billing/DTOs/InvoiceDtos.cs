@@ -10,6 +10,8 @@ namespace HMS.API.Application.Billing.DTOs
         public decimal UnitPrice { get; set; }
         public int Quantity { get; set; }
         public decimal LineTotal { get; set; }
+        public Guid? SourceId { get; set; }
+        public string? SourceType { get; set; }
     }
 
     public class InvoicePaymentDto

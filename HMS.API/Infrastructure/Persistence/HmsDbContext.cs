@@ -36,6 +36,11 @@ namespace HMS.API.Infrastructure.Persistence
         public DbSet<Refund> Refunds { get; set; } = null!;
         public DbSet<RefundReversal> RefundReversals { get; set; } = null!;
 
+        // Lab
+        public DbSet<HMS.API.Domain.Lab.LabTest> LabTests { get; set; } = null!;
+        public DbSet<HMS.API.Domain.Lab.LabRequest> LabRequests { get; set; } = null!;
+        public DbSet<HMS.API.Domain.Lab.LabRequestItem> LabRequestItems { get; set; } = null!;
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -134,6 +139,30 @@ namespace HMS.API.Infrastructure.Persistence
                 b.Property(r => r.ProcessedAt).IsRequired();
                 b.Property(r => r.Reason).HasMaxLength(1000);
                 b.HasOne(r => r.Refund).WithMany().HasForeignKey(r => r.RefundId);
+            });
+
+            // Lab mappings
+            modelBuilder.Entity<HMS.API.Domain.Lab.LabTest>(b =>
+            {
+                b.HasKey(t => t.Id);
+                b.Property(t => t.Code).IsRequired().HasMaxLength(50);
+                b.Property(t => t.Name).IsRequired().HasMaxLength(200);
+                b.Property(t => t.Price).HasColumnType("decimal(18,2)");
+                b.Property(t => t.Currency).HasMaxLength(3);
+            });
+
+            modelBuilder.Entity<HMS.API.Domain.Lab.LabRequest>(b =>
+            {
+                b.HasKey(r => r.Id);
+                b.HasMany(r => r.Items).WithOne(i => i.LabRequest).HasForeignKey(i => i.LabRequestId);
+            });
+
+            modelBuilder.Entity<HMS.API.Domain.Lab.LabRequestItem>(b =>
+            {
+                b.HasKey(i => i.Id);
+                b.Property(i => i.Price).HasColumnType("decimal(18,2)");
+                b.Property(i => i.Currency).HasMaxLength(3);
+                b.HasOne(i => i.LabTest).WithMany().HasForeignKey(i => i.LabTestId);
             });
 
             // Apply global query filter for soft-delete
