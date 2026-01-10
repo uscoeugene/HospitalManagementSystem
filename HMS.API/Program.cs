@@ -84,7 +84,7 @@ builder.Services.AddAuthorization(options =>
 });
 
 // Middleware
-builder.Services.AddTransient<CurrentUserMiddleware>();
+//builder.Services.AddTransient<CurrentUserMiddleware>();
 
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
@@ -136,8 +136,8 @@ if (app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 
 app.UseAuthentication();
-app.UseMiddleware<CurrentUserMiddleware>();
 app.UseAuthorization();
+app.UseMiddleware<CurrentUserMiddleware>();
 
 app.MapControllers();
 app.MapHub<NotificationHub>("/hubs/notifications");
