@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using HMS.API.Infrastructure.Outbox;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -27,9 +28,18 @@ builder.Services.AddScoped<IAuthService, AuthService>();
 // Patient service
 builder.Services.AddScoped<HMS.API.Application.Patient.IPatientService, HMS.API.Application.Patient.PatientService>();
 
+// Billing service
+builder.Services.AddScoped<HMS.API.Application.Billing.IBillingService, HMS.API.Application.Billing.BillingService>();
+
 // Current user
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
+
+// Event publisher
+builder.Services.AddSingleton<IEventPublisher, HMS.API.Infrastructure.Common.EventPublisher>();
+
+// register outbox processor
+builder.Services.AddHostedService<OutboxProcessor>();
 
 // Authentication - JWT
 var jwtKey = builder.Configuration["Jwt:Key"] ?? "dev-insecure-key-change";
@@ -108,3 +118,5 @@ app.UseAuthorization();
 app.MapControllers();
 
 app.Run();
+
+// Note: RabbitMQ URL can be set via configuration key RabbitMq:Url or env RABBITMQ__URL

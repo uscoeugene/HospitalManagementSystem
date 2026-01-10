@@ -20,8 +20,11 @@ namespace HMS.API.Infrastructure.Auth
             var permAuthLogin = new Permission { Code = "auth.login", Description = "Login" };
             var permPatientsManage = new Permission { Code = "patients.manage", Description = "Manage patients" };
             var permPatientsView = new Permission { Code = "patients.view", Description = "View patients" };
+            var permBillingCreate = new Permission { Code = "billing.create", Description = "Create invoices" };
+            var permBillingView = new Permission { Code = "billing.view", Description = "View invoices" };
+            var permBillingApply = new Permission { Code = "billing.applypayment", Description = "Apply payments to invoices" };
 
-            db.Permissions.AddRange(permManageUsers, permManageRoles, permAuthLogin, permPatientsManage, permPatientsView);
+            db.Permissions.AddRange(permManageUsers, permManageRoles, permAuthLogin, permPatientsManage, permPatientsView, permBillingCreate, permBillingView, permBillingApply);
 
             // create roles
             var adminRole = new Role { Name = "Admin", Description = "Administrator" };
@@ -37,6 +40,9 @@ namespace HMS.API.Infrastructure.Auth
             db.RolePermissions.Add(new RolePermission { Role = adminRole, Permission = permAuthLogin });
             db.RolePermissions.Add(new RolePermission { Role = adminRole, Permission = permPatientsManage });
             db.RolePermissions.Add(new RolePermission { Role = adminRole, Permission = permPatientsView });
+            db.RolePermissions.Add(new RolePermission { Role = adminRole, Permission = permBillingCreate });
+            db.RolePermissions.Add(new RolePermission { Role = adminRole, Permission = permBillingView });
+            db.RolePermissions.Add(new RolePermission { Role = adminRole, Permission = permBillingApply });
 
             await db.SaveChangesAsync();
 

@@ -2,20 +2,34 @@ using System;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using HMS.API.Application.Common;
 using HMS.API.Domain.Common;
 using Microsoft.EntityFrameworkCore;
 using HMS.API.Domain.Patient;
+using HMS.API.Domain.Billing;
 
 namespace HMS.API.Infrastructure.Persistence
 {
     public class HmsDbContext : DbContext
     {
-        public HmsDbContext(DbContextOptions<HmsDbContext> options) : base(options)
+        private readonly ICurrentUserService? _currentUserService;
+
+        public HmsDbContext(DbContextOptions<HmsDbContext> options, ICurrentUserService? currentUserService = null) : base(options)
         {
+            _currentUserService = currentUserService;
         }
 
         public DbSet<Patient> Patients { get; set; } = null!;
         public DbSet<Visit> Visits { get; set; } = null!;
+
+        // Billing
+        public DbSet<Invoice> Invoices { get; set; } = null!;
+        public DbSet<InvoiceItem> InvoiceItems { get; set; } = null!;
+        public DbSet<InvoicePayment> InvoicePayments { get; set; } = null!;
+        public DbSet<BillingAudit> BillingAudits { get; set; } = null!;
+
+        // Outbox
+        public DbSet<OutboxMessage> OutboxMessages { get; set; } = null!;
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -37,6 +51,52 @@ namespace HMS.API.Infrastructure.Persistence
                 b.Property(v => v.VisitType).HasMaxLength(100);
                 b.Property(v => v.Notes).HasMaxLength(2000);
                 b.HasOne(v => v.Patient).WithMany(p => p.Visits).HasForeignKey(v => v.PatientId);
+            });
+
+            // Billing mappings
+            modelBuilder.Entity<Invoice>(b =>
+            {
+                b.HasKey(i => i.Id);
+                b.Property(i => i.InvoiceNumber).IsRequired().HasMaxLength(100);
+                b.Property(i => i.TotalAmount).HasColumnType("decimal(18,2)");
+                b.Property(i => i.AmountPaid).HasColumnType("decimal(18,2)");
+                b.Property(i => i.Currency).IsRequired().HasMaxLength(3);
+                b.HasMany(i => i.Items).WithOne(it => it.Invoice).HasForeignKey(it => it.InvoiceId);
+                b.HasMany(i => i.Payments).WithOne(p => p.Invoice).HasForeignKey(p => p.InvoiceId);
+            });
+
+            modelBuilder.Entity<InvoiceItem>(b =>
+            {
+                b.HasKey(ii => ii.Id);
+                b.Property(ii => ii.Description).HasMaxLength(1000);
+                b.Property(ii => ii.UnitPrice).HasColumnType("decimal(18,2)");
+                b.Property(ii => ii.Quantity);
+                b.HasOne(ii => ii.Invoice).WithMany(i => i.Items).HasForeignKey(ii => ii.InvoiceId);
+            });
+
+            modelBuilder.Entity<InvoicePayment>(b =>
+            {
+                b.HasKey(ip => ip.Id);
+                b.Property(ip => ip.Amount).HasColumnType("decimal(18,2)");
+                b.Property(ip => ip.ExternalReference).HasMaxLength(500);
+                b.HasOne(ip => ip.Invoice).WithMany(i => i.Payments).HasForeignKey(ip => ip.InvoiceId);
+            });
+
+            modelBuilder.Entity<BillingAudit>(b =>
+            {
+                b.HasKey(a => a.Id);
+                b.Property(a => a.Action).IsRequired().HasMaxLength(200);
+                b.Property(a => a.Details).HasMaxLength(1000);
+            });
+
+            modelBuilder.Entity<OutboxMessage>(b =>
+            {
+                b.HasKey(o => o.Id);
+                b.Property(o => o.Type).IsRequired().HasMaxLength(200);
+                b.Property(o => o.Content).IsRequired();
+                b.Property(o => o.OccurredAt).IsRequired();
+                b.Property(o => o.ProcessedAt);
+                b.Property(o => o.Attempts);
             });
 
             // Apply global query filter for soft-delete
@@ -84,6 +144,7 @@ namespace HMS.API.Infrastructure.Persistence
         {
             var entries = ChangeTracker.Entries<BaseEntity>();
             var now = DateTimeOffset.UtcNow;
+            var userId = _currentUserService?.UserId;
 
             foreach (var entry in entries)
             {
@@ -91,18 +152,18 @@ namespace HMS.API.Infrastructure.Persistence
                 {
                     case EntityState.Added:
                         entry.Entity.CreatedAt = now;
-                        // CreatedBy should be set by application/service layer before SaveChanges
+                        if (userId.HasValue) entry.Entity.CreatedBy = userId.Value;
                         break;
                     case EntityState.Modified:
                         entry.Entity.UpdatedAt = now;
-                        // UpdatedBy should be set by application/service layer before SaveChanges
+                        if (userId.HasValue) entry.Entity.UpdatedBy = userId.Value;
                         break;
                     case EntityState.Deleted:
                         // Convert hard delete to soft delete
                         entry.State = EntityState.Modified;
                         entry.Entity.IsDeleted = true;
                         entry.Entity.DeletedAt = now;
-                        // DeletedBy should be set by application/service layer before SaveChanges
+                        if (userId.HasValue) entry.Entity.DeletedBy = userId.Value;
                         break;
                 }
             }
