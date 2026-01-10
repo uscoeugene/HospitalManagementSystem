@@ -23,14 +23,18 @@ namespace HMS.API.Infrastructure.Auth
             var permBillingCreate = new Permission { Code = "billing.create", Description = "Create invoices" };
             var permBillingView = new Permission { Code = "billing.view", Description = "View invoices" };
             var permBillingApply = new Permission { Code = "billing.applypayment", Description = "Apply payments to invoices" };
+            var permBillingExport = new Permission { Code = "billing.export", Description = "Export invoices" };
+            var permPaymentsCreate = new Permission { Code = "payments.create", Description = "Create payments (cashier)" };
+            var permPaymentsView = new Permission { Code = "payments.view", Description = "View payments" };
 
-            db.Permissions.AddRange(permManageUsers, permManageRoles, permAuthLogin, permPatientsManage, permPatientsView, permBillingCreate, permBillingView, permBillingApply);
+            db.Permissions.AddRange(permManageUsers, permManageRoles, permAuthLogin, permPatientsManage, permPatientsView, permBillingCreate, permBillingView, permBillingApply, permBillingExport, permPaymentsCreate, permPaymentsView);
 
             // create roles
             var adminRole = new Role { Name = "Admin", Description = "Administrator" };
             var userRole = new Role { Name = "User", Description = "Default user" };
+            var cashierRole = new Role { Name = "Cashier", Description = "Cashier role for payments" };
 
-            db.Roles.AddRange(adminRole, userRole);
+            db.Roles.AddRange(adminRole, userRole, cashierRole);
 
             await db.SaveChangesAsync();
 
@@ -43,6 +47,14 @@ namespace HMS.API.Infrastructure.Auth
             db.RolePermissions.Add(new RolePermission { Role = adminRole, Permission = permBillingCreate });
             db.RolePermissions.Add(new RolePermission { Role = adminRole, Permission = permBillingView });
             db.RolePermissions.Add(new RolePermission { Role = adminRole, Permission = permBillingApply });
+            db.RolePermissions.Add(new RolePermission { Role = adminRole, Permission = permBillingExport });
+            db.RolePermissions.Add(new RolePermission { Role = adminRole, Permission = permPaymentsCreate });
+            db.RolePermissions.Add(new RolePermission { Role = adminRole, Permission = permPaymentsView });
+
+            // assign permissions to cashier
+            db.RolePermissions.Add(new RolePermission { Role = cashierRole, Permission = permPaymentsCreate });
+            db.RolePermissions.Add(new RolePermission { Role = cashierRole, Permission = permPaymentsView });
+            db.RolePermissions.Add(new RolePermission { Role = cashierRole, Permission = permBillingView });
 
             await db.SaveChangesAsync();
 

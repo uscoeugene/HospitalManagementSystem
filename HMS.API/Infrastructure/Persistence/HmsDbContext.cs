@@ -7,6 +7,7 @@ using HMS.API.Domain.Common;
 using Microsoft.EntityFrameworkCore;
 using HMS.API.Domain.Patient;
 using HMS.API.Domain.Billing;
+using HMS.API.Domain.Payments;
 
 namespace HMS.API.Infrastructure.Persistence
 {
@@ -30,6 +31,10 @@ namespace HMS.API.Infrastructure.Persistence
 
         // Outbox
         public DbSet<OutboxMessage> OutboxMessages { get; set; } = null!;
+        public DbSet<Payment> Payments { get; set; } = null!;
+        public DbSet<Receipt> Receipts { get; set; } = null!;
+        public DbSet<Refund> Refunds { get; set; } = null!;
+        public DbSet<RefundReversal> RefundReversals { get; set; } = null!;
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -97,6 +102,38 @@ namespace HMS.API.Infrastructure.Persistence
                 b.Property(o => o.OccurredAt).IsRequired();
                 b.Property(o => o.ProcessedAt);
                 b.Property(o => o.Attempts);
+            });
+
+            modelBuilder.Entity<Payment>(b =>
+            {
+                b.HasKey(p => p.Id);
+                b.Property(p => p.Amount).HasColumnType("decimal(18,2)");
+                b.Property(p => p.Currency).HasMaxLength(3);
+                b.Property(p => p.Status).IsRequired();
+                b.HasOne<Receipt>().WithOne(r => r.Payment).HasForeignKey<Receipt>(r => r.PaymentId);
+            });
+
+            modelBuilder.Entity<Receipt>(b =>
+            {
+                b.HasKey(r => r.Id);
+                b.Property(r => r.ReceiptNumber).IsRequired().HasMaxLength(100);
+                b.Property(r => r.Details).HasMaxLength(2000);
+            });
+
+            modelBuilder.Entity<Refund>(b =>
+            {
+                b.HasKey(r => r.Id);
+                b.Property(r => r.Amount).HasColumnType("decimal(18,2)");
+                b.Property(r => r.Reason).HasMaxLength(1000);
+                b.HasOne(r => r.Payment).WithMany().HasForeignKey(r => r.PaymentId);
+            });
+
+            modelBuilder.Entity<RefundReversal>(b =>
+            {
+                b.HasKey(r => r.Id);
+                b.Property(r => r.ProcessedAt).IsRequired();
+                b.Property(r => r.Reason).HasMaxLength(1000);
+                b.HasOne(r => r.Refund).WithMany().HasForeignKey(r => r.RefundId);
             });
 
             // Apply global query filter for soft-delete
