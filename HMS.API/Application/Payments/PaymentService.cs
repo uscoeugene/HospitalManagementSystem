@@ -49,6 +49,7 @@ namespace HMS.API.Application.Payments
                 _db.Payments.Add(payment);
 
                 // update invoice: amountPaid and status
+                var prevStatus = invoice.Status;
                 invoice.AmountPaid += payment.Amount;
                 if (invoice.AmountPaid >= invoice.TotalAmount) invoice.Status = Domain.Billing.InvoiceStatus.PAID;
                 else if (invoice.AmountPaid > 0) invoice.Status = Domain.Billing.InvoiceStatus.PARTIAL;
@@ -68,6 +69,25 @@ namespace HMS.API.Application.Payments
 
                 await _db.SaveChangesAsync();
                 await tx.CommitAsync();
+
+                // publish outbox events for payment and invoice status change
+                try
+                {
+                    var paymentEvent = new { PaymentId = payment.Id, InvoiceId = payment.InvoiceId, Amount = payment.Amount, PatientId = payment.PatientId };
+                    _db.OutboxMessages.Add(new OutboxMessage { Type = "PaymentCreated", Content = JsonSerializer.Serialize(paymentEvent), OccurredAt = DateTimeOffset.UtcNow });
+
+                    if (prevStatus.ToString() != invoice.Status.ToString())
+                    {
+                        var invEvent = new HMS.API.Application.Billing.InvoiceStatusChangedEvent { InvoiceId = invoice.Id, NewStatus = invoice.Status.ToString() };
+                        _db.OutboxMessages.Add(new OutboxMessage { Type = nameof(HMS.API.Application.Billing.InvoiceStatusChangedEvent), Content = JsonSerializer.Serialize(invEvent), OccurredAt = DateTimeOffset.UtcNow });
+                    }
+
+                    await _db.SaveChangesAsync();
+                }
+                catch
+                {
+                    // do not fail the payment if outbox write fails; it will be retried via other mechanisms
+                }
 
                 return new PaymentDto
                 {

@@ -104,12 +104,35 @@ namespace HMS.API.Infrastructure.Outbox
                                         }
                                     }
                                 }
-                                else if (string.Equals(message.Type, "LabInvoiceCreated", StringComparison.OrdinalIgnoreCase) || string.Equals(message.Type, "InvoiceStatusChangedEvent", StringComparison.OrdinalIgnoreCase))
+                                else if (string.Equals(message.Type, "LabInvoiceCreated", StringComparison.OrdinalIgnoreCase))
                                 {
                                     groups.Add("lab");
                                     if (doc != null && doc.RootElement.TryGetProperty("PatientId", out var pid2) && pid2.ValueKind == JsonValueKind.String)
                                     {
                                         groups.Add($"patient-{pid2.GetString()}");
+                                    }
+                                }
+                                else if (string.Equals(message.Type, "InvoiceStatusChangedEvent", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    // invoice status changes are relevant to billing UI and the patient
+                                    groups.Add("billing");
+                                    if (doc != null && doc.RootElement.TryGetProperty("InvoiceId", out var invIdElem) && invIdElem.ValueKind == JsonValueKind.String)
+                                    {
+                                        if (Guid.TryParse(invIdElem.GetString(), out var invId))
+                                        {
+                                            var inv = await db.Invoices.AsNoTracking().SingleOrDefaultAsync(i => i.Id == invId, stoppingToken);
+                                            if (inv != null) groups.Add($"patient-{inv.PatientId}");
+                                        }
+                                    }
+                                }
+                                else if (string.Equals(message.Type, "PaymentCreated", StringComparison.OrdinalIgnoreCase) || string.Equals(message.Type, "PaymentRefunded", StringComparison.OrdinalIgnoreCase) || string.Equals(message.Type, "RefundReversed", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    // payments go to billing/cashier and patient
+                                    groups.Add("billing");
+                                    groups.Add("cashier");
+                                    if (doc != null && doc.RootElement.TryGetProperty("PatientId", out var pid3) && pid3.ValueKind == JsonValueKind.String)
+                                    {
+                                        groups.Add($"patient-{pid3.GetString()}");
                                     }
                                 }
                                 else
