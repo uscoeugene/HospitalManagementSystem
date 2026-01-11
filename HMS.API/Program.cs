@@ -26,6 +26,9 @@ builder.Services.AddDbContext<HmsDbContext>(options => options.UseSqlServer(conn
 builder.Services.AddScoped<IPasswordHasher, PasswordHasher>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 
+// Profile service registration (uses HmsDbContext)
+builder.Services.AddScoped<HMS.API.Application.Profile.IProfileService, HMS.API.Application.Profile.ProfileService>();
+
 // Patient service
 builder.Services.AddScoped<HMS.API.Application.Patient.IPatientService, HMS.API.Application.Patient.PatientService>();
 

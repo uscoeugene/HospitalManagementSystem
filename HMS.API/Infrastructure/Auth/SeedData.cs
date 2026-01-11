@@ -45,6 +45,13 @@ namespace HMS.API.Infrastructure.Auth
 
             db.Permissions.AddRange(permPharmView, permPharmManage, permPharmCreate, permPharmDispense);
 
+            // profile permissions
+            var permProfileRead = new Permission { Code = "PROFILE.READ", Description = "Read user profiles" };
+            var permProfileUpdate = new Permission { Code = "PROFILE.UPDATE", Description = "Update user profiles" };
+            var permProfileManage = new Permission { Code = "PROFILE.MANAGE", Description = "Manage user profiles" };
+
+            db.Permissions.AddRange(permProfileRead, permProfileUpdate, permProfileManage);
+
             // create roles
             var adminRole = new Role { Name = "Admin", Description = "Administrator" };
             var userRole = new Role { Name = "User", Description = "Default user" };
@@ -76,6 +83,9 @@ namespace HMS.API.Infrastructure.Auth
             db.RolePermissions.Add(new RolePermission { Role = adminRole, Permission = permPharmManage });
             db.RolePermissions.Add(new RolePermission { Role = adminRole, Permission = permPharmCreate });
             db.RolePermissions.Add(new RolePermission { Role = adminRole, Permission = permPharmDispense });
+            db.RolePermissions.Add(new RolePermission { Role = adminRole, Permission = permProfileRead });
+            db.RolePermissions.Add(new RolePermission { Role = adminRole, Permission = permProfileUpdate });
+            db.RolePermissions.Add(new RolePermission { Role = adminRole, Permission = permProfileManage });
 
             // assign permissions to cashier
             db.RolePermissions.Add(new RolePermission { Role = cashierRole, Permission = permPaymentsCreate });
@@ -106,6 +116,20 @@ namespace HMS.API.Infrastructure.Auth
             await db.SaveChangesAsync();
 
             db.UserRoles.Add(new UserRole { User = admin, Role = adminRole });
+            await db.SaveChangesAsync();
+
+            // create regular user for tests
+            var user = new User
+            {
+                Username = "user",
+                Email = "user@localhost",
+                PasswordHash = hasher.Hash("User@12345")
+            };
+
+            db.Users.Add(user);
+            await db.SaveChangesAsync();
+
+            db.UserRoles.Add(new UserRole { User = user, Role = userRole });
             await db.SaveChangesAsync();
         }
     }

@@ -8,6 +8,8 @@ using Microsoft.EntityFrameworkCore;
 using HMS.API.Domain.Patient;
 using HMS.API.Domain.Billing;
 using HMS.API.Domain.Payments;
+using HMS.API.Domain.Profile;
+using HMS.API.Infrastructure.Persistence;
 
 namespace HMS.API.Infrastructure.Persistence
 {
@@ -47,6 +49,9 @@ namespace HMS.API.Infrastructure.Persistence
         public DbSet<HMS.API.Domain.Pharmacy.PrescriptionItem> PrescriptionItems { get; set; } = null!;
         public DbSet<HMS.API.Domain.Pharmacy.DispenseLog> DispenseLogs { get; set; } = null!;
         public DbSet<HMS.API.Domain.Pharmacy.Reservation> Reservations { get; set; } = null!;
+
+        // Profiles - integrated into the main HMS DB
+        public DbSet<UserProfile> UserProfiles { get; set; } = null!;
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -211,6 +216,16 @@ namespace HMS.API.Infrastructure.Persistence
                 b.Property(r => r.ExpiresAt).IsRequired();
                 b.Property(r => r.Processed).HasDefaultValue(false);
                 b.Property(r => r.CreatedAt).IsRequired();
+            });
+
+            // Profile mappings
+            modelBuilder.Entity<UserProfile>(b =>
+            {
+                b.HasKey(p => p.Id);
+                b.Property(p => p.FirstName).IsRequired().HasMaxLength(200);
+                b.Property(p => p.LastName).IsRequired().HasMaxLength(200);
+                b.Property(p => p.Email).IsRequired().HasMaxLength(320);
+                b.HasIndex(p => p.UserId).IsUnique();
             });
 
             // Apply global query filter for soft-delete
