@@ -49,6 +49,7 @@ namespace HMS.API.Infrastructure.Persistence
         public DbSet<HMS.API.Domain.Pharmacy.PrescriptionItem> PrescriptionItems { get; set; } = null!;
         public DbSet<HMS.API.Domain.Pharmacy.DispenseLog> DispenseLogs { get; set; } = null!;
         public DbSet<HMS.API.Domain.Pharmacy.Reservation> Reservations { get; set; } = null!;
+        public DbSet<HMS.API.Domain.Pharmacy.InventoryItem> InventoryItems { get; set; } = null!;
 
         // Profiles - integrated into the main HMS DB
         public DbSet<UserProfile> UserProfiles { get; set; } = null!;
@@ -214,6 +215,18 @@ namespace HMS.API.Infrastructure.Persistence
                 b.Property(d => d.Currency).HasMaxLength(3);
                 b.Property(d => d.ReservedStock).HasDefaultValue(0);
                 b.HasIndex(d => d.Code);
+            });
+
+            modelBuilder.Entity<HMS.API.Domain.Pharmacy.InventoryItem>(b =>
+            {
+                b.HasKey(i => i.Id);
+                b.Property(i => i.Code).IsRequired().HasMaxLength(100);
+                b.Property(i => i.Name).IsRequired().HasMaxLength(200);
+                b.Property(i => i.UnitPrice).HasColumnType("decimal(18,2)");
+                b.Property(i => i.Currency).HasMaxLength(3);
+                b.Property(i => i.Category).HasMaxLength(100);
+                b.HasIndex(i => i.Code);
+                b.HasIndex(i => i.Category);
             });
 
             modelBuilder.Entity<HMS.API.Domain.Pharmacy.Prescription>(b =>

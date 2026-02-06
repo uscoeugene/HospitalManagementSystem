@@ -40,10 +40,12 @@ namespace HMS.API.Infrastructure.Auth
             // pharmacy permissions
             var permPharmView = new Permission { Code = "pharmacy.view", Description = "View drugs and prescriptions" };
             var permPharmManage = new Permission { Code = "pharmacy.manage", Description = "Manage drug catalog" };
+            var permPharmInventory = new Permission { Code = "pharmacy.inventory.manage", Description = "Manage pharmacy inventory" };
+            var permPharmDelete = new Permission { Code = "pharmacy.delete", Description = "Delete pharmacy items (soft delete)" };
             var permPharmCreate = new Permission { Code = "pharmacy.create", Description = "Create prescriptions" };
             var permPharmDispense = new Permission { Code = "pharmacy.dispense", Description = "Dispense medications" };
 
-            db.Permissions.AddRange(permPharmView, permPharmManage, permPharmCreate, permPharmDispense);
+            db.Permissions.AddRange(permPharmView, permPharmManage, permPharmInventory, permPharmDelete, permPharmCreate, permPharmDispense);
 
             // profile permissions
             var permProfileRead = new Permission { Code = "PROFILE.READ", Description = "Read user profiles" };
@@ -119,6 +121,9 @@ namespace HMS.API.Infrastructure.Auth
             db.RolePermissions.Add(new RolePermission { Role = pharmRole, Permission = permPharmView });
             db.RolePermissions.Add(new RolePermission { Role = pharmRole, Permission = permPharmCreate });
             db.RolePermissions.Add(new RolePermission { Role = pharmRole, Permission = permPharmDispense });
+            db.RolePermissions.Add(new RolePermission { Role = pharmRole, Permission = permPharmManage });
+            db.RolePermissions.Add(new RolePermission { Role = pharmRole, Permission = permPharmInventory });
+            db.RolePermissions.Add(new RolePermission { Role = pharmRole, Permission = permPharmDelete });
             // grant pharmacist credit permission
             db.RolePermissions.Add(new RolePermission { Role = pharmRole, Permission = permPharmDispenseOnCredit });
 

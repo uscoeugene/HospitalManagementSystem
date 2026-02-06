@@ -55,6 +55,9 @@ builder.Services.AddScoped<HMS.API.Application.Lab.ILabService, HMS.API.Applicat
 // Pharmacy service
 builder.Services.AddScoped<HMS.API.Application.Pharmacy.IPharmacyService, HMS.API.Application.Pharmacy.PharmacyService>();
 
+// Inventory service
+builder.Services.AddScoped<HMS.API.Application.Pharmacy.IInventoryService, HMS.API.Application.Pharmacy.InventoryService>();
+
 // Current user
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
@@ -177,6 +180,7 @@ app.UseAuthorization();
 app.UseMiddleware<CurrentUserMiddleware>();
 
 app.MapControllers();
+// Map inventory controller endpoints via attribute routing
 app.MapHub<NotificationHub>("/hubs/notifications");
 
 app.Run();

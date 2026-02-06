@@ -466,37 +466,37 @@ namespace HMS.API.Application.Billing
 
             return await byPatient.ToListAsync();
         }
-        public async Task<IEnumerable<DTOs.PaymentResultDto>> PayMultipleDebtsAsync(IEnumerable<DTOs.PayDebtRequest> requests)
+        public async Task<IEnumerable<DTOs.DebtPaymentResultDto>> PayMultipleDebtsAsync(IEnumerable<DTOs.BatchPayDebtRequest> requests)
         {
             using var tx = await _db.Database.BeginTransactionAsync();
             try
             {
-                var results = new List<DTOs.PaymentResultDto>();
+                var results = new List<DTOs.DebtPaymentResultDto>();
                 foreach (var req in requests)
                 {
                     var debt = await _db.DebtorEntries.SingleOrDefaultAsync(d => d.Id == req.DebtId && !d.IsDeleted);
                     if (debt == null)
                     {
-                        results.Add(new DTOs.PaymentResultDto { DebtId = req.DebtId, Success = false, Message = "Debt not found" });
+                        results.Add(new DTOs.DebtPaymentResultDto { DebtId = req.DebtId, Success = false, Message = "Debt not found" });
                         continue;
                     }
                     if (debt.IsResolved)
                     {
-                        results.Add(new DTOs.PaymentResultDto { DebtId = req.DebtId, Success = false, Message = "Debt already resolved" });
+                        results.Add(new DTOs.DebtPaymentResultDto { DebtId = req.DebtId, Success = false, Message = "Debt already resolved" });
                         continue;
                     }
 
                     var toApply = Math.Min(debt.AmountOwed, req.Amount);
                     if (toApply <= 0)
                     {
-                        results.Add(new DTOs.PaymentResultDto { DebtId = req.DebtId, Success = false, Message = "Invalid amount" });
+                        results.Add(new DTOs.DebtPaymentResultDto { DebtId = req.DebtId, Success = false, Message = "Invalid amount" });
                         continue;
                     }
 
                     var invoice = await _db.Invoices.SingleOrDefaultAsync(i => i.Id == debt.InvoiceId);
                     if (invoice == null)
                     {
-                        results.Add(new DTOs.PaymentResultDto { DebtId = req.DebtId, Success = false, Message = "Linked invoice not found" });
+                        results.Add(new DTOs.DebtPaymentResultDto { DebtId = req.DebtId, Success = false, Message = "Linked invoice not found" });
                         continue;
                     }
 
@@ -533,7 +533,7 @@ namespace HMS.API.Application.Billing
                     if (invoice.AmountPaid >= invoice.TotalAmount) invoice.Status = InvoiceStatus.PAID;
                     else if (invoice.AmountPaid > 0) invoice.Status = InvoiceStatus.PARTIAL;
 
-                    results.Add(new DTOs.PaymentResultDto { DebtId = debt.Id, Success = true, Message = "Paid", AppliedAmount = toApply });
+                    results.Add(new DTOs.DebtPaymentResultDto { DebtId = debt.Id, Success = true, Message = "Paid", AppliedAmount = toApply });
                 }
 
                 await _db.SaveChangesAsync();

@@ -155,7 +155,7 @@ namespace HMS.API.Controllers
 
         [HttpPost("debts/pay-batch")]
         [HasPermission("billing.manage")]
-        public async Task<ActionResult> PayDebtsBatch([FromBody] PayDebtRequest[] reqs)
+        public async Task<ActionResult> PayDebtsBatch([FromBody] BatchPayDebtRequest[] reqs)
         {
             var results = await _billing.PayMultipleDebtsAsync(reqs);
             return Ok(results);

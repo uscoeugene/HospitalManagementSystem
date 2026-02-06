@@ -23,7 +23,7 @@ namespace HMS.API.Application.Billing
         Task<PagedResult<DTOs.DebtDto>> ListDebtsPagedAsync(Guid? invoiceId = null, Guid? patientId = null, bool unresolvedOnly = true, int page = 1, int pageSize = 20);
         Task ResolveDebtAsync(Guid debtId);
         Task PayDebtAsync(Guid debtId, decimal amount, string? externalReference = null);
-        Task<IEnumerable<DTOs.PaymentResultDto>> PayMultipleDebtsAsync(IEnumerable<DTOs.PayDebtRequest> requests);
+        Task<IEnumerable<DTOs.DebtPaymentResultDto>> PayMultipleDebtsAsync(IEnumerable<DTOs.BatchPayDebtRequest> requests);
 
         // Reporting
         Task<IEnumerable<DTOs.DebtAgingDto>> GetDebtAgingReportAsync(int daysBucket = 30);
