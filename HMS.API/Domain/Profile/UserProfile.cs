@@ -3,10 +3,10 @@ using HMS.API.Domain.Common;
 
 namespace HMS.API.Domain.Profile
 {
-    /// <summary>
-    /// Aggregate root for user profile data.
-    /// Id is the PK (GUID). UserId is the canonical identifier issued by Auth Service and must be unique.
-    /// </summary>
+    // <summary>
+    // Aggregate root for user profile data.
+    // Id is the PK (GUID). UserId is the canonical identifier issued by Auth Service and must be unique.
+    // </summary>
     public class UserProfile : BaseEntity
     {
         // Canonical identifier from Auth Service (GUID). Must be unique across profiles.

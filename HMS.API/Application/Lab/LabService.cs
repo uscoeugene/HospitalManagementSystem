@@ -9,6 +9,8 @@ using Microsoft.EntityFrameworkCore;
 using HMS.API.Application.Common;
 using HMS.API.Domain.Lab;
 using System.Collections.Generic;
+using HMS.API.Domain.Billing;
+using System.Text.Json;
 
 namespace HMS.API.Application.Lab
 {
@@ -16,11 +18,13 @@ namespace HMS.API.Application.Lab
     {
         private readonly HmsDbContext _db;
         private readonly IBillingService _billing;
+        private readonly ICurrentUserService _currentUserService;
 
-        public LabService(HmsDbContext db, IBillingService billing)
+        public LabService(HmsDbContext db, IBillingService billing, ICurrentUserService currentUserService)
         {
             _db = db;
             _billing = billing;
+            _currentUserService = currentUserService;
         }
 
         public async Task<LabTestDto[]> ListTestsAsync()
@@ -44,7 +48,7 @@ namespace HMS.API.Application.Lab
             {
                 var invoiceDto = await _billing.ListInvoicesAsync(null, request.VisitId.Value, null, 1, 1);
                 var invoice = invoiceDto.Items.FirstOrDefault();
-                if (invoice != null && invoice.Status != "PAID") throw new InvalidOperationException("Invoice for visit must be paid before processing lab request");
+                if (invoice != null && invoice.Status != "PAID" && !request.AllowOnCredit) throw new InvalidOperationException("Invoice for visit must be paid before processing lab request");
             }
 
             using var tx = await _db.Database.BeginTransactionAsync();
@@ -77,6 +81,30 @@ namespace HMS.API.Application.Lab
                     if (matched != null)
                     {
                         li.ChargeInvoiceItemId = matched.Id;
+
+                        // If invoice is unpaid and AllowOnCredit is true, create DebtorEntry
+                        var inv = await _db.Invoices.Include(i => i.Items).Include(i => i.Payments).Where(i => i.Items.Any(ii => ii.Id == matched.Id)).OrderByDescending(i => i.CreatedAt).FirstOrDefaultAsync();
+                        if (inv != null && inv.Status != Domain.Billing.InvoiceStatus.PAID && request.AllowOnCredit)
+                        {
+                            if (!(_currentUserService.HasPermission("lab.charge.credit")))
+                            {
+                                throw new InvalidOperationException("Insufficient permissions to charge lab on credit");
+                            }
+
+                            var userId = _currentUserService.UserId ?? Guid.Empty;
+                            _db.BillingAudits.Add(new Domain.Billing.BillingAudit { UserId = userId, Action = "LabChargeOnCredit", Details = $"Lab item {li.Id} charged on credit for Invoice {inv.InvoiceNumber}. Reason: {request.CreditReason}" });
+
+                            var debtor = new DebtorEntry
+                            {
+                                InvoiceId = inv.Id,
+                                SourceItemId = li.Id,
+                                SourceType = "lab",
+                                AmountOwed = li.Price,
+                                Reason = request.CreditReason,
+                                CreatedBy = userId
+                            };
+                            _db.DebtorEntries.Add(debtor);
+                        }
                     }
                 }
 

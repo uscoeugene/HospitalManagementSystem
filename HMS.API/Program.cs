@@ -11,6 +11,10 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using HMS.API.Infrastructure.Outbox;
 using HMS.API.Hubs;
+using Microsoft.Extensions.Caching.StackExchangeRedis;
+using Microsoft.OpenApi.Models;
+using Swashbuckle.AspNetCore.SwaggerGen;
+using System.Reflection;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -25,6 +29,13 @@ builder.Services.AddDbContext<HmsDbContext>(options => options.UseSqlServer(conn
 // Application services
 builder.Services.AddScoped<IPasswordHasher, PasswordHasher>();
 builder.Services.AddScoped<IAuthService, AuthService>();
+
+// Reporting services
+builder.Services.AddScoped<HMS.API.Application.Patient.IPatientReportService, HMS.API.Application.Patient.PatientReportService>();
+builder.Services.AddScoped<HMS.API.Application.Profile.IProfileReportService, HMS.API.Application.Profile.ProfileReportService>();
+builder.Services.AddScoped<HMS.API.Application.Billing.IBillingReportService, HMS.API.Application.Billing.BillingReportService>();
+builder.Services.AddScoped<HMS.API.Application.Pharmacy.IPharmacyReportService, HMS.API.Application.Pharmacy.PharmacyReportService>();
+builder.Services.AddScoped<HMS.API.Application.Lab.ILabReportService, HMS.API.Application.Lab.LabReportService>();
 
 // Profile service registration (uses HmsDbContext)
 builder.Services.AddScoped<HMS.API.Application.Profile.IProfileService, HMS.API.Application.Profile.ProfileService>();
@@ -91,7 +102,20 @@ builder.Services.AddAuthorization(options =>
 
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+
+// Add clean Swagger setup
+builder.Services.AddSwaggerGen(c =>
+{
+    c.SwaggerDoc("v1", new OpenApiInfo { Title = "HMS.API", Version = "v1", Description = "Hospital Management System API" });
+    // avoid duplicate schema id collisions
+    c.CustomSchemaIds(type => type.FullName!.Replace("+", "."));
+
+    // Add simple example responses for a few endpoints via operation filter
+    c.OperationFilter<SimpleResponseExamplesFilter>();
+});
+
+// register the operation filter
+builder.Services.AddTransient<SimpleResponseExamplesFilter>();
 
 // Notification service
 builder.Services.AddSingleton<HMS.API.Application.Common.INotificationService, HMS.API.Infrastructure.Common.NotificationService>();
@@ -106,6 +130,15 @@ builder.Services.AddHostedService<HMS.API.Infrastructure.Pharmacy.ReservationCle
 builder.Services.AddHttpClient<HMS.API.Application.Sync.ICloudSyncClient, HMS.API.Infrastructure.Sync.CloudSyncClient>();
 builder.Services.AddScoped<HMS.API.Application.Sync.ISyncManager, HMS.API.Infrastructure.Sync.SyncManager>();
 builder.Services.AddHostedService<HMS.API.Infrastructure.Sync.BackgroundSyncService>();
+
+// Distributed cache (Redis) for reporting caches. Configure via ConnectionStrings:Redis or set REDIS__CONFIG env.
+var redisConfig = builder.Configuration.GetConnectionString("Redis") ?? builder.Configuration["Redis:Configuration"];
+if (!string.IsNullOrWhiteSpace(redisConfig))
+{
+    builder.Services.AddStackExchangeRedisCache(options => { options.Configuration = redisConfig; });
+    // register aggregator service to precompute heavy aggregates
+    builder.Services.AddHostedService<HMS.API.Infrastructure.Reporting.ReportingAggregatorService>();
+}
 
 var app = builder.Build();
 
@@ -129,12 +162,13 @@ using (var scope = app.Services.CreateScope())
     }
 }
 
-// Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
+// Enable Swagger middleware
+app.UseSwagger();
+app.UseSwaggerUI(c =>
 {
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
+    c.SwaggerEndpoint("/swagger/v1/swagger.json", "HMS.API v1");
+    c.DocumentTitle = "HMS.API Swagger UI";
+});
 
 app.UseHttpsRedirection();
 
@@ -147,4 +181,40 @@ app.MapHub<NotificationHub>("/hubs/notifications");
 
 app.Run();
 
-// Note: RabbitMQ URL can be set via configuration key RabbitMq:Url or env RABBITMQ__URL
+// Local operation filter providing simple example responses for a subset of endpoints
+public class SimpleResponseExamplesFilter : IOperationFilter
+{
+    public void Apply(OpenApiOperation operation, OperationFilterContext context)
+    {
+        if (operation == null || context == null) return;
+
+        var actionId = context.ApiDescription.ActionDescriptor.DisplayName ?? string.Empty;
+
+        // Provide example for billing kpi
+        if (actionId.Contains("BillingController.Kpi"))
+        {
+            operation.Responses["200"].Content["application/json"].Example = new Microsoft.OpenApi.Any.OpenApiObject
+            {
+                ["totalRevenue"] = new Microsoft.OpenApi.Any.OpenApiDouble(12345.67),
+                ["invoiceCount"] = new Microsoft.OpenApi.Any.OpenApiInteger(123),
+                ["paidCount"] = new Microsoft.OpenApi.Any.OpenApiInteger(100),
+                ["unpaidCount"] = new Microsoft.OpenApi.Any.OpenApiInteger(23),
+                ["averageInvoice"] = new Microsoft.OpenApi.Any.OpenApiDouble(100.37)
+            };
+        }
+
+        // Provide example for monthly revenue
+        if (actionId.Contains("BillingController.Monthly"))
+        {
+            operation.Responses["200"].Content["application/json"].Example = new Microsoft.OpenApi.Any.OpenApiArray
+            {
+                new Microsoft.OpenApi.Any.OpenApiObject
+                {
+                    ["year"] = new Microsoft.OpenApi.Any.OpenApiInteger(DateTime.UtcNow.Year),
+                    ["month"] = new Microsoft.OpenApi.Any.OpenApiInteger(DateTime.UtcNow.Month),
+                    ["revenue"] = new Microsoft.OpenApi.Any.OpenApiDouble(12345.00)
+                }
+            };
+        }
+    }
+}

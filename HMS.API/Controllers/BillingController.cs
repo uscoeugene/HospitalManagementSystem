@@ -15,10 +15,12 @@ namespace HMS.API.Controllers
     public class BillingController : ControllerBase
     {
         private readonly IBillingService _billing;
+        private readonly HMS.API.Application.Common.INotificationService _notifier;
 
-        public BillingController(IBillingService billing)
+        public BillingController(IBillingService billing, HMS.API.Application.Common.INotificationService notifier)
         {
             _billing = billing;
+            _notifier = notifier;
         }
 
         [HttpPost]
@@ -112,5 +114,95 @@ namespace HMS.API.Controllers
                 return BadRequest(new { error = ex.Message });
             }
         }
+
+        [HttpGet("debts")]
+        [HasPermission("billing.view")]
+        public async Task<ActionResult> ListDebts([FromQuery] Guid? invoiceId, [FromQuery] Guid? patientId, [FromQuery] bool unresolvedOnly = true, [FromQuery] int page = 1, [FromQuery] int pageSize = 20)
+        {
+            var res = await _billing.ListDebtsPagedAsync(invoiceId, patientId, unresolvedOnly, page, pageSize);
+            return Ok(res);
+        }
+
+        [HttpPost("debts/{id}/resolve")]
+        [HasPermission("billing.manage")]
+        public async Task<ActionResult> ResolveDebt(Guid id)
+        {
+            try
+            {
+                await _billing.ResolveDebtAsync(id);
+                return NoContent();
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new { error = ex.Message });
+            }
+        }
+
+        [HttpPost("debts/{id}/pay")]
+        [HasPermission("billing.manage")]
+        public async Task<ActionResult> PayDebt(Guid id, [FromBody] PaymentToDebtRequest req)
+        {
+            try
+            {
+                await _billing.PayDebtAsync(id, req.Amount, req.ExternalReference);
+                return NoContent();
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new { error = ex.Message });
+            }
+        }
+
+        [HttpPost("debts/pay-batch")]
+        [HasPermission("billing.manage")]
+        public async Task<ActionResult> PayDebtsBatch([FromBody] PayDebtRequest[] reqs)
+        {
+            var results = await _billing.PayMultipleDebtsAsync(reqs);
+            return Ok(results);
+        }
+
+        [HttpGet("debts/aging")]
+        [HasPermission("billing.view")]
+        public async Task<ActionResult> DebtAging([FromQuery] int daysBucket = 30)
+        {
+            var res = await _billing.GetDebtAgingReportAsync(daysBucket);
+            return Ok(res);
+        }
+
+        [HttpGet("debts/outstanding-by-patient")]
+        [HasPermission("billing.view")]
+        public async Task<ActionResult> OutstandingByPatient()
+        {
+            var res = await _billing.GetOutstandingByPatientAsync();
+            return Ok(res);
+        }
+
+        [HttpPost("debts/notify-overdue")]
+        [HasPermission("billing.manage")]
+        public async Task<ActionResult> NotifyOverdue([FromBody] NotifyOverdueRequest req)
+        {
+            // scan debts older than threshold and notify via notification service
+            var now = DateTimeOffset.UtcNow;
+            var debts = await _billing.ListDebtsAsync(null, true);
+            var items = debts.Where(d => (now - d.CreatedAt).TotalDays >= req.MinAgeDays).ToArray();
+            foreach (var d in items)
+            {
+                await _notifier.NotifyAsync("email", new { patientId = d.InvoiceId, debtId = d.Id, amount = d.AmountOwed });
+                // tracking notifications is done in DB within billing service if needed
+            }
+
+            return Ok(new { notified = items.Length });
+        }
+    }
+
+    public class PaymentToDebtRequest
+    {
+        public decimal Amount { get; set; }
+        public string? ExternalReference { get; set; }
+    }
+
+    public class NotifyOverdueRequest
+    {
+        public int MinAgeDays { get; set; } = 30;
     }
 }

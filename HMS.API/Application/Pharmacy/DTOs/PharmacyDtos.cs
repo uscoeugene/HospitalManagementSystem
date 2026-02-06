@@ -52,6 +52,13 @@ namespace HMS.API.Application.Pharmacy.DTOs
     {
         public Guid PrescriptionItemId { get; set; }
         public int Quantity { get; set; }
+
+        // If true, attempt to dispense even if linked invoice is unpaid or partial.
+        // Caller must have the 'pharmacy.dispense.credit' permission to use this.
+        public bool AllowOnCredit { get; set; } = false;
+
+        // Optional reason or note for allowing credit (e.g., emergency, management order)
+        public string? CreditReason { get; set; }
     }
 
     public class DispenseDto
@@ -62,5 +69,7 @@ namespace HMS.API.Application.Pharmacy.DTOs
         public Guid DispensedBy { get; set; }
         public DateTimeOffset DispensedAt { get; set; }
         public int Quantity { get; set; }
+        public bool IsOnCredit { get; set; }
+        public string? CreditReason { get; set; }
     }
 }

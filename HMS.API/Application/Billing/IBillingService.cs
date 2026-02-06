@@ -2,6 +2,7 @@ using System;
 using System.Threading.Tasks;
 using HMS.API.Application.Billing.DTOs;
 using HMS.API.Application.Common;
+using System.Collections.Generic;
 
 namespace HMS.API.Application.Billing
 {
@@ -16,6 +17,17 @@ namespace HMS.API.Application.Billing
         Task<PagedResult<InvoicePaymentDto>> ListPaymentsAsync(Guid? invoiceId = null, Guid? patientId = null, int page = 1, int pageSize = 20);
 
         Task<InvoiceDto> CreateInvoiceFromLabRequestAsync(CreateInvoiceFromLabRequest request);
+
+        // Debt APIs
+        Task<IEnumerable<DTOs.DebtDto>> ListDebtsAsync(Guid? patientId = null, bool unresolvedOnly = true);
+        Task<PagedResult<DTOs.DebtDto>> ListDebtsPagedAsync(Guid? invoiceId = null, Guid? patientId = null, bool unresolvedOnly = true, int page = 1, int pageSize = 20);
+        Task ResolveDebtAsync(Guid debtId);
+        Task PayDebtAsync(Guid debtId, decimal amount, string? externalReference = null);
+        Task<IEnumerable<DTOs.PaymentResultDto>> PayMultipleDebtsAsync(IEnumerable<DTOs.PayDebtRequest> requests);
+
+        // Reporting
+        Task<IEnumerable<DTOs.DebtAgingDto>> GetDebtAgingReportAsync(int daysBucket = 30);
+        Task<IEnumerable<DTOs.OutstandingByPatientDto>> GetOutstandingByPatientAsync();
     }
 
     public class CreateInvoiceFromLabRequest

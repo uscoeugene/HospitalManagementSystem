@@ -10,6 +10,7 @@ using HMS.API.Application.Billing;
 using HMS.API.Application.Billing.DTOs;
 using HMS.API.Domain.Common;
 using System.Text.Json;
+using HMS.API.Domain.Billing;
 
 namespace HMS.API.Application.Pharmacy
 {
@@ -131,11 +132,44 @@ namespace HMS.API.Application.Pharmacy
             if (item == null) throw new InvalidOperationException("Prescription item not found");
 
             // ensure invoice is PAID for the linked charge if exists
+            bool isOnCredit = false;
             if (item.ChargeInvoiceItemId.HasValue)
             {
                 var invoiceItemId = item.ChargeInvoiceItemId.Value;
                 var invoice = await _db.Invoices.Include(i => i.Items).Include(i => i.Payments).Where(i => i.Items.Any(ii => ii.Id == invoiceItemId)).OrderByDescending(i => i.CreatedAt).FirstOrDefaultAsync();
-                if (invoice == null || invoice.Status != Domain.Billing.InvoiceStatus.PAID) throw new InvalidOperationException("Cannot dispense: invoice for prescription item is not paid");
+                if (invoice == null) throw new InvalidOperationException("Cannot dispense: invoice for prescription item not found");
+
+                if (invoice.Status != Domain.Billing.InvoiceStatus.PAID)
+                {
+                    if (!req.AllowOnCredit)
+                    {
+                        throw new InvalidOperationException("Cannot dispense: invoice for prescription item is not paid");
+                    }
+
+                    // Check permission for dispensing on credit
+                    if (!(_currentUserService.HasPermission("pharmacy.dispense.credit")))
+                    {
+                        throw new InvalidOperationException("Insufficient permissions to dispense on credit");
+                    }
+
+                    isOnCredit = true;
+
+                    // record audit linking dispense to unpaid invoice
+                    var userId = _currentUserService.UserId ?? Guid.Empty;
+                    _db.BillingAudits.Add(new Domain.Billing.BillingAudit { UserId = userId, Action = "DispenseOnCredit", Details = $"Dispensed prescription item {item.Id} on credit for Invoice {invoice.InvoiceNumber}. Reason: {req.CreditReason}" });
+
+                    // Create a DebtorEntry to track the debt
+                    var debtor = new DebtorEntry
+                    {
+                        InvoiceId = invoice.Id,
+                        SourceItemId = item.Id,
+                        SourceType = "pharmacy",
+                        AmountOwed = item.Price * (item.Quantity - item.DispensedQuantity),
+                        Reason = req.CreditReason,
+                        CreatedBy = userId
+                    };
+                    _db.DebtorEntries.Add(debtor);
+                }
             }
 
             using var tx = await _db.Database.BeginTransactionAsync();
@@ -145,7 +179,7 @@ namespace HMS.API.Application.Pharmacy
 
                 item.Drug.Stock -= req.Quantity;
                 item.DispensedQuantity += req.Quantity;
-                item.Drug.ReservedStock -= req.Quantity;
+                item.Drug.ReservedStock = Math.Max(0, item.Drug.ReservedStock - req.Quantity);
 
                 var log = new Domain.Pharmacy.DispenseLog { PrescriptionId = item.PrescriptionId, PrescriptionItemId = item.Id, DispensedBy = _currentUserService.UserId ?? Guid.Empty, Quantity = req.Quantity };
                 _db.DispenseLogs.Add(log);
@@ -165,7 +199,7 @@ namespace HMS.API.Application.Pharmacy
                 _db.OutboxMessages.Add(outboxDispensed);
                 await _db.SaveChangesAsync();
 
-                return new DispenseDto { Id = log.Id, PrescriptionId = log.PrescriptionId, PrescriptionItemId = log.PrescriptionItemId, DispensedAt = log.DispensedAt, DispensedBy = log.DispensedBy, Quantity = log.Quantity };
+                return new DispenseDto { Id = log.Id, PrescriptionId = log.PrescriptionId, PrescriptionItemId = log.PrescriptionItemId, DispensedAt = log.DispensedAt, DispensedBy = log.DispensedBy, Quantity = log.Quantity, IsOnCredit = isOnCredit, CreditReason = req.CreditReason };
             }
             catch
             {

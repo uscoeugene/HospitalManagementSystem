@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
 
@@ -26,6 +27,14 @@ namespace HMS.API.Application.Common
                 if (Guid.TryParse(sub, out id)) return id;
                 return null;
             }
+        }
+
+        public bool HasPermission(string permission)
+        {
+            var user = _httpContextAccessor.HttpContext?.User;
+            if (user == null) return false;
+            var perms = user.Claims.Where(c => c.Type == "permission").Select(c => c.Value);
+            return perms.Contains(permission);
         }
     }
 }

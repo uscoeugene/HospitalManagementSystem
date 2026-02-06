@@ -7,11 +7,11 @@ using Microsoft.EntityFrameworkCore;
 
 namespace HMS.API.Application.Profile
 {
-    /// <summary>
-    /// Application-service implementing business rules for profiles.
-    /// Responsible for creating/updating profiles and mapping domain -> DTO.
-    /// Uses HmsDbContext (integrated) as requested.
-    /// </summary>
+    // <summary>
+    // Application-service implementing business rules for profiles.
+    // Responsible for creating/updating profiles and mapping domain -> DTO.
+    // Uses HmsDbContext (integrated) as requested.
+    // </summary>
     public class ProfileService : IProfileService
     {
         private readonly HmsDbContext _db;

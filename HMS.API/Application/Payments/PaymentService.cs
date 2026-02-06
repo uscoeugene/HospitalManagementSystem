@@ -8,6 +8,7 @@ using HMS.API.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using System.Text.Json;
 using HMS.API.Domain.Common;
+using HMS.API.Domain.Billing;
 
 namespace HMS.API.Application.Payments
 {
@@ -26,10 +27,8 @@ namespace HMS.API.Application.Payments
 
         public async Task<PaymentDto> CreatePaymentAsync(CreatePaymentRequest request)
         {
-            // only cashier roles should be allowed; controller attribute will enforce, here we still perform validation
-
             // validate invoice exists
-            var invoice = await _db.Invoices.SingleOrDefaultAsync(i => i.Id == request.InvoiceId);
+            var invoice = await _db.Invoices.Include(i => i.Items).SingleOrDefaultAsync(i => i.Id == request.InvoiceId);
             if (invoice == null) throw new InvalidOperationException("Invoice not found");
 
             using var tx = await _db.Database.BeginTransactionAsync();
@@ -48,11 +47,42 @@ namespace HMS.API.Application.Payments
 
                 _db.Payments.Add(payment);
 
-                // update invoice: amountPaid and status
-                var prevStatus = invoice.Status;
-                invoice.AmountPaid += payment.Amount;
-                if (invoice.AmountPaid >= invoice.TotalAmount) invoice.Status = Domain.Billing.InvoiceStatus.PAID;
-                else if (invoice.AmountPaid > 0) invoice.Status = Domain.Billing.InvoiceStatus.PARTIAL;
+                // Reconcile payment against debtor entries for this invoice first
+                var remaining = request.Amount;
+                var debts = await _db.DebtorEntries.Where(d => d.InvoiceId == request.InvoiceId && !d.IsResolved).OrderBy(d => d.CreatedAt).ToListAsync();
+                foreach (var debt in debts)
+                {
+                    if (remaining <= 0) break;
+                    var apply = Math.Min(debt.AmountOwed, remaining);
+                    debt.AmountOwed -= apply;
+                    remaining -= apply;
+
+                    if (debt.AmountOwed <= 0)
+                    {
+                        debt.IsResolved = true;
+                        debt.ResolvedAt = DateTimeOffset.UtcNow;
+                        debt.ResolvedBy = _currentUserService.UserId ?? Guid.Empty;
+                    }
+
+                    _db.BillingAudits.Add(new Domain.Billing.BillingAudit { UserId = _currentUserService.UserId ?? Guid.Empty, Action = "DebtPaymentApplied", Details = $"Applied {apply} to debt {debt.Id} for invoice {request.InvoiceId}" });
+                }
+
+                // Apply remaining amount to invoice
+                var appliedToInvoice = remaining;
+                if (appliedToInvoice > 0)
+                {
+                    // Create an InvoicePayment record to track allocation to invoice
+                    var invPayment = new InvoicePayment
+                    {
+                        InvoiceId = invoice.Id,
+                        Amount = appliedToInvoice,
+                        PaidAt = DateTimeOffset.UtcNow,
+                        ExternalReference = request.ExternalReference
+                    };
+                    _db.InvoicePayments.Add(invPayment);
+
+                    invoice.AmountPaid += appliedToInvoice;
+                }
 
                 // generate receipt
                 var receipt = new Receipt
@@ -66,6 +96,17 @@ namespace HMS.API.Application.Payments
 
                 // audit
                 _db.BillingAudits.Add(new Domain.Billing.BillingAudit { UserId = payment.CreatedByUserId, Action = "CreatePayment", Details = $"Payment {payment.Id} created for invoice {invoice.InvoiceNumber}" });
+
+                // Update invoice status based on new amountPaid
+                var prevStatus = invoice.Status;
+                if (invoice.AmountPaid >= invoice.TotalAmount)
+                {
+                    invoice.Status = Domain.Billing.InvoiceStatus.PAID;
+                }
+                else if (invoice.AmountPaid > 0)
+                {
+                    invoice.Status = Domain.Billing.InvoiceStatus.PARTIAL;
+                }
 
                 await _db.SaveChangesAsync();
                 await tx.CommitAsync();

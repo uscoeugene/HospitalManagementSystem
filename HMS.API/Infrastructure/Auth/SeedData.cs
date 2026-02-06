@@ -52,6 +52,17 @@ namespace HMS.API.Infrastructure.Auth
 
             db.Permissions.AddRange(permProfileRead, permProfileUpdate, permProfileManage);
 
+            // reporting permissions
+            var permReportsPatientsView = new Permission { Code = "reports.patients.view", Description = "View patient reports" };
+            var permReportsProfilesView = new Permission { Code = "reports.profiles.view", Description = "View profile reports" };
+
+            db.Permissions.AddRange(permReportsPatientsView, permReportsProfilesView);
+
+            // new credit permissions
+            var permLabChargeOnCredit = new Permission { Code = "lab.charge.credit", Description = "Allow charging lab items on credit" };
+            var permPharmDispenseOnCredit = new Permission { Code = "pharmacy.dispense.credit", Description = "Allow dispensing pharmacy items on credit" };
+            db.Permissions.AddRange(permLabChargeOnCredit, permPharmDispenseOnCredit);
+
             // create roles
             var adminRole = new Role { Name = "Admin", Description = "Administrator" };
             var userRole = new Role { Name = "User", Description = "Default user" };
@@ -86,6 +97,11 @@ namespace HMS.API.Infrastructure.Auth
             db.RolePermissions.Add(new RolePermission { Role = adminRole, Permission = permProfileRead });
             db.RolePermissions.Add(new RolePermission { Role = adminRole, Permission = permProfileUpdate });
             db.RolePermissions.Add(new RolePermission { Role = adminRole, Permission = permProfileManage });
+            db.RolePermissions.Add(new RolePermission { Role = adminRole, Permission = permReportsPatientsView });
+            db.RolePermissions.Add(new RolePermission { Role = adminRole, Permission = permReportsProfilesView });
+            // grant admin credit permissions
+            db.RolePermissions.Add(new RolePermission { Role = adminRole, Permission = permLabChargeOnCredit });
+            db.RolePermissions.Add(new RolePermission { Role = adminRole, Permission = permPharmDispenseOnCredit });
 
             // assign permissions to cashier
             db.RolePermissions.Add(new RolePermission { Role = cashierRole, Permission = permPaymentsCreate });
@@ -96,11 +112,15 @@ namespace HMS.API.Infrastructure.Auth
             db.RolePermissions.Add(new RolePermission { Role = labRole, Permission = permLabRequest });
             db.RolePermissions.Add(new RolePermission { Role = labRole, Permission = permLabProcess });
             db.RolePermissions.Add(new RolePermission { Role = labRole, Permission = permLabView });
+            // grant lab role credit permission
+            db.RolePermissions.Add(new RolePermission { Role = labRole, Permission = permLabChargeOnCredit });
 
             // assign permissions to pharmacist role
             db.RolePermissions.Add(new RolePermission { Role = pharmRole, Permission = permPharmView });
             db.RolePermissions.Add(new RolePermission { Role = pharmRole, Permission = permPharmCreate });
             db.RolePermissions.Add(new RolePermission { Role = pharmRole, Permission = permPharmDispense });
+            // grant pharmacist credit permission
+            db.RolePermissions.Add(new RolePermission { Role = pharmRole, Permission = permPharmDispenseOnCredit });
 
             await db.SaveChangesAsync();
 

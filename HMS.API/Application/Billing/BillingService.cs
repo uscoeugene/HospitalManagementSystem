@@ -9,6 +9,7 @@ using HMS.API.Application.Common;
 using System.Collections.Generic;
 using System.Text.Json;
 using HMS.API.Domain.Common;
+using HMS.API.Domain.Payments;
 
 namespace HMS.API.Application.Billing
 {
@@ -54,7 +55,7 @@ namespace HMS.API.Application.Billing
                     Status = InvoiceStatus.UNPAID,
                     TotalAmount = 0m,
                     AmountPaid = 0m,
-                    Currency = request.Items.FirstOrDefault()?.SourceType == "" ? "USD" : "USD" // placeholder, sourceType might indicate currency in future
+                    Currency = request.Items.FirstOrDefault()?.SourceType == "" ? "USD" : "USD" // placeholder
                 };
 
                 foreach (var item in request.Items)
@@ -104,6 +105,9 @@ namespace HMS.API.Application.Billing
         {
             var inv = await _db.Invoices.Include(i => i.Items).Include(i => i.Payments).SingleOrDefaultAsync(i => i.Id == id);
             if (inv == null) return null;
+
+            var debts = await GetDebtsForInvoiceAsync(inv.Id);
+
             return new InvoiceDto
             {
                 Id = inv.Id,
@@ -115,10 +119,19 @@ namespace HMS.API.Application.Billing
                 AmountPaid = inv.AmountPaid,
                 Currency = inv.Currency,
                 Items = inv.Items.Select(i => new InvoiceItemDto { Id = i.Id, Description = i.Description, UnitPrice = i.UnitPrice, Quantity = i.Quantity, LineTotal = i.LineTotal }).ToArray(),
-                Payments = inv.Payments.Select(p => new InvoicePaymentDto { Id = p.Id, InvoiceId = p.InvoiceId, Amount = p.Amount, PaidAt = p.PaidAt, ExternalReference = p.ExternalReference }).ToArray()
+                Payments = inv.Payments.Select(p => new InvoicePaymentDto { Id = p.Id, InvoiceId = p.InvoiceId, Amount = p.Amount, PaidAt = p.PaidAt, ExternalReference = p.ExternalReference }).ToArray(),
+                Debts = debts.ToArray()
             };
         }
 
+        public async Task<IEnumerable<DTOs.DebtDto>> GetDebtsForInvoiceAsync(Guid invoiceId)
+        {
+            var q = _db.DebtorEntries.AsNoTracking().Where(d => d.InvoiceId == invoiceId && !d.IsDeleted);
+            var items = await q.ToListAsync();
+            return items.Select(d => new DTOs.DebtDto { Id = d.Id, InvoiceId = d.InvoiceId, SourceItemId = d.SourceItemId, SourceType = d.SourceType, AmountOwed = d.AmountOwed, Reason = d.Reason, CreatedAt = d.CreatedAt, CreatedBy = d.CreatedBy }).ToList();
+        }
+
+        // Reconcile payments against debts before applying to invoice balance
         public async Task<InvoiceDto> ApplyPaymentAsync(Guid invoiceId, ApplyPaymentRequest request)
         {
             using var tx = await _db.Database.BeginTransactionAsync();
@@ -129,19 +142,46 @@ namespace HMS.API.Application.Billing
 
                 if (request.Amount <= 0) throw new InvalidOperationException("Payment amount must be positive");
 
-                var payment = new InvoicePayment
+                var remaining = request.Amount;
+
+                // First, reconcile with debtor entries for this invoice
+                var debts = await _db.DebtorEntries.Where(d => d.InvoiceId == invoiceId && !d.IsResolved).OrderBy(d => d.CreatedAt).ToListAsync();
+                foreach (var debt in debts)
                 {
-                    Invoice = inv,
-                    Amount = request.Amount,
-                    PaidAt = DateTimeOffset.UtcNow,
-                    ExternalReference = request.ExternalReference
-                };
+                    if (remaining <= 0) break;
+                    var apply = Math.Min(debt.AmountOwed, remaining);
+                    debt.AmountOwed -= apply;
+                    remaining -= apply;
 
-                inv.Payments.Add(payment);
-                inv.AmountPaid += payment.Amount;
+                    if (debt.AmountOwed <= 0)
+                    {
+                        debt.IsResolved = true;
+                        debt.ResolvedAt = DateTimeOffset.UtcNow;
+                        debt.ResolvedBy = _currentUserService.UserId ?? Guid.Empty;
+                    }
 
+                    _db.BillingAudits.Add(new BillingAudit { UserId = _currentUserService.UserId ?? Guid.Empty, Action = "DebtPaymentApplied", Details = $"Applied {apply} to debt {debt.Id} for invoice {invoiceId}" });
+                }
+
+                // If any amount remains, create an InvoicePayment entry and apply to invoice
+                if (remaining > 0)
+                {
+                    var invPayment = new InvoicePayment
+                    {
+                        InvoiceId = inv.Id,
+                        Amount = remaining,
+                        PaidAt = DateTimeOffset.UtcNow,
+                        ExternalReference = request.ExternalReference
+                    };
+                    _db.InvoicePayments.Add(invPayment);
+
+                    inv.AmountPaid += remaining;
+
+                    _db.BillingAudits.Add(new BillingAudit { UserId = _currentUserService.UserId ?? Guid.Empty, Action = "ApplyPayment", Details = $"Payment of {remaining} applied to invoice {inv.InvoiceNumber}" });
+                }
+
+                // Update invoice status
                 var prevStatus = inv.Status;
-
                 if (inv.AmountPaid >= inv.TotalAmount)
                 {
                     inv.Status = InvoiceStatus.PAID;
@@ -150,9 +190,6 @@ namespace HMS.API.Application.Billing
                 {
                     inv.Status = InvoiceStatus.PARTIAL;
                 }
-
-                var userId = _currentUserService.UserId ?? Guid.Empty;
-                _db.BillingAudits.Add(new BillingAudit { UserId = userId, Action = "ApplyPayment", Details = $"Payment of {payment.Amount} applied to {inv.InvoiceNumber}" });
 
                 await _db.SaveChangesAsync();
                 await tx.CommitAsync();
@@ -199,7 +236,8 @@ namespace HMS.API.Application.Billing
                 AmountPaid = inv.AmountPaid,
                 Currency = inv.Currency,
                 Items = inv.Items.Select(i => new InvoiceItemDto { Id = i.Id, Description = i.Description, UnitPrice = i.UnitPrice, Quantity = i.Quantity, LineTotal = i.LineTotal }).ToArray(),
-                Payments = inv.Payments.Select(p => new InvoicePaymentDto { Id = p.Id, InvoiceId = p.InvoiceId, Amount = p.Amount, PaidAt = p.PaidAt, ExternalReference = p.ExternalReference }).ToArray()
+                Payments = inv.Payments.Select(p => new InvoicePaymentDto { Id = p.Id, InvoiceId = p.InvoiceId, Amount = p.Amount, PaidAt = p.PaidAt, ExternalReference = p.ExternalReference }).ToArray(),
+                Debts = new DebtDto[] { }
             }).ToArray();
 
             return new PagedResult<InvoiceDto> { Items = dtos, TotalCount = total, Page = page, PageSize = pageSize };
@@ -281,6 +319,234 @@ namespace HMS.API.Application.Billing
                 await _db.SaveChangesAsync();
 
                 return await GetInvoiceAsync(invoice.Id) ?? throw new InvalidOperationException("Failed to load created invoice");
+            }
+            catch
+            {
+                await tx.RollbackAsync();
+                throw;
+            }
+        }
+
+        public async Task<IEnumerable<DTOs.DebtDto>> ListDebtsAsync(Guid? patientId = null, bool unresolvedOnly = true)
+        {
+            var q = _db.DebtorEntries.AsNoTracking().Where(d => !d.IsDeleted);
+            if (unresolvedOnly) q = q.Where(d => !d.IsResolved);
+            if (patientId.HasValue)
+            {
+                q = q.Where(d => _db.Invoices.Any(i => i.Id == d.InvoiceId && i.PatientId == patientId.Value));
+            }
+
+            var items = await q.ToListAsync();
+            return items.Select(d => new DTOs.DebtDto { Id = d.Id, InvoiceId = d.InvoiceId, SourceItemId = d.SourceItemId, SourceType = d.SourceType, AmountOwed = d.AmountOwed, Reason = d.Reason, CreatedAt = d.CreatedAt, CreatedBy = d.CreatedBy }).ToList();
+        }
+
+        public async Task<PagedResult<DTOs.DebtDto>> ListDebtsPagedAsync(Guid? invoiceId = null, Guid? patientId = null, bool unresolvedOnly = true, int page = 1, int pageSize = 20)
+        {
+            var q = _db.DebtorEntries.AsNoTracking().Where(d => !d.IsDeleted);
+            if (unresolvedOnly) q = q.Where(d => !d.IsResolved);
+            if (invoiceId.HasValue) q = q.Where(d => d.InvoiceId == invoiceId.Value);
+            if (patientId.HasValue) q = q.Where(d => _db.Invoices.Any(i => i.Id == d.InvoiceId && i.PatientId == patientId.Value));
+
+            var total = await q.CountAsync();
+            var items = await q.OrderByDescending(d => d.CreatedAt).Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
+
+            var dtos = items.Select(d => new DTOs.DebtDto { Id = d.Id, InvoiceId = d.InvoiceId, SourceItemId = d.SourceItemId, SourceType = d.SourceType, AmountOwed = d.AmountOwed, Reason = d.Reason, CreatedAt = d.CreatedAt, CreatedBy = d.CreatedBy }).ToArray();
+
+            return new PagedResult<DTOs.DebtDto> { Items = dtos, TotalCount = total, Page = page, PageSize = pageSize };
+        }
+
+        public async Task ResolveDebtAsync(Guid debtId)
+        {
+            var d = await _db.DebtorEntries.SingleOrDefaultAsync(x => x.Id == debtId);
+            if (d == null) throw new InvalidOperationException("Debt not found");
+            d.IsResolved = true;
+            d.ResolvedAt = DateTimeOffset.UtcNow;
+            d.ResolvedBy = _currentUserService.UserId ?? Guid.Empty;
+            _db.BillingAudits.Add(new BillingAudit { UserId = d.ResolvedBy ?? Guid.Empty, Action = "ResolveDebt", Details = $"Debt {debtId} marked resolved" });
+            await _db.SaveChangesAsync();
+        }
+
+        public async Task PayDebtAsync(Guid debtId, decimal amount, string? externalReference = null)
+        {
+            using var tx = await _db.Database.BeginTransactionAsync();
+            try
+            {
+                var debt = await _db.DebtorEntries.SingleOrDefaultAsync(d => d.Id == debtId && !d.IsDeleted);
+                if (debt == null) throw new InvalidOperationException("Debt not found");
+                if (debt.IsResolved) throw new InvalidOperationException("Debt already resolved");
+
+                if (amount <= 0) throw new InvalidOperationException("Amount must be positive");
+
+                var toApply = Math.Min(debt.AmountOwed, amount);
+
+                // create a payment record (associate with invoice and patient inferred)
+                var invoice = await _db.Invoices.SingleOrDefaultAsync(i => i.Id == debt.InvoiceId);
+                if (invoice == null) throw new InvalidOperationException("Linked invoice not found");
+
+                var payment = new Domain.Payments.Payment
+                {
+                    InvoiceId = invoice.Id,
+                    PatientId = invoice.PatientId,
+                    Amount = toApply,
+                    Currency = invoice.Currency,
+                    ExternalReference = externalReference,
+                    Status = Domain.Payments.PaymentStatus.CONFIRMED,
+                    CreatedByUserId = _currentUserService.UserId ?? Guid.Empty
+                };
+                _db.Payments.Add(payment);
+
+                // apply to invoice as invoice payment
+                var invPayment = new InvoicePayment { InvoiceId = invoice.Id, Amount = toApply, PaidAt = DateTimeOffset.UtcNow, ExternalReference = externalReference };
+                _db.InvoicePayments.Add(invPayment);
+                invoice.AmountPaid += toApply;
+
+                // reduce debt
+                debt.AmountOwed -= toApply;
+                if (debt.AmountOwed <= 0)
+                {
+                    debt.IsResolved = true;
+                    debt.ResolvedAt = DateTimeOffset.UtcNow;
+                    debt.ResolvedBy = _currentUserService.UserId ?? Guid.Empty;
+                }
+
+                // create receipt
+                var receipt = new Domain.Payments.Receipt { Payment = payment, ReceiptNumber = $"RCPT-{DateTimeOffset.UtcNow:yyyyMMddHHmmss}-{Guid.NewGuid().ToString("N").Substring(0,6).ToUpperInvariant()}", Details = $"Payment of {toApply} applied to debt {debtId}" };
+                _db.Receipts.Add(receipt);
+                payment.Receipt = receipt;
+
+                _db.BillingAudits.Add(new BillingAudit { UserId = _currentUserService.UserId ?? Guid.Empty, Action = "PayDebt", Details = $"Applied {toApply} to debt {debtId}" });
+
+                // update invoice status
+                if (invoice.AmountPaid >= invoice.TotalAmount) invoice.Status = InvoiceStatus.PAID;
+                else if (invoice.AmountPaid > 0) invoice.Status = InvoiceStatus.PARTIAL;
+
+                await _db.SaveChangesAsync();
+                await tx.CommitAsync();
+
+                // publish outbox
+                try
+                {
+                    _db.OutboxMessages.Add(new OutboxMessage { Type = "DebtPaymentCreated", Content = JsonSerializer.Serialize(new { DebtId = debt.Id, PaymentAmount = toApply, InvoiceId = invoice.Id }), OccurredAt = DateTimeOffset.UtcNow });
+                    await _db.SaveChangesAsync();
+                }
+                catch { }
+            }
+            catch
+            {
+                await tx.RollbackAsync();
+                throw;
+            }
+        }
+
+        // Add methods to BillingService
+        public async Task<IEnumerable<DTOs.DebtAgingDto>> GetDebtAgingReportAsync(int daysBucket = 30)
+        {
+            var now = DateTimeOffset.UtcNow;
+            var debts = await _db.DebtorEntries.AsNoTracking().Where(d => !d.IsResolved && !d.IsDeleted).ToListAsync();
+            var buckets = new List<DTOs.DebtAgingDto>();
+            // create buckets 0-daysBucket, daysBucket+1 - 2*daysBucket, etc up to 365 days
+            for (int i = 0; i < 12; i++)
+            {
+                var from = i * daysBucket;
+                var to = (i + 1) * daysBucket - 1;
+                var total = debts.Where(d => (now - d.CreatedAt).TotalDays >= from && (now - d.CreatedAt).TotalDays <= to).Sum(d => d.AmountOwed);
+                buckets.Add(new DTOs.DebtAgingDto { DaysFrom = from, DaysTo = to, TotalOwed = total });
+            }
+            // catch-all bucket for > 12*daysBucket
+            var more = debts.Where(d => (now - d.CreatedAt).TotalDays > 12 * daysBucket).Sum(d => d.AmountOwed);
+            buckets.Add(new DTOs.DebtAgingDto { DaysFrom = 12 * daysBucket, DaysTo = int.MaxValue, TotalOwed = more });
+            return buckets;
+        }
+
+        public async Task<IEnumerable<DTOs.OutstandingByPatientDto>> GetOutstandingByPatientAsync()
+        {
+            var q = _db.DebtorEntries.AsNoTracking().Where(d => !d.IsResolved && !d.IsDeleted);
+            var byPatient = q.GroupBy(d => _db.Invoices.Where(i => i.Id == d.InvoiceId).Select(i => i.PatientId).FirstOrDefault())
+                .Select(g => new DTOs.OutstandingByPatientDto { PatientId = g.Key, TotalOwed = g.Sum(x => x.AmountOwed), DebtCount = g.Count() });
+
+            return await byPatient.ToListAsync();
+        }
+        public async Task<IEnumerable<DTOs.PaymentResultDto>> PayMultipleDebtsAsync(IEnumerable<DTOs.PayDebtRequest> requests)
+        {
+            using var tx = await _db.Database.BeginTransactionAsync();
+            try
+            {
+                var results = new List<DTOs.PaymentResultDto>();
+                foreach (var req in requests)
+                {
+                    var debt = await _db.DebtorEntries.SingleOrDefaultAsync(d => d.Id == req.DebtId && !d.IsDeleted);
+                    if (debt == null)
+                    {
+                        results.Add(new DTOs.PaymentResultDto { DebtId = req.DebtId, Success = false, Message = "Debt not found" });
+                        continue;
+                    }
+                    if (debt.IsResolved)
+                    {
+                        results.Add(new DTOs.PaymentResultDto { DebtId = req.DebtId, Success = false, Message = "Debt already resolved" });
+                        continue;
+                    }
+
+                    var toApply = Math.Min(debt.AmountOwed, req.Amount);
+                    if (toApply <= 0)
+                    {
+                        results.Add(new DTOs.PaymentResultDto { DebtId = req.DebtId, Success = false, Message = "Invalid amount" });
+                        continue;
+                    }
+
+                    var invoice = await _db.Invoices.SingleOrDefaultAsync(i => i.Id == debt.InvoiceId);
+                    if (invoice == null)
+                    {
+                        results.Add(new DTOs.PaymentResultDto { DebtId = req.DebtId, Success = false, Message = "Linked invoice not found" });
+                        continue;
+                    }
+
+                    var payment = new Domain.Payments.Payment
+                    {
+                        InvoiceId = invoice.Id,
+                        PatientId = invoice.PatientId,
+                        Amount = toApply,
+                        Currency = invoice.Currency,
+                        ExternalReference = req.ExternalReference,
+                        Status = Domain.Payments.PaymentStatus.CONFIRMED,
+                        CreatedByUserId = _currentUserService.UserId ?? Guid.Empty
+                    };
+                    _db.Payments.Add(payment);
+
+                    var invPayment = new InvoicePayment { InvoiceId = invoice.Id, Amount = toApply, PaidAt = DateTimeOffset.UtcNow, ExternalReference = req.ExternalReference };
+                    _db.InvoicePayments.Add(invPayment);
+                    invoice.AmountPaid += toApply;
+
+                    debt.AmountOwed -= toApply;
+                    if (debt.AmountOwed <= 0)
+                    {
+                        debt.IsResolved = true;
+                        debt.ResolvedAt = DateTimeOffset.UtcNow;
+                        debt.ResolvedBy = _currentUserService.UserId ?? Guid.Empty;
+                    }
+
+                    var receipt = new Domain.Payments.Receipt { Payment = payment, ReceiptNumber = $"RCPT-{DateTimeOffset.UtcNow:yyyyMMddHHmmss}-{Guid.NewGuid().ToString("N").Substring(0,6).ToUpperInvariant()}", Details = $"Payment of {toApply} applied to debt {debt.Id}" };
+                    _db.Receipts.Add(receipt);
+                    payment.Receipt = receipt;
+
+                    _db.BillingAudits.Add(new BillingAudit { UserId = _currentUserService.UserId ?? Guid.Empty, Action = "PayDebtBatch", Details = $"Applied {toApply} to debt {debt.Id}" });
+
+                    if (invoice.AmountPaid >= invoice.TotalAmount) invoice.Status = InvoiceStatus.PAID;
+                    else if (invoice.AmountPaid > 0) invoice.Status = InvoiceStatus.PARTIAL;
+
+                    results.Add(new DTOs.PaymentResultDto { DebtId = debt.Id, Success = true, Message = "Paid", AppliedAmount = toApply });
+                }
+
+                await _db.SaveChangesAsync();
+                await tx.CommitAsync();
+
+                try
+                {
+                    _db.OutboxMessages.Add(new OutboxMessage { Type = "DebtBatchPaymentCreated", Content = JsonSerializer.Serialize(new { Count = requests.Count() }), OccurredAt = DateTimeOffset.UtcNow });
+                    await _db.SaveChangesAsync();
+                }
+                catch { }
+
+                return results;
             }
             catch
             {

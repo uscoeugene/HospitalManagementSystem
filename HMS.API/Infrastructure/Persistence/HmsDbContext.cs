@@ -9,7 +9,6 @@ using HMS.API.Domain.Patient;
 using HMS.API.Domain.Billing;
 using HMS.API.Domain.Payments;
 using HMS.API.Domain.Profile;
-using HMS.API.Infrastructure.Persistence;
 
 namespace HMS.API.Infrastructure.Persistence
 {
@@ -30,6 +29,7 @@ namespace HMS.API.Infrastructure.Persistence
         public DbSet<InvoiceItem> InvoiceItems { get; set; } = null!;
         public DbSet<InvoicePayment> InvoicePayments { get; set; } = null!;
         public DbSet<BillingAudit> BillingAudits { get; set; } = null!;
+        public DbSet<DebtorEntry> DebtorEntries { get; set; } = null!;
 
         // Outbox
         public DbSet<OutboxMessage> OutboxMessages { get; set; } = null!;
@@ -73,6 +73,8 @@ namespace HMS.API.Infrastructure.Persistence
                 b.Property(v => v.VisitType).HasMaxLength(100);
                 b.Property(v => v.Notes).HasMaxLength(2000);
                 b.HasOne(v => v.Patient).WithMany(p => p.Visits).HasForeignKey(v => v.PatientId);
+                b.HasIndex(v => v.PatientId);
+                b.HasIndex(v => v.VisitAt);
             });
 
             // Billing mappings
@@ -85,6 +87,10 @@ namespace HMS.API.Infrastructure.Persistence
                 b.Property(i => i.Currency).IsRequired().HasMaxLength(3);
                 b.HasMany(i => i.Items).WithOne(it => it.Invoice).HasForeignKey(it => it.InvoiceId);
                 b.HasMany(i => i.Payments).WithOne(p => p.Invoice).HasForeignKey(p => p.InvoiceId);
+
+                // Indexes useful for reporting
+                b.HasIndex(i => i.CreatedAt);
+                b.HasIndex(i => i.Status);
             });
 
             modelBuilder.Entity<InvoiceItem>(b =>
@@ -94,6 +100,7 @@ namespace HMS.API.Infrastructure.Persistence
                 b.Property(ii => ii.UnitPrice).HasColumnType("decimal(18,2)");
                 b.Property(ii => ii.Quantity);
                 b.HasOne(ii => ii.Invoice).WithMany(i => i.Items).HasForeignKey(ii => ii.InvoiceId);
+                b.HasIndex(ii => ii.InvoiceId);
             });
 
             modelBuilder.Entity<InvoicePayment>(b =>
@@ -102,6 +109,8 @@ namespace HMS.API.Infrastructure.Persistence
                 b.Property(ip => ip.Amount).HasColumnType("decimal(18,2)");
                 b.Property(ip => ip.ExternalReference).HasMaxLength(500);
                 b.HasOne(ip => ip.Invoice).WithMany(i => i.Payments).HasForeignKey(ip => ip.InvoiceId);
+                b.HasIndex(ip => ip.InvoiceId);
+                b.HasIndex(ip => ip.PaidAt);
             });
 
             modelBuilder.Entity<BillingAudit>(b =>
@@ -109,6 +118,16 @@ namespace HMS.API.Infrastructure.Persistence
                 b.HasKey(a => a.Id);
                 b.Property(a => a.Action).IsRequired().HasMaxLength(200);
                 b.Property(a => a.Details).HasMaxLength(1000);
+            });
+
+            modelBuilder.Entity<DebtorEntry>(b =>
+            {
+                b.HasKey(d => d.Id);
+                b.Property(d => d.AmountOwed).HasColumnType("decimal(18,2)");
+                b.Property(d => d.Reason).HasMaxLength(1000);
+                b.Property(d => d.CreatedAt).IsRequired();
+                b.HasIndex(d => d.InvoiceId);
+                b.HasIndex(d => d.SourceItemId);
             });
 
             modelBuilder.Entity<OutboxMessage>(b =>
@@ -119,6 +138,7 @@ namespace HMS.API.Infrastructure.Persistence
                 b.Property(o => o.OccurredAt).IsRequired();
                 b.Property(o => o.ProcessedAt);
                 b.Property(o => o.Attempts);
+                b.HasIndex(o => o.OccurredAt);
             });
 
             modelBuilder.Entity<Payment>(b =>
@@ -128,6 +148,7 @@ namespace HMS.API.Infrastructure.Persistence
                 b.Property(p => p.Currency).HasMaxLength(3);
                 b.Property(p => p.Status).IsRequired();
                 b.HasOne<Receipt>().WithOne(r => r.Payment).HasForeignKey<Receipt>(r => r.PaymentId);
+                b.HasIndex(p => p.Status);
             });
 
             modelBuilder.Entity<Receipt>(b =>
@@ -135,6 +156,7 @@ namespace HMS.API.Infrastructure.Persistence
                 b.HasKey(r => r.Id);
                 b.Property(r => r.ReceiptNumber).IsRequired().HasMaxLength(100);
                 b.Property(r => r.Details).HasMaxLength(2000);
+                b.HasIndex(r => r.ReceiptNumber);
             });
 
             modelBuilder.Entity<Refund>(b =>
@@ -143,6 +165,7 @@ namespace HMS.API.Infrastructure.Persistence
                 b.Property(r => r.Amount).HasColumnType("decimal(18,2)");
                 b.Property(r => r.Reason).HasMaxLength(1000);
                 b.HasOne(r => r.Payment).WithMany().HasForeignKey(r => r.PaymentId);
+                b.HasIndex(r => r.CreatedAt);
             });
 
             modelBuilder.Entity<RefundReversal>(b =>
@@ -161,12 +184,15 @@ namespace HMS.API.Infrastructure.Persistence
                 b.Property(t => t.Name).IsRequired().HasMaxLength(200);
                 b.Property(t => t.Price).HasColumnType("decimal(18,2)");
                 b.Property(t => t.Currency).HasMaxLength(3);
+                b.HasIndex(t => t.Code);
             });
 
             modelBuilder.Entity<HMS.API.Domain.Lab.LabRequest>(b =>
             {
                 b.HasKey(r => r.Id);
                 b.HasMany(r => r.Items).WithOne(i => i.LabRequest).HasForeignKey(i => i.LabRequestId);
+                b.HasIndex(r => r.Status);
+                b.HasIndex(r => r.CreatedAt);
             });
 
             modelBuilder.Entity<HMS.API.Domain.Lab.LabRequestItem>(b =>
@@ -175,6 +201,7 @@ namespace HMS.API.Infrastructure.Persistence
                 b.Property(i => i.Price).HasColumnType("decimal(18,2)");
                 b.Property(i => i.Currency).HasMaxLength(3);
                 b.HasOne(i => i.LabTest).WithMany().HasForeignKey(i => i.LabTestId);
+                b.HasIndex(i => i.LabTestId);
             });
 
             // Pharmacy mappings
@@ -186,12 +213,14 @@ namespace HMS.API.Infrastructure.Persistence
                 b.Property(d => d.Price).HasColumnType("decimal(18,2)");
                 b.Property(d => d.Currency).HasMaxLength(3);
                 b.Property(d => d.ReservedStock).HasDefaultValue(0);
+                b.HasIndex(d => d.Code);
             });
 
             modelBuilder.Entity<HMS.API.Domain.Pharmacy.Prescription>(b =>
             {
                 b.HasKey(p => p.Id);
                 b.HasMany(p => p.Items).WithOne(i => i.Prescription).HasForeignKey(i => i.PrescriptionId);
+                b.HasIndex(p => p.PatientId);
             });
 
             modelBuilder.Entity<HMS.API.Domain.Pharmacy.PrescriptionItem>(b =>
@@ -200,12 +229,14 @@ namespace HMS.API.Infrastructure.Persistence
                 b.Property(i => i.Price).HasColumnType("decimal(18,2)");
                 b.Property(i => i.Currency).HasMaxLength(3);
                 b.HasOne(i => i.Drug).WithMany().HasForeignKey(i => i.DrugId);
+                b.HasIndex(i => i.DrugId);
             });
 
             modelBuilder.Entity<HMS.API.Domain.Pharmacy.DispenseLog>(b =>
             {
                 b.HasKey(d => d.Id);
                 b.Property(d => d.DispensedAt).IsRequired();
+                b.HasIndex(d => d.DispensedAt);
             });
 
             // Pharmacy reservations
@@ -226,6 +257,7 @@ namespace HMS.API.Infrastructure.Persistence
                 b.Property(p => p.LastName).IsRequired().HasMaxLength(200);
                 b.Property(p => p.Email).IsRequired().HasMaxLength(320);
                 b.HasIndex(p => p.UserId).IsUnique();
+                b.HasIndex(p => p.UpdatedAt);
             });
 
             // Apply global query filter for soft-delete

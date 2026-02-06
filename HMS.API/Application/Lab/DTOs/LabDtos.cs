@@ -23,6 +23,10 @@ namespace HMS.API.Application.Lab.DTOs
         public Guid PatientId { get; set; }
         public Guid? VisitId { get; set; }
         public List<CreateLabRequestItem> Items { get; set; } = new();
+
+        // Allow creating lab requests and charging items on credit (create debts) when true.
+        public bool AllowOnCredit { get; set; } = false;
+        public string? CreditReason { get; set; }
     }
 
     public class LabRequestDto

@@ -23,6 +23,18 @@ namespace HMS.API.Application.Billing.DTOs
         public Guid InvoiceId { get; set; }
     }
 
+    public class DebtDto
+    {
+        public Guid Id { get; set; }
+        public Guid InvoiceId { get; set; }
+        public Guid? SourceItemId { get; set; }
+        public string? SourceType { get; set; }
+        public decimal AmountOwed { get; set; }
+        public string? Reason { get; set; }
+        public DateTimeOffset CreatedAt { get; set; }
+        public Guid CreatedBy { get; set; }
+    }
+
     public class InvoiceDto
     {
         public Guid Id { get; set; }
@@ -35,6 +47,7 @@ namespace HMS.API.Application.Billing.DTOs
         public string Currency { get; set; } = "USD";
         public IEnumerable<InvoiceItemDto> Items { get; set; } = Array.Empty<InvoiceItemDto>();
         public IEnumerable<InvoicePaymentDto> Payments { get; set; } = Array.Empty<InvoicePaymentDto>();
+        public IEnumerable<DebtDto> Debts { get; set; } = Array.Empty<DebtDto>();
     }
 
     public class ApplyPaymentRequest
