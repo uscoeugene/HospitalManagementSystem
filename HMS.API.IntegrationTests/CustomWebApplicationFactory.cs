@@ -8,6 +8,9 @@ using HMS.API.Infrastructure.Auth;
 using HMS.API.Application.Auth;
 using HMS.API.Application.Common;
 using HMS.API.Infrastructure.Persistence;
+using Microsoft.Extensions.Configuration;
+using System.Collections.Generic;
+using System.Text;
 
 namespace HMS.API.IntegrationTests
 {
@@ -15,6 +18,17 @@ namespace HMS.API.IntegrationTests
     {
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
+            // inject test configuration for webhook secret
+            builder.ConfigureAppConfiguration((ctx, conf) =>
+            {
+                var dict = new Dictionary<string, string>
+                {
+                    // base64 of UTF8 bytes of "test-secret"
+                    ["Billing:WebhookSecret"] = Convert.ToBase64String(Encoding.UTF8.GetBytes("test-secret"))
+                };
+                conf.AddInMemoryCollection(dict);
+            });
+
             builder.ConfigureServices(services =>
             {
                 // Remove existing DbContext registrations so we can replace with in-memory test DBs
@@ -42,7 +56,10 @@ namespace HMS.API.IntegrationTests
                 });
 
                 services.AddScoped<IPasswordHasher, PasswordHasher>();
-                services.AddScoped<ICurrentUserService, TestCurrentUserService>();
+
+                // register a configurable test current user service so tests can set UserId and TenantId
+                services.AddScoped<TestCurrentUserService>();
+                services.AddScoped<ICurrentUserService>(sp => sp.GetRequiredService<TestCurrentUserService>());
 
                 // Ensure service provider builds and seed data applied per test
                 var sp = services.BuildServiceProvider();
@@ -61,9 +78,16 @@ namespace HMS.API.IntegrationTests
         }
     }
 
-    // Simple test current user service that returns null (no authenticated user) or you can extend it per test
-    internal class TestCurrentUserService : ICurrentUserService
+    // Simple test current user service that can be configured by tests
+    public class TestCurrentUserService : ICurrentUserService
     {
-        public Guid? UserId => null;
+        // tests can set these fields directly
+        public Guid? TestUserId { get; set; }
+        public Guid? TestTenantId { get; set; }
+
+        public Guid? UserId => TestUserId;
+        public Guid? TenantId => TestTenantId;
+
+        public bool HasPermission(string permission) => true; // make tests simpler; override per-test if needed
     }
 }

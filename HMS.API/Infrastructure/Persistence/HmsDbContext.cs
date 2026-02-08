@@ -21,6 +21,8 @@ namespace HMS.API.Infrastructure.Persistence
             _currentUserService = currentUserService;
         }
 
+        public DbSet<Tenant> Tenants { get; set; } = null!;
+
         public DbSet<Patient> Patients { get; set; } = null!;
         public DbSet<Visit> Visits { get; set; } = null!;
 
@@ -50,6 +52,8 @@ namespace HMS.API.Infrastructure.Persistence
         public DbSet<HMS.API.Domain.Pharmacy.DispenseLog> DispenseLogs { get; set; } = null!;
         public DbSet<HMS.API.Domain.Pharmacy.Reservation> Reservations { get; set; } = null!;
         public DbSet<HMS.API.Domain.Pharmacy.InventoryItem> InventoryItems { get; set; } = null!;
+        public DbSet<HMS.API.Domain.Pharmacy.InventoryCategory> InventoryCategories { get; set; } = null!;
+        public DbSet<HMS.API.Domain.Pharmacy.InventoryAudit> InventoryAudits { get; set; } = null!;
 
         // Profiles - integrated into the main HMS DB
         public DbSet<UserProfile> UserProfiles { get; set; } = null!;
@@ -57,6 +61,22 @@ namespace HMS.API.Infrastructure.Persistence
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
+
+            modelBuilder.Entity<Tenant>(b =>
+            {
+                b.HasKey(t => t.Id);
+                b.Property(t => t.Name).IsRequired().HasMaxLength(200);
+                b.Property(t => t.Code).IsRequired().HasMaxLength(100);
+                b.HasIndex(t => t.Code).IsUnique();
+            });
+
+            modelBuilder.Entity<Domain.Common.TenantSubscription>(b =>
+            {
+                b.HasKey(s => s.Id);
+                b.Property(s => s.Plan).IsRequired().HasMaxLength(100);
+                b.Property(s => s.Status).IsRequired();
+                b.HasIndex(s => s.TenantId);
+            });
 
             modelBuilder.Entity<Patient>(b =>
             {
@@ -66,6 +86,8 @@ namespace HMS.API.Infrastructure.Persistence
                 b.Property(p => p.Gender).HasMaxLength(50);
                 b.HasMany(p => p.Visits).WithOne(v => v.Patient).HasForeignKey(v => v.PatientId);
                 b.HasIndex(p => p.MedicalRecordNumber).IsUnique(false);
+
+                b.HasIndex(p => new { p.TenantId, p.MedicalRecordNumber });
             });
 
             modelBuilder.Entity<Visit>(b =>
@@ -92,6 +114,7 @@ namespace HMS.API.Infrastructure.Persistence
                 // Indexes useful for reporting
                 b.HasIndex(i => i.CreatedAt);
                 b.HasIndex(i => i.Status);
+                b.HasIndex(i => new { i.TenantId, i.InvoiceNumber });
             });
 
             modelBuilder.Entity<InvoiceItem>(b =>
@@ -224,9 +247,25 @@ namespace HMS.API.Infrastructure.Persistence
                 b.Property(i => i.Name).IsRequired().HasMaxLength(200);
                 b.Property(i => i.UnitPrice).HasColumnType("decimal(18,2)");
                 b.Property(i => i.Currency).HasMaxLength(3);
-                b.Property(i => i.Category).HasMaxLength(100);
                 b.HasIndex(i => i.Code);
-                b.HasIndex(i => i.Category);
+                b.HasIndex(i => i.CategoryId);
+                b.HasOne(i => i.Category).WithMany(c => c.Items).HasForeignKey(i => i.CategoryId).OnDelete(Microsoft.EntityFrameworkCore.DeleteBehavior.SetNull);
+            });
+
+            modelBuilder.Entity<HMS.API.Domain.Pharmacy.InventoryCategory>(b =>
+            {
+                b.HasKey(c => c.Id);
+                b.Property(c => c.Code).IsRequired().HasMaxLength(100);
+                b.Property(c => c.Name).IsRequired().HasMaxLength(200);
+                b.HasIndex(c => c.Code).IsUnique();
+            });
+
+            modelBuilder.Entity<HMS.API.Domain.Pharmacy.InventoryAudit>(b =>
+            {
+                b.HasKey(a => a.Id);
+                b.Property(a => a.ChangeType).HasMaxLength(50);
+                b.Property(a => a.Details).HasMaxLength(2000);
+                b.HasIndex(a => a.InventoryItemId);
             });
 
             modelBuilder.Entity<HMS.API.Domain.Pharmacy.Prescription>(b =>
@@ -273,7 +312,7 @@ namespace HMS.API.Infrastructure.Persistence
                 b.HasIndex(p => p.UpdatedAt);
             });
 
-            // Apply global query filter for soft-delete
+            // Apply global query filter for soft-delete and tenant scoping
             foreach (var entityType in modelBuilder.Model.GetEntityTypes())
             {
                 if (typeof(BaseEntity).IsAssignableFrom(entityType.ClrType))
@@ -281,6 +320,14 @@ namespace HMS.API.Infrastructure.Persistence
                     var method = typeof(HmsDbContext).GetMethod(nameof(ApplySoftDeleteQueryFilter), System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)
                                  ?.MakeGenericMethod(entityType.ClrType);
                     method?.Invoke(null, new object[] { modelBuilder });
+
+                    // apply tenant filter where TenantId property exists
+                    if (entityType.FindProperty("TenantId") != null)
+                    {
+                        var tenantMethod = typeof(HmsDbContext).GetMethod(nameof(ApplyTenantQueryFilter), System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)
+                                            ?.MakeGenericMethod(entityType.ClrType);
+                        tenantMethod?.Invoke(null, new object[] { modelBuilder });
+                    }
                 }
             }
         }
@@ -288,6 +335,12 @@ namespace HMS.API.Infrastructure.Persistence
         private static void ApplySoftDeleteQueryFilter<TEntity>(ModelBuilder builder) where TEntity : BaseEntity
         {
             builder.Entity<TEntity>().HasQueryFilter(e => !e.IsDeleted);
+        }
+
+        // Tenant scoping: if TenantId is set in BaseEntity, only include records for current tenant OR null for central/shared data
+        private static void ApplyTenantQueryFilter<TEntity>(ModelBuilder builder) where TEntity : BaseEntity
+        {
+            builder.Entity<TEntity>().HasQueryFilter(e => e.TenantId == null || e.TenantId == CurrentTenantAccessor.CurrentTenantId);
         }
 
         public override int SaveChanges()
@@ -319,6 +372,7 @@ namespace HMS.API.Infrastructure.Persistence
             var entries = ChangeTracker.Entries<BaseEntity>();
             var now = DateTimeOffset.UtcNow;
             var userId = _currentUserService?.UserId;
+            var tenantId = CurrentTenantAccessor.CurrentTenantId;
 
             foreach (var entry in entries)
             {
@@ -327,6 +381,8 @@ namespace HMS.API.Infrastructure.Persistence
                     case EntityState.Added:
                         entry.Entity.CreatedAt = now;
                         if (userId.HasValue) entry.Entity.CreatedBy = userId.Value;
+                        // stamp tenant info on newly created entities if available
+                        if (tenantId.HasValue) entry.Entity.TenantId = tenantId.Value;
                         break;
                     case EntityState.Modified:
                         entry.Entity.UpdatedAt = now;

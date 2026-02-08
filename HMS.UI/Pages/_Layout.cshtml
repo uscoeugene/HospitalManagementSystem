@@ -1,0 +1,33 @@
+@namespace HMS.UI.Pages
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>HMS - Hospital Management</title>
+    <link rel="stylesheet" href="/css/site.css" />
+    <link rel="stylesheet" href="/css/themes/light.css" id="theme-stylesheet" />
+</head>
+<body>
+    <div id="app">
+        <header class="topbar">
+            <div class="logo">HMS</div>
+            <nav class="topnav">
+                <a href="/" class="nav-item">Dashboard</a>
+                <a href="/patients" class="nav-item">Patients</a>
+                <a href="/billing" class="nav-item">Billing</a>
+                <a href="/pharmacy" class="nav-item">Pharmacy</a>
+            </nav>
+            <div class="actions">
+                <button id="themeToggle" class="btn small">Toggle Theme</button>
+            </div>
+        </header>
+
+        <main class="content">
+            @RenderBody()
+        </main>
+    </div>
+
+    <script src="/js/theme.js"></script>
+</body>
+</html>

@@ -62,6 +62,12 @@ builder.Services.AddScoped<HMS.API.Application.Pharmacy.IInventoryService, HMS.A
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
 
+// Tenant subscription service
+builder.Services.AddScoped<ITenantSubscriptionService, TenantSubscriptionService>();
+
+// Billing webhook in-memory receiver
+builder.Services.AddSingleton<IBillingWebhookService, InMemoryBillingWebhookService>();
+
 // Event publisher
 builder.Services.AddSingleton<IEventPublisher, HMS.API.Infrastructure.Common.EventPublisher>();
 
@@ -101,6 +107,9 @@ builder.Services.AddAuthorization(options =>
 });
 
 // Middleware
+// register tenant middleware before authentication so header-based tenant overrides apply
+builder.Services.AddTransient<TenantMiddleware>();
+
 //builder.Services.AddTransient<CurrentUserMiddleware>();
 
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
@@ -143,6 +152,9 @@ if (!string.IsNullOrWhiteSpace(redisConfig))
     builder.Services.AddHostedService<HMS.API.Infrastructure.Reporting.ReportingAggregatorService>();
 }
 
+// register push notifier for pushing outbox events to tenant nodes
+builder.Services.AddScoped<HMS.API.Infrastructure.Sync.PushNotifier>();
+
 var app = builder.Build();
 
 // Apply EF migrations on startup
@@ -175,9 +187,34 @@ app.UseSwaggerUI(c =>
 
 app.UseHttpsRedirection();
 
+// tenant middleware must run early to set query filter context
+app.UseMiddleware<TenantMiddleware>();
+
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseMiddleware<CurrentUserMiddleware>();
+
+// enforce subscription after tenant has been resolved
+app.Use(async (context, next) =>
+{
+    var tenantId = CurrentTenantAccessor.CurrentTenantId;
+    if (tenantId.HasValue)
+    {
+        var subs = context.RequestServices.GetService<ITenantSubscriptionService>();
+        if (subs != null)
+        {
+            var allowed = await subs.IsTenantAllowedAsync(tenantId.Value);
+            if (!allowed)
+            {
+                context.Response.StatusCode = 402; // Payment Required
+                await context.Response.BodyWriter.WriteAsync(System.Text.Encoding.UTF8.GetBytes("Tenant subscription inactive or past due"));
+                return;
+            }
+        }
+    }
+
+    await next();
+});
 
 app.MapControllers();
 // Map inventory controller endpoints via attribute routing

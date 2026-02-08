@@ -1,0 +1,27 @@
+:root{
+  --bg: #ffffff;
+  --text: #0b2b4a;
+  --primary: #0b69ff;
+  --muted: #6b7280;
+}
+
+*{box-sizing:border-box}
+body{font-family:Inter,system-ui,-apple-system,'Segoe UI',Roboto,'Helvetica Neue',Arial; background:var(--bg); color:var(--text); margin:0}
+.topbar{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid #e6edf6}
+.logo{font-weight:700;color:var(--primary)}
+.topnav{display:flex;gap:10px}
+.nav-item{color:var(--text);text-decoration:none;padding:8px;border-radius:6px}
+.nav-item:hover{background:rgba(11,105,255,0.08)}
+.actions{display:flex;gap:8px}
+.btn{background:var(--primary);color:#fff;border:none;padding:8px 12px;border-radius:8px;cursor:pointer}
+.btn.small{padding:6px 8px;font-size:14px}
+.content{padding:16px}
+.card-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px}
+.card{background:#fff;border:1px solid #e6edf6;padding:12px;border-radius:8px;box-shadow:0 1px 3px rgba(11,41,65,0.04)}
+.card.small .big{font-size:20px;font-weight:700}
+
+/* responsive tweaks */
+@media (max-width:600px){
+  .topnav{display:none}
+  .logo{font-size:16px}
+}

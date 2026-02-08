@@ -38,7 +38,7 @@ namespace HMS.API.Application.Auth
 
             var permissions = user.UserRoles.SelectMany(ur => ur.Role.RolePermissions).Select(rp => rp.Permission.Code).Distinct().ToArray();
 
-            var token = BuildJwtToken(user.Id, user.Username, permissions);
+            var token = BuildJwtToken(user.Id, user.Username, permissions, user.TenantId);
             var (refreshPlain, refreshEntity) = await CreateRefreshToken(user);
 
             var audit = new Domain.Auth.AuthAudit
@@ -56,6 +56,7 @@ namespace HMS.API.Application.Auth
                 RefreshToken = refreshPlain,
                 ExpiresAt = token.expiresAt,
                 UserId = user.Id,
+                TenantId = user.TenantId,
                 Permissions = permissions
             };
         }
@@ -84,7 +85,7 @@ namespace HMS.API.Application.Auth
 
             // issue token
             var permissions = new string[0];
-            var token = BuildJwtToken(user.Id, user.Username, permissions);
+            var token = BuildJwtToken(user.Id, user.Username, permissions, user.TenantId);
             var (refreshPlain, refreshEntity) = await CreateRefreshToken(user);
 
             var audit = new Domain.Auth.AuthAudit
@@ -102,6 +103,7 @@ namespace HMS.API.Application.Auth
                 RefreshToken = refreshPlain,
                 ExpiresAt = token.expiresAt,
                 UserId = user.Id,
+                TenantId = user.TenantId,
                 Permissions = permissions
             };
         }
@@ -123,7 +125,7 @@ namespace HMS.API.Application.Auth
             return (plain, rt);
         }
 
-        private (string tokenString, DateTimeOffset expiresAt) BuildJwtToken(Guid userId, string username, IEnumerable<string> permissions)
+        private (string tokenString, DateTimeOffset expiresAt) BuildJwtToken(Guid userId, string username, IEnumerable<string> permissions, Guid? tenantId = null)
         {
             var key = _config["Jwt:Key"] ?? throw new InvalidOperationException("Jwt:Key not configured");
             var issuer = _config["Jwt:Issuer"] ?? "hms";
@@ -137,6 +139,11 @@ namespace HMS.API.Application.Auth
                 new Claim(ClaimTypes.NameIdentifier, userId.ToString()),
                 new Claim(JwtRegisteredClaimNames.UniqueName, username),
             };
+
+            if (tenantId.HasValue)
+            {
+                claims.Add(new Claim("tenant_id", tenantId.Value.ToString()));
+            }
 
             claims.AddRange(permissions.Select(p => new Claim("permission", p)));
 
@@ -173,7 +180,7 @@ namespace HMS.API.Application.Auth
 
             var user = rt.User;
             var permissions = user.UserRoles.SelectMany(ur => ur.Role.RolePermissions).Select(rp => rp.Permission.Code).Distinct().ToArray();
-            var token = BuildJwtToken(user.Id, user.Username, permissions);
+            var token = BuildJwtToken(user.Id, user.Username, permissions, user.TenantId);
 
             // rotate refresh token
             rt.IsRevoked = true;

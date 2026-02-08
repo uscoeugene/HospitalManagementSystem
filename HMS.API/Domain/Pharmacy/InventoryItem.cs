@@ -12,7 +12,11 @@ namespace HMS.API.Domain.Pharmacy
         public string Currency { get; set; } = "USD";
         public int Stock { get; set; }
         public int ReservedStock { get; set; }
-        public string Category { get; set; } = "general"; // e.g., drug, syringe, injection, consumable
+
+        // dynamic category reference
+        public Guid? CategoryId { get; set; }
+        public InventoryCategory? Category { get; set; }
+
         public string? Unit { get; set; } // e.g., box, piece, vial
     }
 }

@@ -64,6 +64,30 @@ namespace HMS.API.Infrastructure.Outbox
                             message.ProcessedAt = DateTimeOffset.UtcNow;
                             await db.SaveChangesAsync(stoppingToken);
 
+                            // push to tenant nodes for subscription-related events
+                            try
+                            {
+                                var push = scope.ServiceProvider.GetService<HMS.API.Infrastructure.Sync.PushNotifier>();
+                                if (push != null)
+                                {
+                                    // try to extract TenantId from message content
+                                    try
+                                    {
+                                        using var pd = JsonDocument.Parse(message.Content);
+                                        if (pd.RootElement.TryGetProperty("TenantId", out var t) && t.ValueKind == JsonValueKind.String && Guid.TryParse(t.GetString(), out var tid))
+                                        {
+                                            // only push for subscription change types
+                                            if (string.Equals(message.Type, "SubscriptionChanged", StringComparison.OrdinalIgnoreCase) || string.Equals(message.Type, "InvoiceStatusChangedEvent", StringComparison.OrdinalIgnoreCase) || string.Equals(message.Type, "PaymentCreated", StringComparison.OrdinalIgnoreCase))
+                                            {
+                                                await push.NotifySubscriptionChangedAsync(tid, payload ?? message);
+                                            }
+                                        }
+                                    }
+                                    catch { }
+                                }
+                            }
+                            catch { }
+
                             // notify in-process listeners
                             if (notifier != null)
                             {

@@ -29,6 +29,16 @@ namespace HMS.API.Application.Common
             }
         }
 
+        public Guid? TenantId
+        {
+            get
+            {
+                var t = _httpContextAccessor.HttpContext?.User?.FindFirst("tenant_id")?.Value;
+                if (Guid.TryParse(t, out var id)) return id;
+                return null;
+            }
+        }
+
         public bool HasPermission(string permission)
         {
             var user = _httpContextAccessor.HttpContext?.User;

@@ -6,6 +6,10 @@ namespace HMS.API.Domain.Common
     {
         public Guid Id { get; set; } = Guid.NewGuid();
 
+        // Tenant information (multi-tenant support)
+        // TenantId: internal GUID identifying the hospital/tenant.
+        public Guid? TenantId { get; set; }
+
         // Timestamps
         public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 

@@ -1,0 +1,18 @@
+@page
+@model HMS.UI.Pages.Patients.IndexModel
+@{
+    Layout = "/_Layout.cshtml";
+}
+
+<h2>Patients</h2>
+<div id="patientList">Loading...</div>
+
+<script>
+fetch('/api/patients')
+  .then(r => r.json())
+  .then(data => {
+    const el = document.getElementById('patientList');
+    el.innerHTML = '<ul>' + data.map(p => `<li>${p.fullName} (${p.id})</li>`).join('') + '</ul>';
+  })
+  .catch(() => document.getElementById('patientList').innerText = 'Failed to load');
+</script>

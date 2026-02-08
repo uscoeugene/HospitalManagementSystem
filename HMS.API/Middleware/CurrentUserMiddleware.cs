@@ -1,6 +1,7 @@
 using System.Threading.Tasks;
 using HMS.API.Application.Common;
 using Microsoft.AspNetCore.Http;
+using System.Security.Claims;
 
 namespace HMS.API.Middleware
 {
@@ -15,8 +16,22 @@ namespace HMS.API.Middleware
 
         public async Task InvokeAsync(HttpContext context, ICurrentUserService currentUserService)
         {
-            // The CurrentUserService reads from HttpContext on demand, so nothing to do here currently.
+            // If the user has tenant claims, populate the CurrentTenantAccessor
+            var user = context.User;
+            if (user?.Identity != null && user.Identity.IsAuthenticated)
+            {
+                var tclaim = user.FindFirst("tenant_id")?.Value;
+                if (System.Guid.TryParse(tclaim, out var tid))
+                {
+                    CurrentTenantAccessor.CurrentTenantId = tid;
+                }
+            }
+
+            // The CurrentUserService reads from HttpContext on demand, so nothing else to do
             await _next(context);
+
+            // clear after request
+            CurrentTenantAccessor.Clear();
         }
     }
 }

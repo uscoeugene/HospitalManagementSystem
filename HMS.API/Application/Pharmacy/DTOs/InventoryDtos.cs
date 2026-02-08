@@ -24,6 +24,7 @@ namespace HMS.API.Application.Pharmacy.DTOs
         public decimal UnitPrice { get; set; }
         public string Currency { get; set; } = "USD";
         public int Stock { get; set; }
+        public Guid? CategoryId { get; set; }
         public string? Category { get; set; }
         public string? Unit { get; set; }
     }
@@ -35,6 +36,7 @@ namespace HMS.API.Application.Pharmacy.DTOs
         public string? Description { get; set; }
         public decimal? UnitPrice { get; set; }
         public string? Currency { get; set; }
+        public Guid? CategoryId { get; set; }
         public string? Category { get; set; }
         public string? Unit { get; set; }
     }

@@ -52,6 +52,114 @@ namespace HMS.API.Infrastructure.Sync
             await Task.WhenAll(tasks);
         }
 
+        public async Task RunOnceAsync(Guid tenantId, System.Threading.CancellationToken cancellationToken = default)
+        {
+            // tenant-scoped sync: pull subscription and user profiles relevant to this tenant
+            try
+            {
+                // pull subscription info from cloud
+                var subsArr = await _cloud.PullAsync("TenantSubscription", null);
+                foreach (var p in subsArr)
+                {
+                    try
+                    {
+                        var j = JsonSerializer.Serialize(p);
+                        var dto = JsonSerializer.Deserialize<HMS.API.Domain.Common.TenantSubscription>(j);
+                        if (dto == null) continue;
+
+                        if (dto.TenantId != tenantId) continue;
+
+                        var existing = await _db.Set<HMS.API.Domain.Common.TenantSubscription>().FindAsync(new object[] { dto.Id }, cancellationToken);
+                        if (existing == null)
+                        {
+                            await _db.Set<HMS.API.Domain.Common.TenantSubscription>().AddAsync(dto, cancellationToken);
+                        }
+                        else
+                        {
+                            _db.Entry(existing).CurrentValues.SetValues(dto);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "Failed to apply pulled subscription record");
+                    }
+                }
+
+                // pull user profiles for tenant
+                var pulled = await _cloud.PullAsync("UserProfile", null);
+                foreach (var p in pulled)
+                {
+                    try
+                    {
+                        var j = JsonSerializer.Serialize(p);
+                        var dto = JsonSerializer.Deserialize<HMS.API.Application.Sync.DTOs.UserProfileSyncDto>(j);
+                        if (dto == null) continue;
+                        // here we assume profiles have a TenantId in Metadata or that User has TenantId in auth DB to correlate
+                        // for simplicity, apply profiles as-is
+                        var existing = await _db.UserProfiles.FindAsync(new object[] { dto.Id }, cancellationToken);
+                        if (existing == null)
+                        {
+                            var entity = new HMS.API.Domain.Profile.UserProfile
+                            {
+                                Id = dto.Id,
+                                UserId = dto.UserId,
+                                FirstName = dto.FirstName,
+                                LastName = dto.LastName,
+                                OtherNames = dto.OtherNames,
+                                Gender = dto.Gender,
+                                DateOfBirth = dto.DateOfBirth,
+                                PhoneNumber = dto.PhoneNumber,
+                                Email = dto.Email,
+                                Address = dto.Address,
+                                PhotoUrl = dto.PhotoUrl,
+                                StaffNumber = dto.StaffNumber,
+                                Department = dto.Department,
+                                JobTitle = dto.JobTitle,
+                                IsMedicalStaff = dto.IsMedicalStaff,
+                                CreatedAt = dto.CreatedAt,
+                                UpdatedAt = dto.UpdatedAt
+                            };
+                            await _db.UserProfiles.AddAsync(entity, cancellationToken);
+                        }
+                        else
+                        {
+                            _db.Entry(existing).CurrentValues.SetValues(new HMS.API.Domain.Profile.UserProfile
+                            {
+                                Id = dto.Id,
+                                UserId = dto.UserId,
+                                FirstName = dto.FirstName,
+                                LastName = dto.LastName,
+                                OtherNames = dto.OtherNames,
+                                Gender = dto.Gender,
+                                DateOfBirth = dto.DateOfBirth,
+                                PhoneNumber = dto.PhoneNumber,
+                                Email = dto.Email,
+                                Address = dto.Address,
+                                PhotoUrl = dto.PhotoUrl,
+                                StaffNumber = dto.StaffNumber,
+                                Department = dto.Department,
+                                JobTitle = dto.JobTitle,
+                                IsMedicalStaff = dto.IsMedicalStaff,
+                                CreatedAt = dto.CreatedAt,
+                                UpdatedAt = dto.UpdatedAt,
+                                UpdatedBy = dto.UpdatedByUserId
+                            });
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "Failed to apply pulled profile record");
+                    }
+                }
+
+                await _db.SaveChangesAsync(cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Tenant-scoped sync failed for {TenantId}", tenantId);
+            }
+        }
+
         private async Task SyncUserProfilesAsync(System.Threading.CancellationToken cancellationToken)
         {
             const string name = "UserProfile";

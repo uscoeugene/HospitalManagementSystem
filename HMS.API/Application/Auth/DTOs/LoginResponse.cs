@@ -9,6 +9,7 @@ namespace HMS.API.Application.Auth.DTOs
         public string RefreshToken { get; set; } = string.Empty;
         public DateTimeOffset ExpiresAt { get; set; }
         public Guid UserId { get; set; }
+        public Guid? TenantId { get; set; }
         public IEnumerable<string> Permissions { get; set; } = Array.Empty<string>();
     }
 }

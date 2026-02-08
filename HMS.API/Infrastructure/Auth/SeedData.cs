@@ -129,7 +129,7 @@ namespace HMS.API.Infrastructure.Auth
 
             await db.SaveChangesAsync();
 
-            // create admin user
+            // create central admin user
             var admin = new User
             {
                 Username = "admin",
@@ -156,6 +156,36 @@ namespace HMS.API.Infrastructure.Auth
 
             db.UserRoles.Add(new UserRole { User = user, Role = userRole });
             await db.SaveChangesAsync();
+
+            // seed central tenant record in auth DB so the system has a central reference
+            if (!await db.Set<HMS.API.Domain.Common.Tenant>().AnyAsync())
+            {
+                var central = new HMS.API.Domain.Common.Tenant { Name = "Central HMS", Code = "CENTRAL", IsCentral = true };
+                db.Set<HMS.API.Domain.Common.Tenant>().Add(central);
+                await db.SaveChangesAsync();
+
+                // Create two sample tenant hospitals and assign a tenant admin user to each
+                var hospA = new HMS.API.Domain.Common.Tenant { Name = "St Mary Hospital", Code = "SMH", IsCentral = false };
+                var hospB = new HMS.API.Domain.Common.Tenant { Name = "Green Valley Clinic", Code = "GVC", IsCentral = false };
+                db.Set<HMS.API.Domain.Common.Tenant>().AddRange(hospA, hospB);
+                await db.SaveChangesAsync();
+
+                // create tenant admin users and assign Admin role, set TenantId on user
+                var adminA = new User { Username = "smh_admin", Email = "admin@smh.local", PasswordHash = hasher.Hash("SmhAdmin@123"), TenantId = hospA.Id };
+                var adminB = new User { Username = "gvc_admin", Email = "admin@gvc.local", PasswordHash = hasher.Hash("GvcAdmin@123"), TenantId = hospB.Id };
+                db.Users.AddRange(adminA, adminB);
+                await db.SaveChangesAsync();
+
+                db.UserRoles.Add(new UserRole { User = adminA, Role = adminRole });
+                db.UserRoles.Add(new UserRole { User = adminB, Role = adminRole });
+                await db.SaveChangesAsync();
+
+                // create default subscriptions
+                var subA = new HMS.API.Domain.Common.TenantSubscription { TenantId = hospA.Id, Plan = "pro", Status = HMS.API.Domain.Common.SubscriptionStatus.Active, StartAt = DateTimeOffset.UtcNow, EndAt = DateTimeOffset.UtcNow.AddYears(1) };
+                var subB = new HMS.API.Domain.Common.TenantSubscription { TenantId = hospB.Id, Plan = "basic", Status = HMS.API.Domain.Common.SubscriptionStatus.Trial, StartAt = DateTimeOffset.UtcNow, EndAt = DateTimeOffset.UtcNow.AddMonths(1) };
+                db.Set<HMS.API.Domain.Common.TenantSubscription>().AddRange(subA, subB);
+                await db.SaveChangesAsync();
+            }
         }
     }
 }

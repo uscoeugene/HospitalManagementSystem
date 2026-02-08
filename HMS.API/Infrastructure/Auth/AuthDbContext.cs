@@ -24,6 +24,9 @@ namespace HMS.API.Infrastructure.Auth
         public DbSet<AuthAudit> AuthAudits { get; set; } = null!;
         public DbSet<RefreshToken> RefreshTokens { get; set; } = null!;
 
+        // Central tenants stored in auth DB
+        public DbSet<Tenant> Tenants { get; set; } = null!;
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -83,7 +86,31 @@ namespace HMS.API.Infrastructure.Auth
                 b.HasIndex(rt => rt.TokenHash).IsUnique();
             });
 
-            // Apply global query filter for soft-delete on BaseEntity
+            modelBuilder.Entity<Tenant>(b =>
+            {
+                b.HasKey(t => t.Id);
+                b.Property(t => t.Name).IsRequired().HasMaxLength(200);
+                b.Property(t => t.Code).IsRequired().HasMaxLength(100);
+                b.HasIndex(t => t.Code).IsUnique();
+            });
+
+            modelBuilder.Entity<Domain.Common.TenantSubscription>(b =>
+            {
+                b.HasKey(s => s.Id);
+                b.Property(s => s.Plan).IsRequired().HasMaxLength(100);
+                b.Property(s => s.Status).IsRequired();
+                b.HasIndex(s => s.TenantId);
+            });
+
+            modelBuilder.Entity<Domain.Common.TenantNode>(b =>
+            {
+                b.HasKey(n => n.Id);
+                b.Property(n => n.CallbackUrl).IsRequired().HasMaxLength(2000);
+                b.Property(n => n.Name).HasMaxLength(200);
+                b.HasIndex(n => n.TenantId);
+            });
+
+            // Apply global query filter for soft-delete on BaseEntity and tenant scoping for entities with TenantId
             foreach (var entityType in modelBuilder.Model.GetEntityTypes())
             {
                 if (typeof(BaseEntity).IsAssignableFrom(entityType.ClrType))
@@ -91,6 +118,13 @@ namespace HMS.API.Infrastructure.Auth
                     var method = typeof(AuthDbContext).GetMethod(nameof(ApplySoftDeleteQueryFilter), System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)
                                  ?.MakeGenericMethod(entityType.ClrType);
                     method?.Invoke(null, new object[] { modelBuilder });
+
+                    if (entityType.FindProperty("TenantId") != null)
+                    {
+                        var tenantMethod = typeof(AuthDbContext).GetMethod(nameof(ApplyTenantQueryFilter), System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)
+                                            ?.MakeGenericMethod(entityType.ClrType);
+                        tenantMethod?.Invoke(null, new object[] { modelBuilder });
+                    }
                 }
             }
         }
@@ -98,6 +132,11 @@ namespace HMS.API.Infrastructure.Auth
         private static void ApplySoftDeleteQueryFilter<TEntity>(ModelBuilder builder) where TEntity : BaseEntity
         {
             builder.Entity<TEntity>().HasQueryFilter(e => !e.IsDeleted);
+        }
+
+        private static void ApplyTenantQueryFilter<TEntity>(ModelBuilder builder) where TEntity : BaseEntity
+        {
+            builder.Entity<TEntity>().HasQueryFilter(e => e.TenantId == null || e.TenantId == CurrentTenantAccessor.CurrentTenantId);
         }
 
         public override int SaveChanges()

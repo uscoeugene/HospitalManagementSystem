@@ -1,0 +1,18 @@
+@page
+@model HMS.UI.Pages.Billing.IndexModel
+@{
+    Layout = "/_Layout.cshtml";
+}
+
+<h2>Billing</h2>
+<div id="billingSummary">Loading...</div>
+
+<script>
+fetch('/api/reports/billing/kpi')
+  .then(r => r.json())
+  .then(data => {
+    const el = document.getElementById('billingSummary');
+    el.innerHTML = `<div class="card-grid"><div class="card"><h3>Total Revenue</h3><p class="big">$${data.totalRevenue}</p></div><div class="card"><h3>Invoices</h3><p class="big">${data.invoiceCount}</p></div></div>`;
+  })
+  .catch(() => document.getElementById('billingSummary').innerText = 'Failed to load');
+</script>

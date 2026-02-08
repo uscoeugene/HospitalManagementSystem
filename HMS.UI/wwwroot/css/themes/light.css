@@ -1,0 +1,8 @@
+:root{
+  --bg: #ffffff;
+  --text: #0b2b4a;
+  --primary: #0b69ff;
+  --muted: #6b7280;
+}
+
+body{background:var(--bg);color:var(--text)}
