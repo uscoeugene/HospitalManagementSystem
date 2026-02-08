@@ -78,6 +78,12 @@ builder.Services.AddHostedService<OutboxProcessor>();
 var jwtKey = builder.Configuration["Jwt:Key"] ?? "dev-insecure-key-change";
 var keyBytes = Encoding.UTF8.GetBytes(jwtKey);
 
+// Local JWT settings for offline-issued tokens
+var localKey = builder.Configuration["LocalJwt:Key"] ?? "dev-local-key-change";
+var localKeyBytes = Encoding.UTF8.GetBytes(localKey);
+
+builder.Services.AddSingleton<HMS.API.Application.Auth.LocalTokenService>();
+
 builder.Services.AddAuthentication(options =>
 {
     options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
@@ -90,7 +96,20 @@ builder.Services.AddAuthentication(options =>
     options.TokenValidationParameters = new TokenValidationParameters
     {
         ValidateIssuerSigningKey = true,
-        IssuerSigningKey = new SymmetricSecurityKey(keyBytes),
+        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey)),
+        ValidateIssuer = false,
+        ValidateAudience = false,
+        ClockSkew = TimeSpan.FromSeconds(30)
+    };
+})
+.AddJwtBearer("Local", options =>
+{
+    options.RequireHttpsMetadata = false;
+    options.SaveToken = true;
+    options.TokenValidationParameters = new TokenValidationParameters
+    {
+        ValidateIssuerSigningKey = true,
+        IssuerSigningKey = new SymmetricSecurityKey(localKeyBytes),
         ValidateIssuer = false,
         ValidateAudience = false,
         ClockSkew = TimeSpan.FromSeconds(30)

@@ -312,6 +312,35 @@ namespace HMS.API.Infrastructure.Persistence
                 b.HasIndex(p => p.UpdatedAt);
             });
 
+            // Local User mappings
+            modelBuilder.Entity<Domain.Auth.LocalUser>(b =>
+            {
+                b.HasKey(u => u.Id);
+                b.Property(u => u.Username).IsRequired().HasMaxLength(100);
+                b.Property(u => u.PasswordHash).IsRequired().HasMaxLength(256);
+                b.Property(u => u.Email).HasMaxLength(255);
+                b.HasIndex(u => u.Username);
+                b.HasIndex(u => u.TenantId);
+            });
+
+            modelBuilder.Entity<Domain.Auth.LocalRole>(b =>
+            {
+                b.HasKey(r => r.Id);
+                b.Property(r => r.Name).IsRequired().HasMaxLength(100);
+                b.Property(r => r.Description).HasMaxLength(500);
+                b.HasIndex(r => r.Name);
+                b.HasIndex(r => r.TenantId);
+            });
+
+            modelBuilder.Entity<Domain.Auth.LocalPermission>(b =>
+            {
+                b.HasKey(p => p.Id);
+                b.Property(p => p.Code).IsRequired().HasMaxLength(200);
+                b.Property(p => p.Description).HasMaxLength(500);
+                b.HasIndex(p => p.Code);
+                b.HasIndex(p => p.TenantId);
+            });
+
             // Apply global query filter for soft-delete and tenant scoping
             foreach (var entityType in modelBuilder.Model.GetEntityTypes())
             {

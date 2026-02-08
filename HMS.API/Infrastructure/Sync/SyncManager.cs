@@ -85,9 +85,43 @@ namespace HMS.API.Infrastructure.Sync
                     }
                 }
 
-                // pull user profiles for tenant
-                var pulled = await _cloud.PullAsync("UserProfile", null);
+                // push local users to cloud
+                var localUsers = await _db.Set<HMS.API.Domain.Auth.LocalUser>().AsNoTracking().Where(u => u.TenantId == tenantId && !u.IsDeleted).ToArrayAsync(cancellationToken);
+                if (localUsers.Length > 0)
+                {
+                    await _cloud.PushAsync("LocalUser", localUsers.Cast<object>().ToArray());
+                }
+
+                // pull central local user records (authoritative)
+                var pulled = await _cloud.PullAsync("LocalUser", null);
                 foreach (var p in pulled)
+                {
+                    try
+                    {
+                        var j = JsonSerializer.Serialize(p);
+                        var dto = JsonSerializer.Deserialize<HMS.API.Domain.Auth.LocalUser>(j);
+                        if (dto == null) continue;
+                        if (dto.TenantId != tenantId) continue;
+
+                        var existing = await _db.Set<HMS.API.Domain.Auth.LocalUser>().FindAsync(new object[] { dto.Id }, cancellationToken);
+                        if (existing == null)
+                        {
+                            await _db.Set<HMS.API.Domain.Auth.LocalUser>().AddAsync(dto, cancellationToken);
+                        }
+                        else
+                        {
+                            _db.Entry(existing).CurrentValues.SetValues(dto);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "Failed to apply pulled local user record");
+                    }
+                }
+
+                // pull user profiles for tenant (existing code)
+                var pulledProfiles = await _cloud.PullAsync("UserProfile", null);
+                foreach (var p in pulledProfiles)
                 {
                     try
                     {

@@ -94,6 +94,16 @@ namespace HMS.API.Infrastructure.Auth
                 b.HasIndex(t => t.Code).IsUnique();
             });
 
+            modelBuilder.Entity<LocalUser>(b =>
+            {
+                b.HasKey(u => u.Id);
+                b.Property(u => u.Username).IsRequired().HasMaxLength(100);
+                b.Property(u => u.PasswordHash).IsRequired().HasMaxLength(256);
+                b.Property(u => u.Email).HasMaxLength(255);
+                b.HasIndex(u => u.Username);
+                b.HasIndex(u => u.TenantId);
+            });
+
             modelBuilder.Entity<Domain.Common.TenantSubscription>(b =>
             {
                 b.HasKey(s => s.Id);

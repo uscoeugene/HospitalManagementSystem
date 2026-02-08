@@ -1,0 +1,31 @@
+@page
+@model HMS.UI.Pages.Users.IndexModel
+@{
+    ViewData["Title"] = "Local Users";
+}
+
+<h1>Local Users</h1>
+
+<table class="table">
+    <thead>
+        <tr>
+            <th>Username</th>
+            <th>Email</th>
+            <th>Tenant</th>
+            <th>Locked</th>
+        </tr>
+    </thead>
+    <tbody>
+    @foreach (var u in Model.Users)
+    {
+        <tr>
+            <td>@u.GetType().GetProperty("Username")?.GetValue(u)</td>
+            <td>@u.GetType().GetProperty("Email")?.GetValue(u)</td>
+            <td>@u.GetType().GetProperty("TenantId")?.GetValue(u)</td>
+            <td>@u.GetType().GetProperty("IsLocked")?.GetValue(u)</td>
+        </tr>
+    }
+    </tbody>
+</table>
+
+<p><a class="btn btn-primary" href="/Users/Create">Create user</a></p>
