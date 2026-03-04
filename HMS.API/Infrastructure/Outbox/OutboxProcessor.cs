@@ -19,6 +19,7 @@ namespace HMS.API.Infrastructure.Outbox
     {
         private readonly IServiceProvider _services;
         private readonly ILogger<OutboxProcessor> _logger;
+        private const int MaxAttempts = 5;
 
         public OutboxProcessor(IServiceProvider services, ILogger<OutboxProcessor> logger)
         {
@@ -39,172 +40,211 @@ namespace HMS.API.Infrastructure.Outbox
                     var notifier = scope.ServiceProvider.GetService<INotificationService>();
                     var hubContext = scope.ServiceProvider.GetService<IHubContext<NotificationHub>>();
 
-                    var message = await db.OutboxMessages.Where(o => o.ProcessedAt == null).OrderBy(o => o.OccurredAt).FirstOrDefaultAsync(stoppingToken);
-                    if (message == null)
+                    // If no tenant context is available (app in bootstrap/setup), avoid aggressive polling
+                    // and skip processing until a tenant is configured. This prevents tight spin loops when
+                    // the system hasn't been provisioned yet.
+                    if (CurrentTenantAccessor.CurrentTenantId == null)
                     {
-                        await Task.Delay(TimeSpan.FromSeconds(2), stoppingToken);
+                        _logger.LogDebug("No tenant context available for outbox processor; delaying before next check.");
+                        await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken);
                         continue;
                     }
 
+                    // Select next unprocessed message ignoring tenant/global query filters so the outbox worker
+                    // can process messages for all tenants (and central messages). We'll establish tenant context
+                    // per-message while processing so subsequent tenant-scoped lookups succeed.
+                    var message = await db.OutboxMessages
+                                          .IgnoreQueryFilters()
+                                          .Where(o => o.ProcessedAt == null)
+                                          .OrderBy(o => o.OccurredAt)
+                                          .FirstOrDefaultAsync(stoppingToken);
+
+                    if (message == null)
+                    {
+                        await Task.Delay(TimeSpan.FromSeconds(5), stoppingToken);
+                        continue;
+                    }
+
+                    // set tenant context for any tenant-scoped queries performed while handling this message
+                    var previousTenant = CurrentTenantAccessor.CurrentTenantId;
                     try
                     {
-                        object? payload = null;
-                        JsonDocument? doc = null;
+                        CurrentTenantAccessor.CurrentTenantId = message.TenantId;
+
                         try
                         {
-                            doc = JsonDocument.Parse(message.Content);
-                            payload = JsonSerializer.Deserialize<object>(message.Content);
-                        }
-                        catch { payload = message.Content; }
-
-                        // attempt publish with retries
-                        try
-                        {
-                            await publisher.PublishAsync(payload ?? message);
-                            message.ProcessedAt = DateTimeOffset.UtcNow;
-                            await db.SaveChangesAsync(stoppingToken);
-
-                            // push to tenant nodes for subscription-related events
+                            object? payload = null;
+                            JsonDocument? doc = null;
                             try
                             {
-                                var push = scope.ServiceProvider.GetService<HMS.API.Infrastructure.Sync.PushNotifier>();
-                                if (push != null)
+                                doc = JsonDocument.Parse(message.Content);
+                                payload = JsonSerializer.Deserialize<object>(message.Content);
+                            }
+                            catch { payload = message.Content; }
+
+                            // attempt publish with retries
+                            try
+                            {
+                                await publisher.PublishAsync(payload ?? message);
+                                message.ProcessedAt = DateTimeOffset.UtcNow;
+                                await db.SaveChangesAsync(stoppingToken);
+
+                                // push to tenant nodes for subscription-related events
+                                try
                                 {
-                                    // try to extract TenantId from message content
+                                    var push = scope.ServiceProvider.GetService<HMS.API.Infrastructure.Sync.PushNotifier>();
+                                    if (push != null)
+                                    {
+                                        // try to extract TenantId from message content
+                                        try
+                                        {
+                                            using var pd = JsonDocument.Parse(message.Content);
+                                            if (pd.RootElement.TryGetProperty("TenantId", out var t) && t.ValueKind == JsonValueKind.String && Guid.TryParse(t.GetString(), out var tid))
+                                            {
+                                                // only push for subscription change types
+                                                if (string.Equals(message.Type, "SubscriptionChanged", StringComparison.OrdinalIgnoreCase) || string.Equals(message.Type, "InvoiceStatusChangedEvent", StringComparison.OrdinalIgnoreCase) || string.Equals(message.Type, "PaymentCreated", StringComparison.OrdinalIgnoreCase))
+                                                {
+                                                    await push.NotifySubscriptionChangedAsync(tid, payload ?? message);
+                                                }
+                                            }
+                                        }
+                                        catch { }
+                                    }
+                                }
+                                catch { }
+
+                                // notify in-process listeners
+                                if (notifier != null)
+                                {
                                     try
                                     {
-                                        using var pd = JsonDocument.Parse(message.Content);
-                                        if (pd.RootElement.TryGetProperty("TenantId", out var t) && t.ValueKind == JsonValueKind.String && Guid.TryParse(t.GetString(), out var tid))
+                                        await notifier.NotifyAsync(message.Type, payload ?? message);
+                                    }
+                                    catch (Exception exNotify)
+                                    {
+                                        _logger.LogWarning(exNotify, "Notification failed for outbox message {Id}", message.Id);
+                                    }
+                                }
+
+                                // broadcast via SignalR to relevant groups
+                                try
+                                {
+                                    var groups = new List<string>();
+
+                                    if (string.Equals(message.Type, "PrescriptionCharged", StringComparison.OrdinalIgnoreCase))
+                                    {
+                                        groups.Add("pharmacy");
+                                        // try extract patientId
+                                        if (doc != null && doc.RootElement.TryGetProperty("PatientId", out var pid) && pid.ValueKind == JsonValueKind.String)
                                         {
-                                            // only push for subscription change types
-                                            if (string.Equals(message.Type, "SubscriptionChanged", StringComparison.OrdinalIgnoreCase) || string.Equals(message.Type, "InvoiceStatusChangedEvent", StringComparison.OrdinalIgnoreCase) || string.Equals(message.Type, "PaymentCreated", StringComparison.OrdinalIgnoreCase))
+                                            groups.Add($"patient-{pid.GetString()}");
+                                        }
+                                    }
+                                    else if (string.Equals(message.Type, "PrescriptionDispensed", StringComparison.OrdinalIgnoreCase))
+                                    {
+                                        groups.Add("pharmacy");
+                                        // try get prescription id and lookup patient
+                                        if (doc != null && doc.RootElement.TryGetProperty("PrescriptionId", out var prIdElem) && prIdElem.ValueKind == JsonValueKind.String)
+                                        {
+                                            if (Guid.TryParse(prIdElem.GetString(), out var prId))
                                             {
-                                                await push.NotifySubscriptionChangedAsync(tid, payload ?? message);
+                                                var pres = await db.Prescriptions.AsNoTracking().SingleOrDefaultAsync(p => p.Id == prId, stoppingToken);
+                                                if (pres != null) groups.Add($"patient-{pres.PatientId}");
                                             }
                                         }
                                     }
-                                    catch { }
+                                    else if (string.Equals(message.Type, "LabInvoiceCreated", StringComparison.OrdinalIgnoreCase))
+                                    {
+                                        groups.Add("lab");
+                                        if (doc != null && doc.RootElement.TryGetProperty("PatientId", out var pid2) && pid2.ValueKind == JsonValueKind.String)
+                                        {
+                                            groups.Add($"patient-{pid2.GetString()}");
+                                        }
+                                    }
+                                    else if (string.Equals(message.Type, "InvoiceStatusChangedEvent", StringComparison.OrdinalIgnoreCase))
+                                    {
+                                        // invoice status changes are relevant to billing UI and the patient
+                                        groups.Add("billing");
+                                        if (doc != null && doc.RootElement.TryGetProperty("InvoiceId", out var invIdElem) && invIdElem.ValueKind == JsonValueKind.String)
+                                        {
+                                            if (Guid.TryParse(invIdElem.GetString(), out var invId))
+                                            {
+                                                var inv = await db.Invoices.AsNoTracking().SingleOrDefaultAsync(i => i.Id == invId, stoppingToken);
+                                                if (inv != null) groups.Add($"patient-{inv.PatientId}");
+                                            }
+                                        }
+                                    }
+                                    else if (string.Equals(message.Type, "PaymentCreated", StringComparison.OrdinalIgnoreCase) || string.Equals(message.Type, "PaymentRefunded", StringComparison.OrdinalIgnoreCase) || string.Equals(message.Type, "RefundReversed", StringComparison.OrdinalIgnoreCase))
+                                    {
+                                        // payments go to billing/cashier and patient
+                                        groups.Add("billing");
+                                        groups.Add("cashier");
+                                        if (doc != null && doc.RootElement.TryGetProperty("PatientId", out var pid3) && pid3.ValueKind == JsonValueKind.String)
+                                        {
+                                            groups.Add($"patient-{pid3.GetString()}");
+                                        }
+                                    }
+                                    else
+                                    {
+                                        // generic: send to admin group
+                                        groups.Add("admin");
+                                    }
+
+                                    if (hubContext != null)
+                                    {
+                                        foreach (var g in groups)
+                                        {
+                                            try
+                                            {
+                                                await hubContext.Clients.Group(g).SendAsync("notification", message.Type, payload ?? message);
+                                            }
+                                            catch (Exception exHub)
+                                            {
+                                                _logger.LogWarning(exHub, "SignalR group broadcast failed for outbox message {Id} to group {Group}", message.Id, g);
+                                            }
+                                        }
+                                    }
+                                }
+                                catch (Exception exHub)
+                                {
+                                    _logger.LogWarning(exHub, "SignalR broadcast failed for outbox message {Id}", message.Id);
                                 }
                             }
-                            catch { }
-
-                            // notify in-process listeners
-                            if (notifier != null)
+                            catch (Exception exPub)
                             {
-                                try
+                                message.Attempts += 1;
+                                await db.SaveChangesAsync(stoppingToken);
+
+                                if (message.Attempts >= MaxAttempts)
                                 {
-                                    await notifier.NotifyAsync(message.Type, payload ?? message);
+                                    // mark as processed/failed to avoid infinite retry loop
+                                    message.ProcessedAt = DateTimeOffset.UtcNow;
+                                    await db.SaveChangesAsync(stoppingToken);
+                                    _logger.LogError(exPub, "Outbox publish failed for message {Id} after {Attempts} attempts. Marking as processed to avoid retry loop.", message.Id, message.Attempts);
+                                    continue;
                                 }
-                                catch (Exception exNotify)
-                                {
-                                    _logger.LogWarning(exNotify, "Notification failed for outbox message {Id}", message.Id);
-                                }
+
+                                var backoff = ComputeBackoff(message.Attempts);
+                                _logger.LogWarning(exPub, "Publish failed for outbox message {Id}, will retry after {Backoff}s (attempt {Attempt})", message.Id, backoff.TotalSeconds, message.Attempts);
+                                await Task.Delay(backoff, stoppingToken);
                             }
-
-                            // broadcast via SignalR to relevant groups
-                            try
+                            finally
                             {
-                                var groups = new List<string>();
-
-                                if (string.Equals(message.Type, "PrescriptionCharged", StringComparison.OrdinalIgnoreCase))
-                                {
-                                    groups.Add("pharmacy");
-                                    // try extract patientId
-                                    if (doc != null && doc.RootElement.TryGetProperty("PatientId", out var pid) && pid.ValueKind == JsonValueKind.String)
-                                    {
-                                        groups.Add($"patient-{pid.GetString()}");
-                                    }
-                                }
-                                else if (string.Equals(message.Type, "PrescriptionDispensed", StringComparison.OrdinalIgnoreCase))
-                                {
-                                    groups.Add("pharmacy");
-                                    // try get prescription id and lookup patient
-                                    if (doc != null && doc.RootElement.TryGetProperty("PrescriptionId", out var prIdElem) && prIdElem.ValueKind == JsonValueKind.String)
-                                    {
-                                        if (Guid.TryParse(prIdElem.GetString(), out var prId))
-                                        {
-                                            var pres = await db.Prescriptions.AsNoTracking().SingleOrDefaultAsync(p => p.Id == prId, stoppingToken);
-                                            if (pres != null) groups.Add($"patient-{pres.PatientId}");
-                                        }
-                                    }
-                                }
-                                else if (string.Equals(message.Type, "LabInvoiceCreated", StringComparison.OrdinalIgnoreCase))
-                                {
-                                    groups.Add("lab");
-                                    if (doc != null && doc.RootElement.TryGetProperty("PatientId", out var pid2) && pid2.ValueKind == JsonValueKind.String)
-                                    {
-                                        groups.Add($"patient-{pid2.GetString()}");
-                                    }
-                                }
-                                else if (string.Equals(message.Type, "InvoiceStatusChangedEvent", StringComparison.OrdinalIgnoreCase))
-                                {
-                                    // invoice status changes are relevant to billing UI and the patient
-                                    groups.Add("billing");
-                                    if (doc != null && doc.RootElement.TryGetProperty("InvoiceId", out var invIdElem) && invIdElem.ValueKind == JsonValueKind.String)
-                                    {
-                                        if (Guid.TryParse(invIdElem.GetString(), out var invId))
-                                        {
-                                            var inv = await db.Invoices.AsNoTracking().SingleOrDefaultAsync(i => i.Id == invId, stoppingToken);
-                                            if (inv != null) groups.Add($"patient-{inv.PatientId}");
-                                        }
-                                    }
-                                }
-                                else if (string.Equals(message.Type, "PaymentCreated", StringComparison.OrdinalIgnoreCase) || string.Equals(message.Type, "PaymentRefunded", StringComparison.OrdinalIgnoreCase) || string.Equals(message.Type, "RefundReversed", StringComparison.OrdinalIgnoreCase))
-                                {
-                                    // payments go to billing/cashier and patient
-                                    groups.Add("billing");
-                                    groups.Add("cashier");
-                                    if (doc != null && doc.RootElement.TryGetProperty("PatientId", out var pid3) && pid3.ValueKind == JsonValueKind.String)
-                                    {
-                                        groups.Add($"patient-{pid3.GetString()}");
-                                    }
-                                }
-                                else
-                                {
-                                    // generic: send to admin group
-                                    groups.Add("admin");
-                                }
-
-                                if (hubContext != null)
-                                {
-                                    foreach (var g in groups)
-                                    {
-                                        try
-                                        {
-                                            await hubContext.Clients.Group(g).SendAsync("notification", message.Type, payload ?? message);
-                                        }
-                                        catch (Exception exHub)
-                                        {
-                                            _logger.LogWarning(exHub, "SignalR group broadcast failed for outbox message {Id} to group {Group}", message.Id, g);
-                                        }
-                                    }
-                                }
-                            }
-                            catch (Exception exHub)
-                            {
-                                _logger.LogWarning(exHub, "SignalR broadcast failed for outbox message {Id}", message.Id);
+                                doc?.Dispose();
                             }
                         }
-                        catch (Exception exPub)
+                        catch (Exception ex)
                         {
                             message.Attempts += 1;
+                            _logger.LogError(ex, "Outbox processing error for message {Id}", message.Id);
                             await db.SaveChangesAsync(stoppingToken);
-
-                            var backoff = ComputeBackoff(message.Attempts);
-                            _logger.LogWarning(exPub, "Publish failed for outbox message {Id}, will retry after {Backoff}s", message.Id, backoff.TotalSeconds);
-                            await Task.Delay(backoff, stoppingToken);
-                        }
-                        finally
-                        {
-                            doc?.Dispose();
+                            await Task.Delay(TimeSpan.FromSeconds(5), stoppingToken);
                         }
                     }
-                    catch (Exception ex)
+                    finally
                     {
-                        message.Attempts += 1;
-                        _logger.LogError(ex, "Outbox processing error for message {Id}", message.Id);
-                        await db.SaveChangesAsync(stoppingToken);
-                        await Task.Delay(TimeSpan.FromSeconds(5), stoppingToken);
+                        // restore previous tenant context (may be null)
+                        CurrentTenantAccessor.CurrentTenantId = previousTenant;
                     }
                 }
                 catch (OperationCanceledException) { }

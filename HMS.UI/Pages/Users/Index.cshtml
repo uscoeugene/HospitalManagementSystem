@@ -1,31 +1,75 @@
 @page
 @model HMS.UI.Pages.Users.IndexModel
 @{
-    ViewData["Title"] = "Local Users";
+    ViewData["Title"] = "Users";
 }
 
-<h1>Local Users</h1>
+<div class="card">
+    <div class="card-body">
+        <div class="d-flex justify-content-between mb-3">
+            <h3><span class="fa fa-users me-2"></span>Users</h3>
+            <div class="d-flex">
+                <form method="get" class="me-2">
+                    <div class="input-group">
+                        <input name="Search" value="@Model.Search" class="form-control" placeholder="Search username or email" />
+                        <button class="btn btn-outline-secondary" type="submit">Search</button>
+                    </div>
+                </form>
+                <a class="btn btn-outline-primary me-2" href="/Users/Create"><span class="fa fa-plus me-1"></span>Create</a>
+                <button id="refreshBtn" class="btn btn-primary"><span class="fa fa-sync me-1"></span>Refresh</button>
+            </div>
+        </div>
 
-<table class="table">
-    <thead>
-        <tr>
-            <th>Username</th>
-            <th>Email</th>
-            <th>Tenant</th>
-            <th>Locked</th>
-        </tr>
-    </thead>
-    <tbody>
-    @foreach (var u in Model.Users)
-    {
-        <tr>
-            <td>@u.GetType().GetProperty("Username")?.GetValue(u)</td>
-            <td>@u.GetType().GetProperty("Email")?.GetValue(u)</td>
-            <td>@u.GetType().GetProperty("TenantId")?.GetValue(u)</td>
-            <td>@u.GetType().GetProperty("IsLocked")?.GetValue(u)</td>
-        </tr>
-    }
-    </tbody>
-</table>
+        <table class="table table-striped">
+            <thead>
+                <tr>
+                    <th>Username</th>
+                    <th>Email</th>
+                    <th>Tenant</th>
+                    <th>Locked</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody id="usersBody">
+            @foreach (var u in Model.Users)
+            {
+                <tr>
+                    <td>@u.Username</td>
+                    <td>@u.Email</td>
+                    <td>@(u.TenantId.HasValue && Model.TenantNames.ContainsKey(u.TenantId.Value) ? Model.TenantNames[u.TenantId.Value] : "—")</td>
+                    <td>@(u.IsLocked ? "Yes" : "No")</td>
+                    <td>
+                        <a class="btn btn-sm btn-outline-secondary me-1" href="/Users/Edit?id=@u.Id">Edit</a>
+                        <form method="post" action="/users/@u.Id/lock" class="d-inline">
+                            <button class="btn btn-sm btn-warning me-1">Lock</button>
+                        </form>
+                        <form method="post" action="/users/@u.Id/unlock" class="d-inline">
+                            <button class="btn btn-sm btn-success me-1">Unlock</button>
+                        </form>
+                        <form method="post" action="/users/@u.Id" class="d-inline" onsubmit="return confirm('Delete user?');">
+                            <input type="hidden" name="_method" value="delete" />
+                            <button class="btn btn-sm btn-danger">Delete</button>
+                        </form>
+                    </td>
+                </tr>
+            }
+            </tbody>
+        </table>
 
-<p><a class="btn btn-primary" href="/Users/Create">Create user</a></p>
+        <div class="d-flex justify-content-between">
+            <div>Page @Model.Page of @((Model.Total + Model.PageSize - 1) / Model.PageSize)</div>
+            <div>
+                <a class="btn btn-sm btn-outline-secondary @((Model.Page <= 1 ? "disabled" : ""))" href="?page=@(Model.Page - 1)&search=@Model.Search">Prev</a>
+                <a class="btn btn-sm btn-outline-secondary @((Model.Page * Model.PageSize >= Model.Total ? "disabled" : ""))" href="?page=@(Model.Page + 1)&search=@Model.Search">Next</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    document.getElementById('refreshBtn').addEventListener('click', async () => {
+        location.reload();
+    });
+</script>
+}

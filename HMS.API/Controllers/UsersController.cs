@@ -10,7 +10,7 @@ using HMS.API.Security;
 namespace HMS.API.Controllers
 {
     [ApiController]
-    [Route("[controller]")]
+    [Route("auth/[controller]")]
     public class UsersController : ControllerBase
     {
         private readonly AuthDbContext _authDb;

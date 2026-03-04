@@ -1,18 +1,70 @@
 @page
 @model HMS.UI.Pages.IndexModel
+@{
+    ViewData["Title"] = "Home";
+}
 
-<h1>Dashboard</h1>
-<div class="card-grid">
-    <div class="card small">
-        <h3>Revenue</h3>
-        <p class="big">$12,345</p>
+<div class="row">
+    <div class="col-md-8">
+        <div id="carousel" class="card">
+            <div class="card-body text-center">
+                <h2>Welcome to HMS</h2>
+                <p class="lead">Hospital Management System - Local and Central</p>
+                <div id="hospitalInfo" class="mt-4">
+                    <!-- dynamic hospital info will be populated by script -->
+                    <div id="hospitalPlaceholder">
+                        <p>No hospital configured locally. Please login and configure your hospital.</p>
+                    </div>
+                </div>
+                <p class="mt-4">
+                    <a class="btn btn-primary btn-lg" href="/Login"><span class="fa fa-lock me-2"></span>Sign in</a>
+                </p>
+            </div>
+        </div>
     </div>
-    <div class="card small">
-        <h3>Active Patients</h3>
-        <p class="big">123</p>
-    </div>
-    <div class="card small">
-        <h3>Stock Alerts</h3>
-        <p class="big">5</p>
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-body">
+                <h5>Status</h5>
+                <ul class="list-unstyled">
+                    <li><strong>Network:</strong> <span id="homeNetwork">Checking...</span></li>
+                    <li><strong>Last sync:</strong> <span id="homeSync">Unknown</span></li>
+                </ul>
+            </div>
+        </div>
     </div>
 </div>
+
+@section Scripts {
+<script>
+    // try to load cached hospital info from localStorage
+    const info = localStorage.getItem('hospitalInfo');
+    const ph = document.getElementById('hospitalPlaceholder');
+    if (info) {
+        try {
+            const obj = JSON.parse(info);
+            ph.innerHTML = `<h4>${obj.name}</h4><p>${obj.address || ''}</p>`;
+        } catch (e) {
+            ph.textContent = 'Invalid hospital info cached.';
+        }
+    }
+
+    async function updateStatus() {
+        try {
+            const r = await fetch('/sync/status');
+            if (r.ok) {
+                const j = await r.json();
+                document.getElementById('homeSync').textContent = new Date().toLocaleString();
+            } else {
+                document.getElementById('homeSync').textContent = 'Unavailable';
+            }
+        } catch (e) {
+            document.getElementById('homeSync').textContent = 'Offline';
+        }
+        document.getElementById('homeNetwork').textContent = navigator.onLine ? 'Online' : 'Offline';
+    }
+
+    updateStatus();
+    setInterval(updateStatus, 60000);
+</script>
+}

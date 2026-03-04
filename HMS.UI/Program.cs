@@ -6,9 +6,11 @@ using Microsoft.Extensions.Hosting;
 var builder = WebApplication.CreateBuilder(args);
 
 // Configuration
-var apiBase = builder.Configuration["Api:BaseUrl"] ?? "https://localhost:7280/";
+var apiBase = builder.Configuration["Api:BaseUrl"] ?? "https://localhost:7142/";
 
 // Services
+// Register IHttpContextAccessor early so Razor pages can property-inject it during activation
+builder.Services.AddHttpContextAccessor();
 builder.Services.AddRazorPages();
 builder.Services.AddHttpClient("HmsApi", client => client.BaseAddress = new Uri(apiBase));
 builder.Services.AddScoped<ApiClient>();

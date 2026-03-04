@@ -1,33 +1,99 @@
 @namespace HMS.UI.Pages
+@using Microsoft.AspNetCore.Http
+@inject IHttpContextAccessor HttpContextAccessor
+@{
+    var user = HttpContextAccessor.HttpContext?.User;
+    var isAuthenticated = user?.Identity?.IsAuthenticated ?? false;
+    var username = user?.Identity?.Name ?? string.Empty;
+    bool canManageUsers = user?.HasClaim(c => c.Type == "permission" && c.Value == "users.manage") ?? false;
+}
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>HMS - Hospital Management</title>
+    <title>@ViewData["Title"] - HMS.UI</title>
+    <link rel="stylesheet" href="/lib/bootstrap/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="/lib/fontawesome/css/all.min.css" />
     <link rel="stylesheet" href="/css/site.css" />
-    <link rel="stylesheet" href="/css/themes/light.css" id="theme-stylesheet" />
 </head>
 <body>
-    <div id="app">
-        <header class="topbar">
-            <div class="logo">HMS</div>
-            <nav class="topnav">
-                <a href="/" class="nav-item">Dashboard</a>
-                <a href="/patients" class="nav-item">Patients</a>
-                <a href="/billing" class="nav-item">Billing</a>
-                <a href="/pharmacy" class="nav-item">Pharmacy</a>
-            </nav>
-            <div class="actions">
-                <button id="themeToggle" class="btn small">Toggle Theme</button>
+    <nav class="navbar navbar-expand-md navbar-light bg-light">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/"><span class="fa fa-home me-2"></span>HMS</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                    <li class="nav-item"><a class="nav-link" href="/">Home</a></li>
+                    @if (isAuthenticated && canManageUsers)
+                    {
+                        <li class="nav-item"><a class="nav-link" href="/Users"><span class="fa fa-users me-1"></span> Users</a></li>
+                    }
+                    <li class="nav-item"><a class="nav-link" href="/Patients"><span class="fa fa-user me-1"></span> Patients</a></li>
+                    <li class="nav-item"><a class="nav-link" href="/Billing"><span class="fa fa-bell me-1"></span> Billing</a></li>
+                </ul>
+                <div class="d-flex align-items-center">
+                    <span id="networkIndicator" class="badge bg-success me-2">Online</span>
+                    <span id="syncStatus" class="badge bg-secondary me-2">Sync: unknown</span>
+                    @if (!isAuthenticated)
+                    {
+                        <a class="btn btn-outline-primary me-2" href="/Login"><span class="fa fa-lock me-1"></span>Login</a>
+                    }
+                    else
+                    {
+                        <span class="me-3">@username</span>
+                        <a class="btn btn-outline-primary me-2" href="/Auth/logout-cookie"><span class="fa fa-sign-out-alt me-1"></span>Logout</a>
+                    }
+                </div>
             </div>
-        </header>
+        </div>
+    </nav>
 
-        <main class="content">
-            @RenderBody()
-        </main>
+    <div class="container mt-4">
+        @RenderBody()
     </div>
 
-    <script src="/js/theme.js"></script>
+    <script src="/lib/bootstrap/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // network and sync status
+        const net = document.getElementById('networkIndicator');
+        const sync = document.getElementById('syncStatus');
+
+        function updateNetwork() {
+            if (navigator.onLine) {
+                net.textContent = 'Online';
+                net.className = 'badge bg-success me-2';
+            } else {
+                net.textContent = 'Offline';
+                net.className = 'badge bg-danger me-2';
+            }
+        }
+
+        async function updateSync() {
+            try {
+                const r = await fetch('/sync/status');
+                if (r.ok) {
+                    const j = await r.json();
+                    sync.textContent = 'Sync: OK';
+                    sync.className = 'badge bg-success me-2';
+                } else {
+                    sync.textContent = 'Sync: unavailable';
+                    sync.className = 'badge bg-warning me-2';
+                }
+            } catch (e) {
+                sync.textContent = 'Sync: offline';
+                sync.className = 'badge bg-secondary me-2';
+            }
+        }
+
+        window.addEventListener('online', updateNetwork);
+        window.addEventListener('offline', updateNetwork);
+        updateNetwork();
+        updateSync();
+        setInterval(updateSync, 60000);
+    </script>
+    @RenderSection("Scripts", required: false)
 </body>
 </html>

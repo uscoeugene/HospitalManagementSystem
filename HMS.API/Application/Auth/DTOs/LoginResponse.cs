@@ -11,5 +11,8 @@ namespace HMS.API.Application.Auth.DTOs
         public Guid UserId { get; set; }
         public Guid? TenantId { get; set; }
         public IEnumerable<string> Permissions { get; set; } = Array.Empty<string>();
+
+        // Optional tenant/hospital info for UI caching
+        public TenantDto? Tenant { get; set; }
     }
 }

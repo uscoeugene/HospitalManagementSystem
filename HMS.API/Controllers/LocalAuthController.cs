@@ -7,6 +7,8 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using HMS.API.Application.Auth.DTOs;
 using Microsoft.Extensions.Configuration;
+using System;
+using Microsoft.AspNetCore.Http;
 
 namespace HMS.API.Controllers
 {
@@ -36,7 +38,7 @@ namespace HMS.API.Controllers
 
                 // load roles and permissions from local caches
                 var roles = await _db.Set<HMS.API.Domain.Auth.LocalRole>().AsNoTracking().Where(r => r.TenantId == resp.TenantId).Select(r => r.Name).ToArrayAsync();
-                var perms = new string[0];
+                var perms = await _db.Set<HMS.API.Domain.Auth.LocalPermission>().AsNoTracking().Where(p => p.TenantId == resp.TenantId).Select(p => p.Code).ToArrayAsync();
 
                 var token = _tokenService.BuildLocalJwt(resp.UserId, req.Username, resp.TenantId, roles, perms);
 
@@ -46,6 +48,15 @@ namespace HMS.API.Controllers
             {
                 return Unauthorized();
             }
+        }
+
+        [HttpPost("set-cookie")]
+        public IActionResult SetCookie([FromBody] SetCookieRequest req)
+        {
+            // set JWT as secure HttpOnly cookie
+            var cookieOptions = new CookieOptions { HttpOnly = true, Secure = true, SameSite = SameSiteMode.Strict, Expires = DateTimeOffset.UtcNow.AddHours(8).UtcDateTime };
+            Response.Cookies.Append("HmsAuth", req.Token, cookieOptions);
+            return Ok();
         }
 
         [HttpPost("register")]
@@ -62,4 +73,6 @@ namespace HMS.API.Controllers
             }
         }
     }
+
+    public class SetCookieRequest { public string Token { get; set; } = string.Empty; public bool Local { get; set; } }
 }

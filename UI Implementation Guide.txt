@@ -1,0 +1,96 @@
+﻿Summary first (short): I will document the system logic (auth, tenancy, sync, subscriptions, push, outbox, local/central split) and then propose a prioritized set of Razor Pages UIs mapped to the APIs, UX notes, security considerations and an implementation plan. Tell me which page to implement first and I will create the Razor Pages, client-side code and wire them to the APIs.
+1.	System logic (reference)
+•	Boundaries
+•	Central service (AuthDbContext): users/roles/permissions, tenants, tenant subscriptions, tenant nodes, billing webhooks, central authoritative tenant & billing state.
+•	Local hospital service (HmsDbContext): patients, visits, invoices, prescriptions, local users/roles/permissions cache, local subscription cache, local operations.
+•	Authentication
+•	Human login normally goes to central via AuthService and issues central JWT with tenant_id claim.
+•	Local login uses LocalAuthService -> issues a local JWT signed with LocalJwt:Key. Local tokens include roles/permission claims from local cache.
+•	Authorization
+•	Permission-based attribute [HasPermission("...")] backed by JWT permission claims and PermissionAuthorizationHandler.
+•	Local authorization works offline because local JWT contains cached roles/permissions.
+•	Tenancy
+•	TenantId is the single source of truth. CurrentTenantAccessor ambient context set by middleware (from JWT or X-Tenant-Id header).
+•	EF global query filters enforce tenant scoping (allowing TenantId == null for central/shared data).
+•	Subscriptions
+•	TenantSubscription central record; middleware checks ITenantSubscriptionService.IsTenantAllowedAsync and blocks requests with HTTP 402 if inactive.
+•	Seed creates sample subscription records; webhook endpoint /subscriptions/webhook accepts signed events to update central subscription state.
+•	Sync & Outbox
+•	Local background sync: BackgroundSyncService runs SyncManager.RunOnceAsync() periodically, calls ICloudSyncClient (push local unsynced records, pull remote changes).
+•	Outbox: local changes that need distribution are saved to OutboxMessage. OutboxProcessor publishes to event publisher and can push to tenant nodes.
+•	Push notifier: central attempts to push events to registered tenant nodes (callback URLs) using TenantNode.CallbackSecret HMAC signature (X-Central-Signature).
+•	Manual sync: POST /sync/tenant/{tenantId}/sync-now triggers tenant-scoped sync; ISyncManager.RunOnceAsync(Guid tenantId) implemented to pull subscription/user profile and local user sync.
+•	Local user management & offline
+•	LocalUser and LocalRole/LocalPermission exist in local DB for offline login and offline role/permission enforcement.
+•	Local user changes are pushed to central during sync; central can push subscription/other changes to nodes via outbox/push or nodes poll central.
+•	Security
+•	JWTs: central tokens signed with Jwt:Key; local tokens signed with LocalJwt:Key. Keep keys secure and rotate.
+•	Webhook/push HMAC: central signs webhook pushes with node CallbackSecret. Nodes must verify signature.
+•	Protect all management endpoints with users.manage or admin scopes.
+•	Operational notes
+•	Two DBs per deployment: central auth DB; local Hms DB per hospital. Migrations must be applied to the correct context.
+•	Sync uses eventual consistency; outbox + push improves timeliness when reachable.
+2.	UI surface to implement (Razor Pages, prioritized) Priority 1 (core)
+•	Login page (Razor) with options:
+•	Automatic: attempt central login if network available; fallback to local login when offline.
+•	Clear feedback when offline; “Login offline” button.
+•	Store local JWT securely (cookie with Secure/HttpOnly).
+•	Users management (Razor Pages)
+•	List/create/edit local users (calls /localusers), create local password, set tenant, lock/unlock.
+•	Role assignment UI (local roles) — create local roles and map permissions.
+•	Sync / Status page (Razor)
+•	Show subscription status, last sync time, button “Sync now” (POST /sync/tenant/{tenantId}/sync-now), show push/webhook events queue. Priority 2 (administration)
+•	Tenants page (central admin) — create/list tenants, issue tenant tokens (/tenants/{id}/token), view subscription.
+•	Subscriptions page — create/update/cancel subscriptions, webhook logs.
+•	Nodes management page — register node (returns callback secret), list & deactivate. Priority 3 (operations)
+•	Patients list/detail (already present controller) with mobile responsive layout.
+•	Billing dashboard (invoices summary) with pay/print actions.
+•	Role & Permission editor UI (central and local caches).
+•	Notification center (SignalR) for real-time events.
+3.	UX & responsive design guidelines
+•	Use a responsive front-end (Bootstrap 5 is good and works with Razor Pages). Use CSS variables for theme switching (dark/light).
+•	Simple header with: hospital name, tenant badge, sync status indicator, user menu (profile/logout).
+•	Mobile first: stacked cards for lists; collapsible side nav for larger screens.
+•	Clear error and offline states: show network indicator, last successful sync timestamp, retry actions.
+•	Non-technical users: large buttons, clear labels, inline help tooltips, one action per page.
+•	Security UX: when issuing node secret or tenant tokens show secret only once with clear copy button and an instruction to store securely.
+4.	Mapping UI → APIs (examples)
+•	Login page:
+•	POST /auth/login (central) when online. If fail due to network, fallback to POST /localauth/login (local).
+•	On local login receive local JWT, store in cookie, set CurrentTenant, and load local roles from /localroles or token claims.
+•	Users page:
+•	GET /localusers?tenantId={tenantId} list
+•	POST /localusers create
+•	PUT /localusers/{id}/lock etc.
+•	Sync page:
+•	GET /sync/status (admin) for last run
+•	POST /sync/tenant/{tenantId}/sync-now to trigger immediate sync
+•	Tenants:
+•	GET/POST /tenants; token issuance /tenants/{id}/token
+•	Subscriptions:
+•	GET/POST/PUT /subscriptions/{tenantId} and webhook /subscriptions/webhook
+5.	Offline handling patterns for UI
+•	Detect network status via JS: navigator.onLine + periodic ping to /health or a small endpoint.
+•	Cache last-known state / timestamps in localStorage (or IndexedDB) for UI.
+•	Retry queue: for local admin operations create a small client-side queue that retries when online — server already synchronizes via background sync, but UI-level retry improves UX.
+•	Token selection: prefer central JWT; if offline and local JWT exists and valid, use local.
+6.	Security & storage
+•	Keep JWTs in Secure, HttpOnly cookies (not localStorage) unless SPAs; Razor Pages can set cookies easily.
+•	Store node secrets only on operator machines; central shows secret once upon registration.
+•	Use TLS everywhere.
+7.	Implementation plan (short, iterative)
+•	Step A (auth & local login):
+•	Build login Razor Page with central + offline fallback; wire to /auth/login and /localauth/login. Save JWT cookie.
+•	Step B (local user management UI):
+•	Implement Users Index and Create pages (done basic). Improve forms, validation and role assignment UI.
+•	Step C (sync UI & indicators):
+•	Add sync status indicator in layout, Sync Now page, show last sync timestamp and webhook events view.
+•	Step D (admin pages):
+•	Tenants, Subscriptions, Nodes pages for central admins.
+•	Step E (polish & mobile):
+•	Add responsive CSS, accessibility, tooltips, tests.
+8.	Deliverables I can implement next
+•	Implement the Login Razor Page and wire authentication cookie creation using the received JWT (central and local).
+•	Improve Users pages (validation, edit, assign roles).
+•	Add Sync status indicator into _Layout.cshtml.
+•	Document exact API flows as a short README page in docs/ referencing endpoints and flows.

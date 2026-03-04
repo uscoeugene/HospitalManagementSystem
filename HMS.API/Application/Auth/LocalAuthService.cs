@@ -1,7 +1,6 @@
 using System;
 using System.Threading.Tasks;
 using HMS.API.Infrastructure.Auth;
-using HMS.API.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using HMS.API.Application.Auth.DTOs;
 using HMS.API.Domain.Auth;
@@ -12,18 +11,18 @@ namespace HMS.API.Application.Auth
     // Service to manage local users for offline login and sync
     public class LocalAuthService
     {
-        private readonly HmsDbContext _hmsDb;
+        private readonly AuthDbContext _authDb;
         private readonly IPasswordHasher _hasher;
 
-        public LocalAuthService(HmsDbContext hmsDb, IPasswordHasher hasher)
+        public LocalAuthService(AuthDbContext authDb, IPasswordHasher hasher)
         {
-            _hmsDb = hmsDb;
+            _authDb = authDb;
             _hasher = hasher;
         }
 
         public async Task<LoginResponse> LoginLocalAsync(LoginRequest request)
         {
-            var user = await _hmsDb.Set<LocalUser>().SingleOrDefaultAsync(u => u.Username == request.Username && !u.IsDeleted);
+            var user = await _authDb.Set<LocalUser>().SingleOrDefaultAsync(u => u.Username == request.Username && !u.IsDeleted);
             if (user == null) throw new UnauthorizedAccessException("Invalid credentials");
             if (!_hasher.Verify(user.PasswordHash, request.Password)) throw new UnauthorizedAccessException("Invalid credentials");
 
@@ -33,10 +32,10 @@ namespace HMS.API.Application.Auth
 
         public async Task RegisterLocalAsync(RegisterRequest req, Guid? tenantId = null)
         {
-            if (await _hmsDb.Set<LocalUser>().AnyAsync(u => u.Username == req.Username && !u.IsDeleted)) throw new InvalidOperationException("Username already exists locally");
+            if (await _authDb.Set<LocalUser>().AnyAsync(u => u.Username == req.Username && !u.IsDeleted)) throw new InvalidOperationException("Username already exists locally");
             var lu = new LocalUser { Username = req.Username, PasswordHash = _hasher.Hash(req.Password), Email = req.Email, TenantId = tenantId };
-            _hmsDb.Set<LocalUser>().Add(lu);
-            await _hmsDb.SaveChangesAsync();
+            _authDb.Set<LocalUser>().Add(lu);
+            await _authDb.SaveChangesAsync();
         }
     }
 }

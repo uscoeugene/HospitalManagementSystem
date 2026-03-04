@@ -18,13 +18,19 @@ using System.Reflection;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Register IHttpContextAccessor early so services that depend on it (CurrentUserService, DbContexts) can be constructed
+builder.Services.AddHttpContextAccessor();
+
 // Add services to the container.
 builder.Services.AddControllers();
 
 // Configure DbContexts
 var conn = builder.Configuration.GetConnectionString("Default") ?? "Server=(localdb)\\MSSQLLocalDB;Database=HmsDb;Trusted_Connection=True;";
-builder.Services.AddDbContext<AuthDbContext>(options => options.UseSqlServer(conn));
-builder.Services.AddDbContext<HmsDbContext>(options => options.UseSqlServer(conn));
+// Use distinct migrations history tables for each DbContext when they share the same database to avoid conflicts
+builder.Services.AddDbContext<AuthDbContext>(options =>
+    options.UseSqlServer(conn, sqlOptions => sqlOptions.MigrationsHistoryTable("__AuthMigrationsHistory")));
+builder.Services.AddDbContext<HmsDbContext>(options =>
+    options.UseSqlServer(conn, sqlOptions => sqlOptions.MigrationsHistoryTable("__HmsMigrationsHistory")));
 
 // Application services
 builder.Services.AddScoped<IPasswordHasher, PasswordHasher>();
@@ -59,7 +65,6 @@ builder.Services.AddScoped<HMS.API.Application.Pharmacy.IPharmacyService, HMS.AP
 builder.Services.AddScoped<HMS.API.Application.Pharmacy.IInventoryService, HMS.API.Application.Pharmacy.InventoryService>();
 
 // Current user
-builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
 
 // Tenant subscription service
@@ -71,8 +76,18 @@ builder.Services.AddSingleton<IBillingWebhookService, InMemoryBillingWebhookServ
 // Event publisher
 builder.Services.AddSingleton<IEventPublisher, HMS.API.Infrastructure.Common.EventPublisher>();
 
-// register outbox processor
-builder.Services.AddHostedService<OutboxProcessor>();
+// Background jobs toggle (can be disabled via config or env var BackgroundJobs__Enabled=false)
+// By default disable background jobs to avoid busy polling during bootstrap. Set BackgroundJobs:Enabled=true to re-enable.
+var bgJobsEnabled = builder.Configuration.GetValue<bool?>("BackgroundJobs:Enabled") ?? false;
+if (bgJobsEnabled)
+{
+    // register outbox processor
+    builder.Services.AddHostedService<OutboxProcessor>();
+}
+else
+{
+    // Log a warning at startup that background jobs are disabled (can't log here — will at runtime)
+}
 
 // Authentication - JWT
 var jwtKey = builder.Configuration["Jwt:Key"] ?? "dev-insecure-key-change";
@@ -126,10 +141,7 @@ builder.Services.AddAuthorization(options =>
 });
 
 // Middleware
-// register tenant middleware before authentication so header-based tenant overrides apply
-builder.Services.AddTransient<TenantMiddleware>();
-
-//builder.Services.AddTransient<CurrentUserMiddleware>();
+// Do NOT register TenantMiddleware in DI — use app.UseMiddleware<TenantMiddleware>() at runtime. Registering middleware that requires RequestDelegate causes design-time service resolution errors for EF tools.
 
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
@@ -149,18 +161,21 @@ builder.Services.AddSwaggerGen(c =>
 builder.Services.AddTransient<SimpleResponseExamplesFilter>();
 
 // Notification service
+// Ensure IHttpClientFactory is available for services that depend on it
+builder.Services.AddHttpClient();
 builder.Services.AddSingleton<HMS.API.Application.Common.INotificationService, HMS.API.Infrastructure.Common.NotificationService>();
 
 // Add SignalR
 builder.Services.AddSignalR();
 
-// reservation cleanup
-builder.Services.AddHostedService<HMS.API.Infrastructure.Pharmacy.ReservationCleanupService>();
-
-// Cloud sync client
-builder.Services.AddHttpClient<HMS.API.Application.Sync.ICloudSyncClient, HMS.API.Infrastructure.Sync.CloudSyncClient>();
-builder.Services.AddScoped<HMS.API.Application.Sync.ISyncManager, HMS.API.Infrastructure.Sync.SyncManager>();
-builder.Services.AddHostedService<HMS.API.Infrastructure.Sync.BackgroundSyncService>();
+// reservation cleanup and sync hosted services registered conditionally
+if (bgJobsEnabled)
+{
+    builder.Services.AddHostedService<HMS.API.Infrastructure.Pharmacy.ReservationCleanupService>();
+    builder.Services.AddHttpClient<HMS.API.Application.Sync.ICloudSyncClient, HMS.API.Infrastructure.Sync.CloudSyncClient>();
+    builder.Services.AddScoped<HMS.API.Application.Sync.ISyncManager, HMS.API.Infrastructure.Sync.SyncManager>();
+    builder.Services.AddHostedService<HMS.API.Infrastructure.Sync.BackgroundSyncService>();
+}
 
 // Distributed cache (Redis) for reporting caches. Configure via ConnectionStrings:Redis or set REDIS__CONFIG env.
 var redisConfig = builder.Configuration.GetConnectionString("Redis") ?? builder.Configuration["Redis:Configuration"];
@@ -168,7 +183,10 @@ if (!string.IsNullOrWhiteSpace(redisConfig))
 {
     builder.Services.AddStackExchangeRedisCache(options => { options.Configuration = redisConfig; });
     // register aggregator service to precompute heavy aggregates
-    builder.Services.AddHostedService<HMS.API.Infrastructure.Reporting.ReportingAggregatorService>();
+    if (bgJobsEnabled)
+    {
+        builder.Services.AddHostedService<HMS.API.Infrastructure.Reporting.ReportingAggregatorService>();
+    }
 }
 
 // register push notifier for pushing outbox events to tenant nodes
@@ -189,8 +207,11 @@ using (var scope = app.Services.CreateScope())
 
         var hasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher>();
         await SeedData.EnsureSeedDataAsync(db, hasher);
+
+        // ensure HmsDb is seeded based on AuthDb
+        await HMS.API.Infrastructure.Persistence.HmsSeedData.EnsureSeedDataAsync(hdb, db, hasher);
     }
-    catch
+    catch (Exception)
     {
         // swallow migration errors in development; in production log and fail fast
     }
@@ -207,7 +228,12 @@ app.UseSwaggerUI(c =>
 app.UseHttpsRedirection();
 
 // tenant middleware must run early to set query filter context
-app.UseMiddleware<TenantMiddleware>();
+
+if (!app.Environment.IsEnvironment("Migration"))
+{
+    app.UseMiddleware<TenantMiddleware>();
+}
+
 
 app.UseAuthentication();
 app.UseAuthorization();

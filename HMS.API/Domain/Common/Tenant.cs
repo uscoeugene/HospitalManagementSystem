@@ -18,6 +18,10 @@ namespace HMS.API.Domain.Common
         public string? ContactEmail { get; set; }
         public string? ContactPhone { get; set; }
 
+        // Additional fields for UI
+        public string? Address { get; set; }
+        public string? LogoUrl { get; set; }
+
         // Mark whether this tenant record represents the central (online) authority
         public bool IsCentral { get; set; } = false;
     }

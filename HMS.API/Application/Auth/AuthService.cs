@@ -50,6 +50,26 @@ namespace HMS.API.Application.Auth
             _db.AuthAudits.Add(audit);
             await _db.SaveChangesAsync();
 
+            // load tenant info for UI
+            TenantDto? tenantDto = null;
+            if (user.TenantId.HasValue)
+            {
+                var t = await _db.Tenants.AsNoTracking().SingleOrDefaultAsync(x => x.Id == user.TenantId.Value);
+                if (t != null)
+                {
+                    tenantDto = new TenantDto
+                    {
+                        Id = t.Id,
+                        Name = t.Name,
+                        Code = t.Code,
+                        Address = t.Address,
+                        ContactEmail = t.ContactEmail,
+                        ContactPhone = t.ContactPhone,
+                        LogoUrl = t.LogoUrl
+                    };
+                }
+            }
+
             return new LoginResponse
             {
                 AccessToken = token.tokenString,
@@ -57,7 +77,8 @@ namespace HMS.API.Application.Auth
                 ExpiresAt = token.expiresAt,
                 UserId = user.Id,
                 TenantId = user.TenantId,
-                Permissions = permissions
+                Permissions = permissions,
+                Tenant = tenantDto
             };
         }
 
