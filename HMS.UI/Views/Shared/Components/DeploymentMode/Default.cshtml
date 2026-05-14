@@ -1,0 +1,26 @@
+@model string
+
+@{
+    var mode = Model ?? "Unknown";
+    var badgeClass = "bg-secondary";
+    if (mode.Equals("Online", System.StringComparison.OrdinalIgnoreCase)) badgeClass = "bg-success";
+    if (mode.Equals("OnPrem", System.StringComparison.OrdinalIgnoreCase)) badgeClass = "bg-warning text-dark";
+}
+
+<span class="badge @badgeClass ms-3" title="Current deployment mode">@mode</span>
+
+@{
+    // If mode unknown, set a short-lived cookie to allow layout to show a toast explaining the mode couldn't be resolved
+    if (string.IsNullOrWhiteSpace(Model) || Model == "Unknown")
+    {
+        try
+        {
+            Context.Response.Cookies.Append("HmsDeploymentModeUnknown", "1", new Microsoft.AspNetCore.Http.CookieOptions { HttpOnly = false, SameSite = Microsoft.AspNetCore.Http.SameSiteMode.Lax });
+        }
+        catch { }
+    }
+    else
+    {
+        try { Context.Response.Cookies.Delete("HmsDeploymentModeUnknown"); } catch { }
+    }
+}

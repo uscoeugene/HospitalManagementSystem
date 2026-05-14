@@ -15,8 +15,43 @@ using Microsoft.Extensions.Caching.StackExchangeRedis;
 using Microsoft.OpenApi.Models;
 using Swashbuckle.AspNetCore.SwaggerGen;
 using System.Reflection;
-
 var builder = WebApplication.CreateBuilder(args);
+
+// Configure Kestrel explicitly so the app can start even if HTTPS dev cert is missing.
+// We attempt to bind both HTTP and HTTPS; if HTTPS bind fails we fall back to HTTP only.
+builder.WebHost.ConfigureKestrel((context, options) =>
+{
+    var cfg = context.Configuration;
+    var httpPort = cfg.GetValue<int?>("Kestrel:Endpoints:Http:Port") ?? 5000;
+    var httpsPort = cfg.GetValue<int?>("Kestrel:Endpoints:Https:Port") ?? 7142;
+
+    // Always bind HTTP
+    options.ListenAnyIP(httpPort);
+
+    // Try bind HTTPS using default certificate (development cert) if available.
+    try
+    {
+        options.ListenAnyIP(httpsPort, listenOptions =>
+        {
+            // Use developer certificate if present; this will throw if no cert and no default available
+            listenOptions.UseHttps();
+            // indicate HTTPS is enabled if the hosting helper exists
+            try
+            {
+                HMS.API.Infrastructure.Hosting.ServerSettings.HttpsEnabled = true;
+            }
+            catch
+            {
+                // ignore if ServerSettings not present or setter fails
+            }
+        });
+    }
+    catch (Exception ex)
+    {
+        // Swallow so app can still start on HTTP; log to console so development startup doesn't fail
+        Console.Error.WriteLine($"Warning: Failed to bind HTTPS endpoint, falling back to HTTP only. Reason: {ex.Message}");
+    }
+});
 
 // Register IHttpContextAccessor early so services that depend on it (CurrentUserService, DbContexts) can be constructed
 builder.Services.AddHttpContextAccessor();
@@ -32,9 +67,15 @@ builder.Services.AddDbContext<AuthDbContext>(options =>
 builder.Services.AddDbContext<HmsDbContext>(options =>
     options.UseSqlServer(conn, sqlOptions => sqlOptions.MigrationsHistoryTable("__HmsMigrationsHistory")));
 
+// Register LocalAuthService after DbContexts to ensure its dependencies are available
+builder.Services.AddScoped<HMS.API.Application.Auth.LocalAuthService>();
+
 // Application services
 builder.Services.AddScoped<IPasswordHasher, PasswordHasher>();
 builder.Services.AddScoped<IAuthService, AuthService>();
+
+// Local token service used for offline tokens - register as singleton (only depends on IConfiguration)
+builder.Services.AddSingleton<HMS.API.Application.Auth.LocalTokenService>();
 
 // Reporting services
 builder.Services.AddScoped<HMS.API.Application.Patient.IPatientReportService, HMS.API.Application.Patient.PatientReportService>();
@@ -67,6 +108,12 @@ builder.Services.AddScoped<HMS.API.Application.Pharmacy.IInventoryService, HMS.A
 // Current user
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
 
+// App settings and tenancy services
+builder.Services.AddMemoryCache();
+builder.Services.AddScoped<IAppSettingsService, HMS.API.Application.Common.AppSettingsService>();
+builder.Services.AddScoped<IDeploymentModeResolver, HMS.API.Application.Common.DeploymentModeResolver>();
+builder.Services.AddScoped<ITenantResolver, HMS.API.Application.Common.TenantResolver>();
+
 // Tenant subscription service
 builder.Services.AddScoped<ITenantSubscriptionService, TenantSubscriptionService>();
 
@@ -92,12 +139,20 @@ else
 // Authentication - JWT
 var jwtKey = builder.Configuration["Jwt:Key"] ?? "dev-insecure-key-change";
 var keyBytes = Encoding.UTF8.GetBytes(jwtKey);
+if (keyBytes.Length < 32)
+{
+    using var sha = System.Security.Cryptography.SHA256.Create();
+    keyBytes = sha.ComputeHash(Encoding.UTF8.GetBytes(jwtKey));
+}
 
 // Local JWT settings for offline-issued tokens
 var localKey = builder.Configuration["LocalJwt:Key"] ?? "dev-local-key-change";
 var localKeyBytes = Encoding.UTF8.GetBytes(localKey);
-
-builder.Services.AddSingleton<HMS.API.Application.Auth.LocalTokenService>();
+if (localKeyBytes.Length < 32)
+{
+    using var sha = System.Security.Cryptography.SHA256.Create();
+    localKeyBytes = sha.ComputeHash(Encoding.UTF8.GetBytes(localKey));
+}
 
 builder.Services.AddAuthentication(options =>
 {
@@ -111,23 +166,27 @@ builder.Services.AddAuthentication(options =>
     options.TokenValidationParameters = new TokenValidationParameters
     {
         ValidateIssuerSigningKey = true,
-        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey)),
+        // Use resolver to accept tokens signed with either central or local key
+        IssuerSigningKeyResolver = (token, securityToken, kid, parameters) => new[] { new SymmetricSecurityKey(keyBytes), new SymmetricSecurityKey(localKeyBytes) },
         ValidateIssuer = false,
         ValidateAudience = false,
         ClockSkew = TimeSpan.FromSeconds(30)
     };
-})
-.AddJwtBearer("Local", options =>
-{
-    options.RequireHttpsMetadata = false;
-    options.SaveToken = true;
-    options.TokenValidationParameters = new TokenValidationParameters
+
+    // Read JWT from cookie named HmsAuth when present (enables cookie-based auth for browser)
+    options.Events = new JwtBearerEvents
     {
-        ValidateIssuerSigningKey = true,
-        IssuerSigningKey = new SymmetricSecurityKey(localKeyBytes),
-        ValidateIssuer = false,
-        ValidateAudience = false,
-        ClockSkew = TimeSpan.FromSeconds(30)
+        OnMessageReceived = ctx =>
+        {
+            if (string.IsNullOrEmpty(ctx.Token))
+            {
+                if (ctx.Request.Cookies.TryGetValue("HmsAuth", out var cookieToken) && !string.IsNullOrWhiteSpace(cookieToken))
+                {
+                    ctx.Token = cookieToken;
+                }
+            }
+            return Task.CompletedTask;
+        }
     };
 });
 
@@ -195,6 +254,28 @@ builder.Services.AddScoped<HMS.API.Infrastructure.Sync.PushNotifier>();
 var app = builder.Build();
 
 // Apply EF migrations on startup
+//using (var scope = app.Services.CreateScope())
+//{
+//    try
+//    {
+//        var db = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
+//        db.Database.Migrate();
+
+//        var hdb = scope.ServiceProvider.GetRequiredService<HmsDbContext>();
+//        hdb.Database.Migrate();
+
+//        var hasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher>();
+//        await SeedData.EnsureSeedDataAsync(db, hasher);
+
+//        // ensure HmsDb is seeded based on AuthDb
+//        await HMS.API.Infrastructure.Persistence.HmsSeedData.EnsureSeedDataAsync(hdb, db, hasher);
+//    }
+//    catch (Exception)
+//    {
+//        // swallow migration errors in development; in production log and fail fast
+//    }
+//}
+
 using (var scope = app.Services.CreateScope())
 {
     try
@@ -208,12 +289,13 @@ using (var scope = app.Services.CreateScope())
         var hasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher>();
         await SeedData.EnsureSeedDataAsync(db, hasher);
 
-        // ensure HmsDb is seeded based on AuthDb
-        await HMS.API.Infrastructure.Persistence.HmsSeedData.EnsureSeedDataAsync(hdb, db, hasher);
+        await HMS.API.Infrastructure.Persistence.HmsSeedData
+            .EnsureSeedDataAsync(hdb, db, hasher);
     }
-    catch (Exception)
+    catch (Exception ex)
     {
-        // swallow migration errors in development; in production log and fail fast
+        Console.WriteLine(ex.ToString());
+        throw;
     }
 }
 
@@ -225,13 +307,14 @@ app.UseSwaggerUI(c =>
     c.DocumentTitle = "HMS.API Swagger UI";
 });
 
-app.UseHttpsRedirection();
+//app.UseHttpsRedirection();
 
 // tenant middleware must run early to set query filter context
 
 if (!app.Environment.IsEnvironment("Migration"))
 {
-    app.UseMiddleware<TenantMiddleware>();
+    // Use hybrid tenant middleware to determine tenant dynamically
+    app.UseMiddleware<HybridTenantMiddleware>();
 }
 
 

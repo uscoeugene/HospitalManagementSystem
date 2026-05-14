@@ -1,99 +1,272 @@
-@namespace HMS.UI.Pages
-@using Microsoft.AspNetCore.Http
-@inject IHttpContextAccessor HttpContextAccessor
-@{
-    var user = HttpContextAccessor.HttpContext?.User;
-    var isAuthenticated = user?.Identity?.IsAuthenticated ?? false;
-    var username = user?.Identity?.Name ?? string.Empty;
-    bool canManageUsers = user?.HasClaim(c => c.Type == "permission" && c.Value == "users.manage") ?? false;
-}
-<!DOCTYPE html>
+@inherits Microsoft.AspNetCore.Mvc.Razor.RazorPage<dynamic>
+
+<!doctype html>
 <html lang="en">
 <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>@ViewData["Title"] - HMS.UI</title>
-    <link rel="stylesheet" href="/lib/bootstrap/css/bootstrap.min.css" />
-    <link rel="stylesheet" href="/lib/fontawesome/css/all.min.css" />
-    <link rel="stylesheet" href="/css/site.css" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>@ViewData["Title"] - HMS Cloud</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet" />
+    @* <link href="/lib/toastr/toastr.min.css" rel="stylesheet" /> *@
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css">
+
+    <link href="/css/hms-portal.css" rel="stylesheet" />
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css"
+          rel="stylesheet" />
 </head>
-<body>
-    <nav class="navbar navbar-expand-md navbar-light bg-light">
-        <div class="container-fluid">
-            <a class="navbar-brand" href="/"><span class="fa fa-home me-2"></span>HMS</a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
-                    <li class="nav-item"><a class="nav-link" href="/">Home</a></li>
-                    @if (isAuthenticated && canManageUsers)
-                    {
-                        <li class="nav-item"><a class="nav-link" href="/Users"><span class="fa fa-users me-1"></span> Users</a></li>
-                    }
-                    <li class="nav-item"><a class="nav-link" href="/Patients"><span class="fa fa-user me-1"></span> Patients</a></li>
-                    <li class="nav-item"><a class="nav-link" href="/Billing"><span class="fa fa-bell me-1"></span> Billing</a></li>
-                </ul>
-                <div class="d-flex align-items-center">
-                    <span id="networkIndicator" class="badge bg-success me-2">Online</span>
-                    <span id="syncStatus" class="badge bg-secondary me-2">Sync: unknown</span>
-                    @if (!isAuthenticated)
-                    {
-                        <a class="btn btn-outline-primary me-2" href="/Login"><span class="fa fa-lock me-1"></span>Login</a>
-                    }
-                    else
-                    {
-                        <span class="me-3">@username</span>
-                        <a class="btn btn-outline-primary me-2" href="/Auth/logout-cookie"><span class="fa fa-sign-out-alt me-1"></span>Logout</a>
-                    }
+
+<body class="portal-layout">
+
+    <!-- SIDEBAR -->
+    <aside class="sidebar">
+
+        <!-- BRAND -->
+        <div class="sidebar-brand">
+            <div class="d-flex align-items-center gap-3">
+
+                <div class="brand-logo">
+                    <i class="bi bi-hospital-fill"></i>
                 </div>
+
+                <div>
+                    <h3>HMS Cloud</h3>
+                    <p>Hospital Management</p>
+                </div>
+
             </div>
         </div>
-    </nav>
 
-    <div class="container mt-4">
-        @RenderBody()
-    </div>
+        <!-- MENU -->
+        <div class="sidebar-menu">
 
-    <script src="/lib/bootstrap/js/bootstrap.bundle.min.js"></script>
-    <script>
-        // network and sync status
-        const net = document.getElementById('networkIndicator');
-        const sync = document.getElementById('syncStatus');
+            <div class="sidebar-menu-title">
+                Main Menu
+            </div>
 
-        function updateNetwork() {
-            if (navigator.onLine) {
-                net.textContent = 'Online';
-                net.className = 'badge bg-success me-2';
-            } else {
-                net.textContent = 'Offline';
-                net.className = 'badge bg-danger me-2';
+            <a class="sidebar-link active" href="/Account/Dashboard">
+                <i class="bi bi-grid-1x2-fill"></i>
+                <span>Dashboard</span>
+            </a>
+
+            @if (User.Identity?.IsAuthenticated ?? false)
+            {
+                <a class="sidebar-link" href="/Patients">
+                    <i class="bi bi-people-fill"></i>
+                    <span>Patients</span>
+                </a>
+
+                <a class="sidebar-link" href="/Lab">
+                    <i class="bi bi-heart-pulse-fill"></i>
+                    <span>Laboratory</span>
+                </a>
+
+                <a class="sidebar-link" href="/Pharmacy">
+                    <i class="bi bi-capsule-pill"></i>
+                    <span>Pharmacy</span>
+                </a>
+
+                <a class="sidebar-link" href="/Billing">
+                    <i class="bi bi-cash-stack"></i>
+                    <span>Billing</span>
+                </a>
             }
-        }
 
-        async function updateSync() {
-            try {
-                const r = await fetch('/sync/status');
-                if (r.ok) {
-                    const j = await r.json();
-                    sync.textContent = 'Sync: OK';
-                    sync.className = 'badge bg-success me-2';
-                } else {
-                    sync.textContent = 'Sync: unavailable';
-                    sync.className = 'badge bg-warning me-2';
+            <div class="sidebar-menu-title mt-4">
+                Administration
+            </div>
+
+            <a class="sidebar-link" href="/Profile/Me">
+                <i class="bi bi-person-circle"></i>
+                <span>My Profile</span>
+            </a>
+
+                @* Admin link for local tenant config (requires users.manage) *@
+                @if (User.Identity?.IsAuthenticated ?? false)
+                {
+                    <a class="sidebar-link" href="/Admin/LocalTenant">
+                        <i class="bi bi-gear-fill"></i>
+                        <span>Local Tenant</span>
+                    </a>
                 }
-            } catch (e) {
-                sync.textContent = 'Sync: offline';
-                sync.className = 'badge bg-secondary me-2';
-            }
+
+            <!-- LOGOUT -->
+            <form method="post"
+                  action="/Account/Logout"
+                  class="mt-3 px-3">
+
+                @Html.AntiForgeryToken()
+
+                <button class="btn btn-danger w-100 rounded-pill py-2">
+                    <i class="bi bi-box-arrow-right me-2"></i>
+                    Logout
+                </button>
+            </form>
+
+        </div>
+
+    </aside>
+
+    <!-- MAIN -->
+    <div class="main-content">
+
+        <!-- TOPBAR -->
+        <header class="topbar">
+
+            <div class="topbar-content">
+
+                <!-- LEFT -->
+                <div class="d-flex align-items-center gap-3">
+
+                    <button class="btn btn-light rounded-circle shadow-sm d-lg-none"
+                            id="sidebarToggle">
+                        <i class="bi bi-list"></i>
+                    </button>
+
+                    <div>
+                        <h4 class="mb-0 fw-bold">
+                            @ViewData["Title"]
+                        </h4>
+
+                        <small class="text-muted">
+                            HMS Management Portal
+                        </small>
+                    </div>
+
+                </div>
+
+                <!-- RIGHT -->
+                <div class="d-flex align-items-center gap-3">
+
+                    <div class="topbar-user">
+
+                        <div class="avatar-sm">
+                            @User.Identity?.Name?.Substring(0, 1).ToUpper()
+                        </div>
+
+                        <div class="d-none d-md-block">
+                            <div class="fw-semibold">
+                                @User.Identity?.Name
+                            </div>
+
+                    <small class="text-muted">
+                        Administrator
+                        @{
+                            var tenantName = Context.Request.Cookies["HmsTenantName"] ?? string.Empty;
+                            if (!string.IsNullOrWhiteSpace(tenantName))
+                            {
+                                <text> | @tenantName</text>
+                            }
+                        }
+                    </small>
+                        </div>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </header>
+
+        <div class="px-3 mt-2 d-flex justify-content-end align-items-center">
+            @await Component.InvokeAsync("DeploymentMode")
+        </div>
+
+        <!-- CONTENT -->
+        <main class="page-content">
+            <div class="container-fluid">
+                @RenderBody()
+            </div>
+        </main>
+
+    </div>
+    @* <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script> *@
+    <!-- jQuery -->
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js" ></script>
+
+    
+    <script>
+        document.getElementById('sidebarToggle')
+            ?.addEventListener('click', function () {
+
+                document.querySelector('.sidebar')
+                    ?.classList.toggle('show');
+            });
+    </script>
+
+    <script>
+    
+        toastr.options = {
+            closeButton: true,
+            progressBar: true,
+            positionClass: "toast-top-right",
+            timeOut: "3000"
+        };
+    
+        // Show server-side TempData messages using toastr
+        document.addEventListener('DOMContentLoaded', function () {
+            try {
+                // TempData keys: Success, Error, Info
+                       @if (TempData["Success"] != null)
+        {
+                <text>
+                    toastr.success(@Html.Raw(System.Text.Json.JsonSerializer.Serialize(TempData["Success"])));
+                </text>
         }
 
-        window.addEventListener('online', updateNetwork);
-        window.addEventListener('offline', updateNetwork);
-        updateNetwork();
-        updateSync();
-        setInterval(updateSync, 60000);
+        @if (TempData["Error"] != null)
+        {
+                <text>
+                    toastr.error(@Html.Raw(System.Text.Json.JsonSerializer.Serialize(TempData["Error"])));
+                </text>
+        }
+
+        @if (TempData["Info"] != null)
+        {
+                <text>
+                    toastr.info(@Html.Raw(System.Text.Json.JsonSerializer.Serialize(TempData["Info"])));
+                </text>
+        }
+
+                // Also convert any inline alert elements into toastr notifications
+                // document.querySelectorAll('.page-content .alert').forEach(function (el) {
+                //     var text = el.innerText.trim();
+                //     if (!text) return;
+                //     if (el.classList.contains('alert-success')) toastr.success(text);
+                //     else if (el.classList.contains('alert-danger') || el.classList.contains('alert-warning')) toastr.error(text);
+                //     else toastr.info(text);
+                //     el.remove();
+                // });
+            } catch (e) {
+                // ignore
+            }
+        });
+
+    // Show client-side toasts for deployment/tenant name resolution issues
+    document.addEventListener('DOMContentLoaded', function () {
+        try {
+            var tResolve = (document.cookie.match(/(?:^|; )HmsTenantNameResolveFailed=([^;]+)/) || [])[1];
+            if (tResolve === '1') {
+                toastr.warning('Tenant name could not be resolved automatically. Some tenant-specific features may be limited.');
+                // clear cookie
+                document.cookie = 'HmsTenantNameResolveFailed=;path=/;max-age=0';
+            }
+
+            var dmUnknown = (document.cookie.match(/(?:^|; )HmsDeploymentModeUnknown=([^;]+)/) || [])[1];
+            if (dmUnknown === '1') {
+                toastr.info('Deployment mode could not be determined; some UI indicators may show "Unknown".');
+                document.cookie = 'HmsDeploymentModeUnknown=;path=/;max-age=0';
+            }
+        } catch (e) { }
+    });
     </script>
-    @RenderSection("Scripts", required: false)
+    
+  
 </body>
 </html>

@@ -1,0 +1,151 @@
+﻿@{
+    Layout = "~/Pages/_Layout.cshtml";
+}
+
+<div class="page-content">
+
+    <!-- WELCOME HEADER -->
+    <div class="portal-card p-4 mb-4">
+        <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
+
+            <div>
+                <h2 class="mb-1 fw-bold">
+                    Welcome back,
+                    <span class="text-primary">
+                        @ViewData["ProfileFirstName"]
+                    </span>
+                </h2>
+
+                @if (!string.IsNullOrWhiteSpace((string)ViewData["TenantName"]))
+                {
+                    <p class="mb-0 text-muted">
+                        <i class="bi bi-hospital me-1"></i>
+                        @ViewData["TenantName"]
+                    </p>
+                }
+            </div>
+
+            <div class="d-flex align-items-center gap-3">
+
+                @{
+                    var firstName = ViewData["ProfileFirstName"]?.ToString();
+                    var initial = !string.IsNullOrWhiteSpace(firstName)
+                    ? firstName[0].ToString().ToUpper()
+                    : "?";
+                }
+                <div class="avatar">
+                    @initial
+                </div>
+
+                <form method="post" asp-controller="Account" asp-action="Logout">
+                    @Html.AntiForgeryToken()
+
+                    <button class="btn btn-outline-danger rounded-pill px-4">
+                        <i class="bi bi-box-arrow-right me-2"></i>
+                        Logout
+                    </button>
+                </form>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- QUICK STATS -->
+    <div class="row g-4 mb-4">
+
+        <div class="col-md-6 col-xl-3">
+            <div class="stats-card bg-gradient-primary shadow-soft">
+                <h2>248</h2>
+                <p>Total Patients</p>
+                <i class="bi bi-people-fill"></i>
+            </div>
+        </div>
+
+        <div class="col-md-6 col-xl-3">
+            <div class="stats-card bg-gradient-success shadow-soft">
+                <h2>32</h2>
+                <p>Appointments Today</p>
+                <i class="bi bi-calendar-check-fill"></i>
+            </div>
+        </div>
+
+        <div class="col-md-6 col-xl-3">
+            <div class="stats-card bg-gradient-warning shadow-soft">
+                <h2>14</h2>
+                <p>Lab Requests</p>
+                <i class="bi bi-heart-pulse-fill"></i>
+            </div>
+        </div>
+
+        <div class="col-md-6 col-xl-3">
+            <div class="stats-card bg-gradient-danger shadow-soft">
+                <h2>₦420k</h2>
+                <p>Revenue Today</p>
+                <i class="bi bi-cash-stack"></i>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- MODULES -->
+    <div class="row g-4">
+
+        <div class="col-md-6 col-xl-3">
+            <a href="/Patients" class="portal-card module-card p-4 d-block h-100">
+                <div class="module-icon bg-primary-subtle text-primary">
+                    <i class="bi bi-people-fill"></i>
+                </div>
+
+                <h5 class="mt-4 fw-bold">Patients</h5>
+
+                <p class="text-muted mb-0">
+                    Manage patient records and registrations.
+                </p>
+            </a>
+        </div>
+
+        <div class="col-md-6 col-xl-3">
+            <a href="/Lab" class="portal-card module-card p-4 d-block h-100">
+                <div class="module-icon bg-danger-subtle text-danger">
+                    <i class="bi bi-heart-pulse-fill"></i>
+                </div>
+
+                <h5 class="mt-4 fw-bold">Laboratory</h5>
+
+                <p class="text-muted mb-0">
+                    Access test requests and diagnostics.
+                </p>
+            </a>
+        </div>
+
+        <div class="col-md-6 col-xl-3">
+            <a href="/Pharmacy" class="portal-card module-card p-4 d-block h-100">
+                <div class="module-icon bg-success-subtle text-success">
+                    <i class="bi bi-capsule-pill"></i>
+                </div>
+
+                <h5 class="mt-4 fw-bold">Pharmacy</h5>
+
+                <p class="text-muted mb-0">
+                    Dispense medication and inventory tracking.
+                </p>
+            </a>
+        </div>
+
+        <div class="col-md-6 col-xl-3">
+            <a href="/Billing" class="portal-card module-card p-4 d-block h-100">
+                <div class="module-icon bg-warning-subtle text-warning">
+                    <i class="bi bi-cash-coin"></i>
+                </div>
+
+                <h5 class="mt-4 fw-bold">Billing</h5>
+
+                <p class="text-muted mb-0">
+                    Payments, invoices and revenue reports.
+                </p>
+            </a>
+        </div>
+
+    </div>
+
+</div>

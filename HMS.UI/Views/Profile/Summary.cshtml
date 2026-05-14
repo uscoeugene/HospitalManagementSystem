@@ -1,0 +1,34 @@
+@model HMS.UI.Models.Reporting.PagedReportResult<HMS.UI.Models.Reporting.ProfileSummaryDto>
+@{
+    Layout = "~/Pages/_Layout.cshtml";
+    ViewData["Title"] = "Profile Summary";
+}
+
+<div class="container py-5">
+    <div class="card portal-card">
+        <div class="portal-card-header">Profile Summary</div>
+        <div class="portal-card-body">
+            <table class="table table-modern">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Email</th>
+                        <th>Department</th>
+                        <th>Job Title</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach(var it in Model.Items)
+                    {
+                        <tr>
+                            <td>@it.FullName</td>
+                            <td>@it.Email</td>
+                            <td>@it.Department</td>
+                            <td>@it.JobTitle</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>

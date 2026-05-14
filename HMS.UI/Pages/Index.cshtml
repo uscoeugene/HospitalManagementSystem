@@ -1,70 +1,243 @@
 @page
 @model HMS.UI.Pages.IndexModel
 @{
-    ViewData["Title"] = "Home";
+    ViewData["Title"] = "HMS Dashboard";
 }
 
-<div class="row">
-    <div class="col-md-8">
-        <div id="carousel" class="card">
-            <div class="card-body text-center">
-                <h2>Welcome to HMS</h2>
-                <p class="lead">Hospital Management System - Local and Central</p>
-                <div id="hospitalInfo" class="mt-4">
-                    <!-- dynamic hospital info will be populated by script -->
-                    <div id="hospitalPlaceholder">
-                        <p>No hospital configured locally. Please login and configure your hospital.</p>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>HMS - Smart Hospital Management</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet" />
+    <link href="~/css/hms-home.css" rel="stylesheet" />
+</head>
+<body>
+
+    <div class="container mt-3">
+        <div class="d-flex justify-content-end">
+            @await Component.InvokeAsync("DeploymentMode")
+        </div>
+    </div>
+
+    @{ var tenantResolveFailed = HttpContext.Request.Cookies["HmsTenantNameResolveFailed"] ?? string.Empty; }
+    @if (!string.IsNullOrWhiteSpace(tenantResolveFailed))
+    {
+        <div class="container mt-2">
+            <div class="alert alert-warning">We could not automatically determine your tenant name. Some UI features may show limited tenant information.</div>
+        </div>
+    }
+
+    <!-- HERO -->
+    <section class="hero-section text-center">
+        <div class="container position-relative">
+            <h1 class="hero-title mb-3">
+                <i class="bi bi-hospital-fill"></i>
+                HMS Cloud
+            </h1>
+
+            <p class="hero-subtitle mb-4">
+                A Modern Multi-Tenant Hospital Management System
+                powering hospitals, clinics, laboratories and healthcare networks.
+            </p>
+
+            <div class="d-flex justify-content-center gap-3 flex-wrap">
+                <a href="/Account/Login" class="btn btn-light btn-lg btn-glow">
+                    <i class="bi bi-box-arrow-in-right"></i>
+                    Login
+                </a>
+
+                <a href="#" class="btn btn-outline-light btn-lg btn-glow">
+                    <i class="bi bi-building"></i>
+                    Create Tenant
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- FEATURES -->
+    <section class="container py-5">
+        <div class="text-center mb-5">
+            <h2 class="section-title">Core Modules</h2>
+            <p class="text-muted">
+                Everything your healthcare organization needs in one integrated platform.
+            </p>
+        </div>
+
+        <div class="row g-4">
+
+            <div class="col-md-6 col-lg-3">
+                <div class="card feature-card gradient-blue h-100 p-4">
+                    <div class="feature-icon">
+                        <i class="bi bi-people-fill"></i>
                     </div>
+                    <h4>Patient Management</h4>
+                    <p>
+                        Register, track and manage patients efficiently across departments.
+                    </p>
                 </div>
-                <p class="mt-4">
-                    <a class="btn btn-primary btn-lg" href="/Login"><span class="fa fa-lock me-2"></span>Sign in</a>
+            </div>
+
+            <div class="col-md-6 col-lg-3">
+                <div class="card feature-card gradient-green h-100 p-4">
+                    <div class="feature-icon">
+                        <i class="bi bi-heart-pulse-fill"></i>
+                    </div>
+                    <h4>Clinical Operations</h4>
+                    <p>
+                        Handle consultations, diagnoses, treatment plans and ward activities.
+                    </p>
+                </div>
+            </div>
+
+            <div class="col-md-6 col-lg-3">
+                <div class="card feature-card gradient-orange h-100 p-4">
+                    <div class="feature-icon">
+                        <i class="bi bi-capsule-pill"></i>
+                    </div>
+                    <h4>Pharmacy & Lab</h4>
+                    <p>
+                        Manage prescriptions, inventory, diagnostics and laboratory workflows.
+                    </p>
+                </div>
+            </div>
+
+            <div class="col-md-6 col-lg-3">
+                <div class="card feature-card gradient-purple h-100 p-4">
+                    <div class="feature-icon">
+                        <i class="bi bi-cash-stack"></i>
+                    </div>
+                    <h4>Billing & Finance</h4>
+                    <p>
+                        Automate invoicing, payments, insurance and revenue management.
+                    </p>
+                </div>
+            </div>
+
+        </div>
+    </section>
+
+    <!-- STATS -->
+    <section class="container py-4">
+        <div class="row g-4">
+
+            <div class="col-md-3">
+                <div class="stats-card bg-primary">
+                    <h2>120+</h2>
+                    <p class="mb-0">Hospitals</p>
+                </div>
+            </div>
+
+            <div class="col-md-3">
+                <div class="stats-card bg-success">
+                    <h2>25K+</h2>
+                    <p class="mb-0">Patients Managed</p>
+                </div>
+            </div>
+
+            <div class="col-md-3">
+                <div class="stats-card bg-warning">
+                    <h2>350+</h2>
+                    <p class="mb-0">Doctors</p>
+                </div>
+            </div>
+
+            <div class="col-md-3">
+                <div class="stats-card bg-dark">
+                    <h2>99.9%</h2>
+                    <p class="mb-0">System Uptime</p>
+                </div>
+            </div>
+
+        </div>
+    </section>
+
+    <!-- MULTITENANT -->
+    <section class="container py-5">
+        <div class="text-center mb-5">
+            <h2 class="section-title">Multi-Tenant Architecture</h2>
+            <p class="text-muted">
+                Each hospital operates independently with secure isolated data.
+            </p>
+        </div>
+
+        <div class="row g-4">
+
+            <div class="col-md-4">
+                <div class="card tenant-card shadow-sm p-4 h-100">
+                    <h4 class="text-primary">
+                        <i class="bi bi-building"></i>
+                        Hospital A
+                    </h4>
+                    <p class="text-muted">
+                        Separate database, branding, users and configurations.
+                    </p>
+                </div>
+            </div>
+
+            <div class="col-md-4">
+                <div class="card tenant-card shadow-sm p-4 h-100">
+                    <h4 class="text-success">
+                        <i class="bi bi-hospital"></i>
+                        Clinic Network
+                    </h4>
+                    <p class="text-muted">
+                        Shared infrastructure with isolated tenant operations.
+                    </p>
+                </div>
+            </div>
+
+            <div class="col-md-4">
+                <div class="card tenant-card shadow-sm p-4 h-100">
+                    <h4 class="text-danger">
+                        <i class="bi bi-shield-check"></i>
+                        Secure & Scalable
+                    </h4>
+                    <p class="text-muted">
+                        Enterprise-grade security, audit logging and cloud scalability.
+                    </p>
+                </div>
+            </div>
+
+        </div>
+    </section>
+
+    <!-- CTA -->
+    <section class="container py-5">
+        <div class="card border-0 shadow-lg rounded-5 overflow-hidden">
+            <div class="card-body p-5 text-center bg-dark text-white">
+                <h2 class="fw-bold mb-3">
+                    Ready to Transform Healthcare Operations?
+                </h2>
+
+                <p class="mb-4 text-light">
+                    Streamline patient care, automate workflows and scale your hospital network.
                 </p>
+
+                <a href="/Account/Login" class="btn btn-primary btn-lg px-5">
+                    <i class="bi bi-arrow-right-circle"></i>
+                    Get Started
+                </a>
             </div>
         </div>
-    </div>
-    <div class="col-md-4">
-        <div class="card">
-            <div class="card-body">
-                <h5>Status</h5>
-                <ul class="list-unstyled">
-                    <li><strong>Network:</strong> <span id="homeNetwork">Checking...</span></li>
-                    <li><strong>Last sync:</strong> <span id="homeSync">Unknown</span></li>
-                </ul>
-            </div>
+    </section>
+
+    <!-- FOOTER -->
+    <footer>
+        <div class="container text-center">
+            <h5 class="mb-3">
+                <i class="bi bi-hospital-fill"></i>
+                HMS Cloud
+            </h5>
+
+            <p class="mb-0">
+                © 2026 HMS Cloud. Multi-Tenant Hospital Management System.
+            </p>
         </div>
-    </div>
-</div>
+    </footer>
 
-@section Scripts {
-<script>
-    // try to load cached hospital info from localStorage
-    const info = localStorage.getItem('hospitalInfo');
-    const ph = document.getElementById('hospitalPlaceholder');
-    if (info) {
-        try {
-            const obj = JSON.parse(info);
-            ph.innerHTML = `<h4>${obj.name}</h4><p>${obj.address || ''}</p>`;
-        } catch (e) {
-            ph.textContent = 'Invalid hospital info cached.';
-        }
-    }
-
-    async function updateStatus() {
-        try {
-            const r = await fetch('/sync/status');
-            if (r.ok) {
-                const j = await r.json();
-                document.getElementById('homeSync').textContent = new Date().toLocaleString();
-            } else {
-                document.getElementById('homeSync').textContent = 'Unavailable';
-            }
-        } catch (e) {
-            document.getElementById('homeSync').textContent = 'Offline';
-        }
-        document.getElementById('homeNetwork').textContent = navigator.onLine ? 'Online' : 'Offline';
-    }
-
-    updateStatus();
-    setInterval(updateStatus, 60000);
-</script>
-}
+</body>
+</html>

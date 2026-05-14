@@ -1,19 +1,33 @@
-using HMS.UI.Services;
 using Microsoft.AspNetCore.Builder;
+using HMS.UI.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Configuration
 var apiBase = builder.Configuration["Api:BaseUrl"] ?? "https://localhost:7142/";
 
-// Services
-// Register IHttpContextAccessor early so Razor pages can property-inject it during activation
+// Add both Razor Pages and MVC controllers with views so we can use either approach
+builder.Services.AddRazorPages().AddRazorRuntimeCompilation();
+builder.Services.AddControllersWithViews().AddRazorRuntimeCompilation();
 builder.Services.AddHttpContextAccessor();
-builder.Services.AddRazorPages();
-builder.Services.AddHttpClient("HmsApi", client => client.BaseAddress = new Uri(apiBase));
-builder.Services.AddScoped<ApiClient>();
+builder.Services.AddScoped<RefreshService>();
+builder.Services.AddHttpClient("HmsApi", c => c.BaseAddress = new Uri(apiBase));
+builder.Services.AddScoped<HMS.UI.Services.ApiClient>();
+
+// Add simple cookie authentication so MVC Challenge/Authorize can work in the UI
+builder.Services.AddAuthentication(options =>
+{
+    options.DefaultAuthenticateScheme = Microsoft.AspNetCore.Authentication.Cookies.CookieAuthenticationDefaults.AuthenticationScheme;
+    options.DefaultChallengeScheme = Microsoft.AspNetCore.Authentication.Cookies.CookieAuthenticationDefaults.AuthenticationScheme;
+})
+.AddCookie(options =>
+{
+    options.LoginPath = "/Account/Login";
+    options.AccessDeniedPath = "/Error/403";
+});
 
 var app = builder.Build();
 
@@ -25,7 +39,25 @@ if (!app.Environment.IsDevelopment())
 
 app.UseStaticFiles();
 app.UseRouting();
+app.UseAuthentication();   // REQUIRED
+app.UseAuthorization();    // REQUIRED
+app.UseMiddleware<HMS.UI.Middleware.AutoRefreshMiddleware>();
 
+// Render friendly error pages for common status codes
+app.UseStatusCodePagesWithReExecute("/Error/{0}");
+
+// Map MVC controller routes (default) first so controller-based views take precedence
+app.MapControllerRoute(
+    name: "default",
+    pattern: "{controller=Account}/{action=Dashboard}/{id?}");
+
+// convenient tenant-aware login URL: /login/{tenantCode}
+app.MapControllerRoute(
+    name: "tenantLogin",
+    pattern: "login/{tenantCode?}",
+    defaults: new { controller = "Account", action = "Login" });
+
+// Also map Razor Pages for any remaining pages
 app.MapRazorPages();
 
 app.Run();

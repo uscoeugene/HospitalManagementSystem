@@ -1,0 +1,185 @@
+@model HMS.UI.Models.Profile.UserProfileViewModel
+@addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
+@{
+    Layout = "~/Pages/_Layout.cshtml";
+    ViewData["Title"] = "My Profile";
+
+    var initials =
+        $"{Model?.FirstName?.FirstOrDefault()}{Model?.LastName?.FirstOrDefault()}"
+        .Trim()
+        .ToUpper();
+
+    if (string.IsNullOrWhiteSpace(initials))
+    {
+        initials = "U";
+    }
+}
+
+<div class="profile-page">
+
+    <!-- PAGE HEADER -->
+    <div class="profile-header">
+
+        <div class="profile-avatar">
+            @initials
+        </div>
+
+        <div>
+            <h1 class="profile-title">
+                My Profile
+            </h1>
+
+            <p class="profile-subtitle">
+                Manage your staff information and account details
+            </p>
+        </div>
+
+    </div>
+
+    <!-- ALERTS -->
+    @if (TempData["Success"] != null)
+    {
+        <div class="alert alert-success alert-modern">
+            <i class="bi bi-check-circle-fill me-2"></i>
+            @TempData["Success"]
+        </div>
+    }
+
+    @if (TempData["Error"] != null)
+    {
+        <div class="alert alert-danger alert-modern">
+            <i class="bi bi-exclamation-triangle-fill me-2"></i>
+            @TempData["Error"]
+        </div>
+    }
+
+    @if (string.IsNullOrWhiteSpace(Model.FirstName)
+        && string.IsNullOrWhiteSpace(Model.LastName)
+        && string.IsNullOrWhiteSpace(Model.Email))
+    {
+        <div class="alert alert-info alert-modern">
+            <i class="bi bi-info-circle-fill me-2"></i>
+            No profile found yet. Fill the form below to create your profile.
+        </div>
+    }
+
+    <!-- PROFILE CARD -->
+    <div class="card portal-card border-0">
+
+        <div class="portal-card-header d-flex align-items-center justify-content-between">
+
+            <div>
+                <h5 class="mb-1 fw-bold">
+                    Profile Information
+                </h5>
+
+                <small class="text-muted">
+                    Update your personal and professional details
+                </small>
+            </div>
+
+            <div class="profile-badge">
+                <i class="bi bi-shield-check"></i>
+                Staff Account
+            </div>
+
+        </div>
+
+        <div class="portal-card-body">
+
+            <form asp-action="Me" method="post">
+
+                @Html.AntiForgeryToken()
+
+                <div asp-validation-summary="ModelOnly"
+                     class="alert alert-danger"></div>
+
+                <div class="row g-4">
+
+                    <!-- FIRST NAME -->
+                    <div class="col-md-6">
+                        <label asp-for="FirstName" class="form-label"></label>
+
+                        <input asp-for="FirstName"
+                               class="form-control profile-input" />
+
+                        <span asp-validation-for="FirstName"
+                              class="text-danger small"></span>
+                    </div>
+
+                    <!-- LAST NAME -->
+                    <div class="col-md-6">
+                        <label asp-for="LastName" class="form-label"></label>
+
+                        <input asp-for="LastName"
+                               class="form-control profile-input" />
+
+                        <span asp-validation-for="LastName"
+                              class="text-danger small"></span>
+                    </div>
+
+                    <!-- EMAIL -->
+                    <div class="col-md-6">
+                        <label asp-for="Email" class="form-label"></label>
+
+                        <input asp-for="Email"
+                               class="form-control profile-input" />
+
+                        <span asp-validation-for="Email"
+                              class="text-danger small"></span>
+                    </div>
+
+                    <!-- PHONE -->
+                    <div class="col-md-6">
+                        <label asp-for="PhoneNumber" class="form-label"></label>
+
+                        <input asp-for="PhoneNumber"
+                               class="form-control profile-input" />
+
+                        <span asp-validation-for="PhoneNumber"
+                              class="text-danger small"></span>
+                    </div>
+
+                    <!-- DEPARTMENT -->
+                    <div class="col-md-6">
+                        <label asp-for="Department" class="form-label"></label>
+
+                        <input asp-for="Department"
+                               class="form-control profile-input" />
+
+                        <span asp-validation-for="Department"
+                              class="text-danger small"></span>
+                    </div>
+
+                    <!-- JOB TITLE -->
+                    <div class="col-md-6">
+                        <label asp-for="JobTitle" class="form-label"></label>
+
+                        <input asp-for="JobTitle"
+                               class="form-control profile-input" />
+
+                        <span asp-validation-for="JobTitle"
+                              class="text-danger small"></span>
+                    </div>
+
+                </div>
+
+                <!-- ACTIONS -->
+                <div class="mt-5 d-flex justify-content-end">
+
+                    <button class="btn btn-primary-custom px-5 py-3"
+                            type="submit">
+
+                        <i class="bi bi-check-lg me-2"></i>
+                        Save Changes
+                    </button>
+
+                </div>
+
+            </form>
+
+        </div>
+
+    </div>
+
+</div>

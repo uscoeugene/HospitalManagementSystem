@@ -2,12 +2,11 @@ using System;
 using System.Linq;
 using System.Threading.Tasks;
 using HMS.API.Application.Auth;
-using HMS.API.Infrastructure.Persistence;
+using HMS.API.Infrastructure.Auth;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using HMS.API.Application.Auth.DTOs;
 using Microsoft.Extensions.Configuration;
-using System;
 using Microsoft.AspNetCore.Http;
 
 namespace HMS.API.Controllers
@@ -18,14 +17,14 @@ namespace HMS.API.Controllers
     {
         private readonly LocalAuthService _localAuth;
         private readonly LocalTokenService _tokenService;
-        private readonly HmsDbContext _db;
+        private readonly AuthDbContext _authDb;
         private readonly IConfiguration _config;
 
-        public LocalAuthController(LocalAuthService localAuth, LocalTokenService tokenService, HmsDbContext db, IConfiguration config)
+        public LocalAuthController(LocalAuthService localAuth, LocalTokenService tokenService, AuthDbContext authDb, IConfiguration config)
         {
             _localAuth = localAuth;
             _tokenService = tokenService;
-            _db = db;
+            _authDb = authDb;
             _config = config;
         }
 
@@ -36,9 +35,9 @@ namespace HMS.API.Controllers
             {
                 var resp = await _localAuth.LoginLocalAsync(req);
 
-                // load roles and permissions from local caches
-                var roles = await _db.Set<HMS.API.Domain.Auth.LocalRole>().AsNoTracking().Where(r => r.TenantId == resp.TenantId).Select(r => r.Name).ToArrayAsync();
-                var perms = await _db.Set<HMS.API.Domain.Auth.LocalPermission>().AsNoTracking().Where(p => p.TenantId == resp.TenantId).Select(p => p.Code).ToArrayAsync();
+                // load roles and permissions from local caches in auth DB
+                var roles = await _authDb.Set<HMS.API.Domain.Auth.LocalRole>().AsNoTracking().Where(r => r.TenantId == resp.TenantId).Select(r => r.Name).ToArrayAsync();
+                var perms = await _authDb.Set<HMS.API.Domain.Auth.LocalPermission>().AsNoTracking().Where(p => p.TenantId == resp.TenantId).Select(p => p.Code).ToArrayAsync();
 
                 var token = _tokenService.BuildLocalJwt(resp.UserId, req.Username, resp.TenantId, roles, perms);
 

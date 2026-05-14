@@ -1,4 +1,13 @@
 ﻿Summary first (short): I will document the system logic (auth, tenancy, sync, subscriptions, push, outbox, local/central split) and then propose a prioritized set of Razor Pages UIs mapped to the APIs, UX notes, security considerations and an implementation plan. Tell me which page to implement first and I will create the Razor Pages, client-side code and wire them to the APIs.
+Note: a new Razor Pages project `HMS.UI` has been created under the solution directory at `HMS.UI/`.
+If you don't have a solution file yet, add one and include both projects:
+
+  dotnet new sln -n HospitalManagementSystem
+  dotnet sln add HMS.API/HMS.API.csproj
+  dotnet sln add HMS.UI/HMS.UI.csproj
+
+Ensure `Api:BaseUrl` in `HMS.UI/appsettings.Development.json` points to your running `HMS.API` base URL (default: https://localhost:7142/).
+
 1.	System logic (reference)
 •	Boundaries
 •	Central service (AuthDbContext): users/roles/permissions, tenants, tenant subscriptions, tenant nodes, billing webhooks, central authoritative tenant & billing state.

@@ -28,6 +28,40 @@ namespace HMS.API.Controllers
             _config = config;
         }
 
+        [HttpPost("{id}/set-local-default")]
+        [HasPermission("users.manage")]
+        public async Task<IActionResult> SetLocalDefault(Guid id)
+        {
+            var t = await _authDb.Tenants.AsNoTracking().SingleOrDefaultAsync(x => x.Id == id);
+            if (t == null) return NotFound();
+
+            var key = "OnPremise:TenantId";
+            var setting = await _authDb.Set<HMS.API.Domain.Common.AppSetting>().SingleOrDefaultAsync(s => s.Key == key);
+            if (setting == null)
+            {
+                setting = new HMS.API.Domain.Common.AppSetting { Key = key, Value = id.ToString() };
+                _authDb.Set<HMS.API.Domain.Common.AppSetting>().Add(setting);
+            }
+            else
+            {
+                setting.Value = id.ToString();
+            }
+
+            await _authDb.SaveChangesAsync();
+            return Ok(new { id = id });
+        }
+
+        [HttpGet("local-default")]
+        [HasPermission("users.manage")]
+        public async Task<IActionResult> GetLocalDefault()
+        {
+            var key = "OnPremise:TenantId";
+            var setting = await _authDb.Set<HMS.API.Domain.Common.AppSetting>().AsNoTracking().SingleOrDefaultAsync(s => s.Key == key);
+            if (setting == null) return Ok(new { tenantId = (Guid?)null });
+            if (Guid.TryParse(setting.Value, out var gid)) return Ok(new { tenantId = gid });
+            return Ok(new { tenantId = (Guid?)null });
+        }
+
         [HttpGet]
         [HasPermission("users.manage")]
         public async Task<IActionResult> List()

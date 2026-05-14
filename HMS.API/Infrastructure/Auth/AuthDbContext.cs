@@ -27,6 +27,14 @@ namespace HMS.API.Infrastructure.Auth
         // Central tenants stored in auth DB
         public DbSet<Tenant> Tenants { get; set; } = null!;
 
+        // Application settings persisted in auth DB (key/value)
+        public DbSet<HMS.API.Domain.Common.AppSetting> AppSettings { get; set; } = null!;
+
+        // Local/offline entities
+        public DbSet<LocalUser> LocalUsers { get; set; } = null!;
+        public DbSet<LocalRole> LocalRoles { get; set; } = null!;
+        public DbSet<LocalPermission> LocalPermissions { get; set; } = null!;
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -94,6 +102,14 @@ namespace HMS.API.Infrastructure.Auth
                 b.HasIndex(t => t.Code).IsUnique();
             });
 
+            modelBuilder.Entity<HMS.API.Domain.Common.AppSetting>(b =>
+            {
+                b.HasKey(s => s.Id);
+                b.Property(s => s.Key).IsRequired().HasMaxLength(200);
+                b.Property(s => s.Value).HasMaxLength(2000);
+                b.HasIndex(s => s.Key).IsUnique();
+            });
+
             modelBuilder.Entity<LocalUser>(b =>
             {
                 b.HasKey(u => u.Id);
@@ -102,6 +118,22 @@ namespace HMS.API.Infrastructure.Auth
                 b.Property(u => u.Email).HasMaxLength(255);
                 b.HasIndex(u => u.Username);
                 b.HasIndex(u => u.TenantId);
+            });
+
+            modelBuilder.Entity<LocalRole>(b =>
+            {
+                b.HasKey(r => r.Id);
+                b.Property(r => r.Name).IsRequired().HasMaxLength(100);
+                b.Property(r => r.Description).HasMaxLength(1000);
+                b.HasIndex(r => r.TenantId);
+            });
+
+            modelBuilder.Entity<LocalPermission>(b =>
+            {
+                b.HasKey(p => p.Id);
+                b.Property(p => p.Code).IsRequired().HasMaxLength(200);
+                b.Property(p => p.Description).HasMaxLength(1000);
+                b.HasIndex(p => p.TenantId);
             });
 
             modelBuilder.Entity<Domain.Common.TenantSubscription>(b =>

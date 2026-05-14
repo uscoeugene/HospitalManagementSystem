@@ -1,0 +1,51 @@
+@page
+@model HMS.UI.Pages.Admin.AppSettingsModel
+@{
+    Layout = "~/Pages/_Layout.cshtml";
+    ViewData["Title"] = "Application Settings";
+}
+
+<div class="container py-4">
+    <h3>Application Settings</h3>
+
+    <div class="card p-3 mb-4">
+        <form method="post">
+            @Html.AntiForgeryToken()
+            <div class="row g-2">
+                <div class="col-md-5">
+                    <input asp-for="Key" class="form-control" placeholder="Key" />
+                </div>
+                <div class="col-md-5">
+                    <input asp-for="Value" class="form-control" placeholder="Value" />
+                </div>
+                <div class="col-md-2">
+                    <button class="btn btn-primary w-100">Save</button>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    @if (TempData["Success"] != null)
+    {
+        <div class="alert alert-success">@TempData["Success"]</div>
+    }
+    @if (!ViewData.ModelState.IsValid)
+    {
+        <div class="alert alert-danger">
+            @foreach (var e in ViewData.ModelState.Values.SelectMany(v => v.Errors)) { <div>@e.ErrorMessage</div> }
+        </div>
+    }
+
+    <div class="card p-3">
+        <h5>Existing Settings</h5>
+        <table class="table">
+            <thead><tr><th>Key</th><th>Value</th></tr></thead>
+            <tbody>
+                @foreach(var kv in Model.Items)
+                {
+                    <tr><td>@kv.Key</td><td>@kv.Value</td></tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>

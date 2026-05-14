@@ -1,0 +1,47 @@
+@page
+@{
+    Layout = "~/Pages/_Layout.cshtml";
+}
+@model HMS.UI.Pages.Admin.LocalTenantModel
+@{
+    ViewData["Title"] = "Local Tenant Configuration";
+}
+
+<div class="container py-4">
+    <h3>On-Premise Tenant Configuration</h3>
+
+    <div class="card p-4 mb-4">
+        <form method="post">
+            @Html.AntiForgeryToken()
+            <div class="mb-3">
+                <label class="form-label">Select Tenant</label>
+                <select asp-for="SelectedTenantId" class="form-select">
+                    <option value="">-- select tenant --</option>
+                    @foreach(var t in Model.Tenants)
+                    {
+                        <option value="@t.Id">@t.Name (@t.Code)</option>
+                    }
+                </select>
+                <span asp-validation-for="SelectedTenantId" class="text-danger"></span>
+            </div>
+
+            <button class="btn btn-primary" type="submit">Set Local Default Tenant</button>
+        </form>
+
+        @if (TempData["Success"] != null)
+        {
+            <div class="alert alert-success mt-3">@TempData["Success"]</div>
+        }
+        @if (!ViewData.ModelState.IsValid)
+        {
+            <div class="alert alert-danger mt-3">
+                @foreach (var e in ViewData.ModelState.Values.SelectMany(v => v.Errors)) { <div>@e.ErrorMessage</div> }
+            </div>
+        }
+    </div>
+
+    <div>
+        <h5>Current Local Default</h5>
+        <pre>@System.Text.Json.JsonSerializer.Serialize(Model.LocalDefault, new System.Text.Json.JsonSerializerOptions { WriteIndented = true })</pre>
+    </div>
+</div>

@@ -10,7 +10,9 @@ using HMS.API.Application.Auth.DTOs;
 using HMS.API.Infrastructure.Auth;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 using Microsoft.IdentityModel.Tokens;
+using HMS.API.Application.Common;
 
 namespace HMS.API.Application.Auth
 {
@@ -19,22 +21,82 @@ namespace HMS.API.Application.Auth
         private readonly AuthDbContext _db;
         private readonly IPasswordHasher _hasher;
         private readonly IConfiguration _config;
+        private readonly ILogger<AuthService> _logger;
 
-        public AuthService(AuthDbContext db, IPasswordHasher hasher, IConfiguration config)
+        public AuthService(AuthDbContext db, IPasswordHasher hasher, IConfiguration config, ILogger<AuthService> logger)
         {
             _db = db;
             _hasher = hasher;
             _config = config;
+            _logger = logger;
         }
 
         public async Task<LoginResponse> LoginAsync(LoginRequest request)
         {
-            var user = await _db.Users.Include(u => u.UserRoles).ThenInclude(ur => ur.Role).ThenInclude(r => r.RolePermissions).ThenInclude(rp => rp.Permission)
-                .SingleOrDefaultAsync(u => u.Username == request.Username && !u.IsDeleted);
+            // Resolve current tenant context (may be null for central)
+            var currentTenantId = CurrentTenantAccessor.CurrentTenantId;
 
-            if (user is null) throw new UnauthorizedAccessException("Invalid credentials");
-            if (!_hasher.Verify(user.PasswordHash, request.Password)) throw new UnauthorizedAccessException("Invalid credentials");
-            if (user.IsLocked && user.LockedUntil.HasValue && user.LockedUntil > DateTimeOffset.UtcNow) throw new UnauthorizedAccessException("User locked");
+            // Lookup user ignoring global query filters (tenant filter) so we can match tenant-specific or central users explicitly
+            var userQuery = _db.Users
+                .IgnoreQueryFilters()
+                .Include(u => u.UserRoles).ThenInclude(ur => ur.Role).ThenInclude(r => r.RolePermissions).ThenInclude(rp => rp.Permission)
+                .Where(u => u.Username == request.Username && !u.IsDeleted && u.TenantId == currentTenantId );
+
+            var user = await userQuery.SingleOrDefaultAsync();
+
+            // If not found in tenant scope, attempt central (TenantId == null) fallback
+            if (user is null)
+            {
+                _logger.LogDebug("User {Username} not found in tenant {TenantId}, attempting central fallback", request.Username, currentTenantId);
+                var centralQuery = _db.Users
+                    .IgnoreQueryFilters()
+                    .Include(u => u.UserRoles).ThenInclude(ur => ur.Role).ThenInclude(r => r.RolePermissions).ThenInclude(rp => rp.Permission)
+                    .Where(u => u.Username == request.Username && !u.IsDeleted && u.TenantId == null);
+
+                user = await centralQuery.SingleOrDefaultAsync();
+            }
+
+            if (user is null)
+            {
+                _logger.LogWarning("Login failed for user '{Username}': user not found", request.Username);
+                throw new UnauthorizedAccessException("Invalid credentials");
+            }
+
+            if (!_hasher.Verify(user.PasswordHash, request.Password))
+            {
+                _logger.LogWarning("Login failed for user '{Username}': invalid password", request.Username);
+                throw new UnauthorizedAccessException("Invalid credentials");
+            }
+
+            // If password verified and stored hash is legacy raw SHA-256 (32 bytes base64), rehash to PBKDF2 and persist
+            try
+            {
+                var decoded = Convert.FromBase64String(user.PasswordHash);
+                if (decoded.Length == 32)
+                {
+                    try
+                    {
+                        var newHash = _hasher.Hash(request.Password);
+                        user.PasswordHash = newHash;
+                        await _db.SaveChangesAsync();
+                        _logger.LogInformation("Migrated legacy password hash for user {Username} to PBKDF2 format", request.Username);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "Failed to migrate legacy password hash for user {Username}", request.Username);
+                    }
+                }
+            }
+            catch
+            {
+                // ignore decode errors
+            }
+
+            if (user.IsLocked && user.LockedUntil.HasValue && user.LockedUntil > DateTimeOffset.UtcNow)
+            {
+                _logger.LogWarning("Login failed for user '{Username}': user is locked until {LockedUntil}", request.Username, user.LockedUntil);
+                throw new UnauthorizedAccessException("User locked");
+            }
 
             var permissions = user.UserRoles.SelectMany(ur => ur.Role.RolePermissions).Select(rp => rp.Permission.Code).Distinct().ToArray();
 
@@ -168,7 +230,14 @@ namespace HMS.API.Application.Auth
 
             claims.AddRange(permissions.Select(p => new Claim("permission", p)));
 
+            // Ensure key is at least 256 bits for HS256. If configured key is shorter, derive a 256-bit key using SHA256.
             var keyBytes = Encoding.UTF8.GetBytes(key);
+            if (keyBytes.Length < 32)
+            {
+                using var sha = SHA256.Create();
+                keyBytes = sha.ComputeHash(Encoding.UTF8.GetBytes(key));
+            }
+
             var creds = new SigningCredentials(new SymmetricSecurityKey(keyBytes), SecurityAlgorithms.HmacSha256);
 
             var token = new JwtSecurityToken(issuer, audience, claims, expires: expires.UtcDateTime, signingCredentials: creds);
