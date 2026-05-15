@@ -7,7 +7,7 @@ namespace HMS.API.Application.Auth.DTOs
         public string Username { get; set; } = string.Empty;
         public string Password { get; set; } = string.Empty;
 
-        // Optional tenant id for tenant-scoped login (can also be provided via X-Tenant-Id header)
+        // Optional tenant id (DEPRECATED): tenant context is resolved by middleware. If supplied it will be ignored when middleware resolves a tenant.
         public Guid? TenantId { get; set; }
     }
 }

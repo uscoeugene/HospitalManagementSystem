@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using HMS.API.Infrastructure.Auth;
 using HMS.API.Infrastructure.Persistence;
 using HMS.API.Domain.Common;
+using HMS.API.Application.Common;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using HMS.API.Security;
@@ -26,6 +27,25 @@ namespace HMS.API.Controllers
         {
             _authDb = authDb;
             _config = config;
+        }
+
+        [HttpGet("diagnostics/tenant-resolve")]
+        public async Task<IActionResult> ResolveTenantDiagnostic()
+        {
+            // Returns information about how the tenant would be resolved for this request
+            var host = Request.Host.Host;
+            var resolver = HttpContext.RequestServices.GetService(typeof(ITenantResolver)) as ITenantResolver;
+            Guid? resolved = null;
+            if (resolver != null)
+            {
+                resolved = await resolver.ResolveTenantIdFromHostAsync(host);
+            }
+
+            // also include middleware-item if present
+            Guid? middleware = null;
+            if (HttpContext.Items.TryGetValue("TenantId", out var tv) && tv is Guid g) middleware = g;
+
+            return Ok(new { host, resolvedFromResolver = resolved, resolvedByMiddleware = middleware });
         }
 
         [HttpPost("{id}/set-local-default")]

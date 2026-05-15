@@ -63,5 +63,40 @@ namespace HMS.API.Application.Common
 
             return null;
         }
+
+        public async Task<Guid?> ResolveTenantIdFromHostAsync(string host)
+        {
+            if (string.IsNullOrWhiteSpace(host)) return null;
+            var key = "domain:" + host.ToLowerInvariant();
+            if (_cache.TryGetValue(key, out Guid? cached)) return cached;
+
+            try
+            {
+                var h = host.ToLowerInvariant();
+                var td = await _db.Set<HMS.API.Domain.Common.TenantDomain>().AsNoTracking().SingleOrDefaultAsync(d => d.Domain == h && d.IsActive);
+                if (td != null)
+                {
+                    _cache.Set(key, td.TenantId, _opts);
+                    return td.TenantId;
+                }
+
+                // fallback: subdomain -> tenant code
+                var parts = h.Split('.');
+                if (parts.Length > 2)
+                {
+                    var sub = parts[0];
+                    var t = await _db.Tenants.AsNoTracking().SingleOrDefaultAsync(tn => tn.Code.ToLower() == sub);
+                    if (t != null)
+                    {
+                        _cache.Set(key, t.Id, _opts);
+                        return t.Id;
+                    }
+                }
+            }
+            catch { }
+
+            _cache.Set(key, null as Guid?, _opts);
+            return null;
+        }
     }
 }

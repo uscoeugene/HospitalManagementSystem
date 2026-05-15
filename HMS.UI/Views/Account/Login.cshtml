@@ -109,7 +109,7 @@
                               asp-action="Login"
                               id="loginForm">
 
-                            <input type="hidden" name="tenantCode" value="@(ViewData["TenantCode"] ?? string.Empty)" id="tenantCodeInput" />
+                            @* tenantCode removed — tenant is resolved by host/middleware *@
 
                             @Html.AntiForgeryToken()
 
@@ -224,14 +224,7 @@
                         'Username and password are required'
                     );
                 }
-                // attach tenant code if present in URL path (/login/{code})
-                try {
-                    var parts = location.pathname.split('/');
-                    if (parts.length > 2 && parts[1].toLowerCase() === 'login') {
-                        var code = parts[2];
-                        if (code) document.getElementById('tenantCodeInput').value = code;
-                    }
-                } catch (e) { }
+                // tenant resolution moved to server-side middleware (host-based). No client tenant code attached.
             });
     </script>
 

@@ -1,0 +1,15 @@
+@page
+@model HMS.UI.Pages.Diagnostics.ApiDebugModel
+@{
+    Layout = "~/Pages/_Layout.cshtml";
+    ViewData["Title"] = "API Debug";
+}
+
+<div class="container py-4">
+    <h3>API Client Last Request Debug</h3>
+
+    <pre>
+@{ var info = Model.DebugInfo == null ? new object() : Model.DebugInfo; }
+@System.Text.Json.JsonSerializer.Serialize(info, new System.Text.Json.JsonSerializerOptions { WriteIndented = true })
+    </pre>
+</div>

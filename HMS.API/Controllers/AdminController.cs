@@ -1,13 +1,14 @@
-using System;
-using System.Threading.Tasks;
+using HMS.API.Application.Auth;
+using HMS.API.Application.Common;
 using HMS.API.Infrastructure.Auth;
 using HMS.API.Infrastructure.Persistence;
-using HMS.API.Application.Common;
-using HMS.API.Application.Auth;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Hosting;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using System;
+using System.Threading.Tasks;
 
 namespace HMS.API.Controllers
 {
@@ -83,5 +84,59 @@ namespace HMS.API.Controllers
                 return StatusCode(503, new { status = "unavailable" });
             }
         }
+
+        [HttpPost("reset")]
+            public async Task<IActionResult> ResetDatabase([FromQuery] string key) 
+        {
+
+if (key != "wipe")
+            {
+                return Unauthorized();
+            }
+            if (!_env.IsDevelopment())
+            {
+                return Forbid();
+            }
+
+            try
+            {
+                using var scope = _services.CreateScope();
+
+                var authDb = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
+                var hdb = scope.ServiceProvider.GetRequiredService<HmsDbContext>();
+                var hasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher>();
+
+                _logger.LogWarning("Starting full database reset...");
+
+                // Wipe databases
+                await authDb.Database.EnsureDeletedAsync();
+                await hdb.Database.EnsureDeletedAsync();
+
+                // Recreate + apply migrations
+                await authDb.Database.MigrateAsync();
+                await hdb.Database.MigrateAsync();
+
+                // Reseed
+                await SeedData.EnsureSeedDataAsync(authDb, hasher);
+                await HmsSeedData.EnsureSeedDataAsync(hdb, authDb, hasher);
+
+                _logger.LogWarning("Database reset completed successfully");
+
+                return Ok(new
+                {
+                    message = "Database wiped and reseeded successfully"
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Database reset failed");
+
+                return Problem(
+                    detail: ex.Message,
+                    statusCode: 500
+                );
+            }
+        }
     }
+
 }

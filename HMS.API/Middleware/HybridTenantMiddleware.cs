@@ -18,45 +18,114 @@ namespace HMS.API.Middleware
         {
             try
             {
-                // Resolve scoped services from the request scope to avoid resolving them from the root provider
                 var modeResolver = context.RequestServices.GetService(typeof(IDeploymentModeResolver)) as IDeploymentModeResolver;
                 var tenantResolver = context.RequestServices.GetService(typeof(ITenantResolver)) as ITenantResolver;
-                var logger = context.RequestServices.GetService(typeof(Microsoft.Extensions.Logging.ILogger<HybridTenantMiddleware>)) as Microsoft.Extensions.Logging.ILogger;
+                var logger = context.RequestServices.GetService(typeof(Microsoft.Extensions.Logging.ILogger<HybridTenantMiddleware>)) as Microsoft.Extensions.Logging.ILogger<HybridTenantMiddleware>;
 
                 var mode = DeploymentMode.Online;
-                if (modeResolver != null)
-                {
-                    mode = await modeResolver.GetModeAsync();
-                }
-
+                if (modeResolver != null) mode = await modeResolver.GetModeAsync();
                 logger?.LogDebug("HybridTenantMiddleware resolving mode={mode}", mode);
 
-                if (mode == DeploymentMode.Online)
+                // Platform domain bypass
+                var platformDomains = context.RequestServices.GetService(typeof(Microsoft.Extensions.Configuration.IConfiguration)) as Microsoft.Extensions.Configuration.IConfiguration;
+                // Prefer X-Forwarded-Host (set by proxy or UI) when present, else use Request.Host
+                string? host = null;
+                try
                 {
-                    // In online mode, tenant should come from JWT or header; middleware only attaches if present
-                    if (context.User?.Identity?.IsAuthenticated == true)
+                    if (context.Request.Headers.TryGetValue("X-Forwarded-Host", out var xf) && !string.IsNullOrWhiteSpace(xf))
                     {
-                        var cid = context.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-                        var tidClaim = context.User.FindFirst("tenant_id")?.Value;
-                        if (Guid.TryParse(tidClaim, out var tid)) context.Items["TenantId"] = tid;
+                        host = xf.ToString().Split(',')[0].Trim();
+                    }
+                    else if (context.Request.Headers.TryGetValue("Host", out var hhdr) && !string.IsNullOrWhiteSpace(hhdr))
+                    {
+                        host = hhdr.ToString().Split(',')[0].Trim();
+                    }
+                    else
+                    {
+                        host = context.Request.Host.Host;
                     }
 
-                    // also check header override
-                    if (context.Request.Headers.TryGetValue("X-Tenant-Id", out var headerTid))
+                    // Strip port if present (e.g. "example.com:5000" -> "example.com")
+                    if (!string.IsNullOrWhiteSpace(host))
                     {
-                        if (Guid.TryParse(headerTid, out var ht)) context.Items["TenantId"] = ht;
+                        var colonIndex = host.IndexOf(':');
+                        if (colonIndex > 0) host = host.Substring(0, colonIndex);
+                        host = host.Trim();
+                    }
+                }
+                catch { host = context.Request.Host.Host; }
+                var platformList = platformDomains?.GetSection("PlatformDomains").Get<string[]>() ?? Array.Empty<string>();
+                var isPlatformDomain = Array.Exists(platformList, d => string.Equals(d, host, StringComparison.OrdinalIgnoreCase));
+
+                if (isPlatformDomain)
+                {
+                    // Platform context - no tenant resolution
+                    CurrentTenantAccessor.CurrentTenantId = null;
+                    context.Items["TenantId"] = null;
+                    logger?.LogDebug("Platform domain matched ({host}), skipping tenant resolution", host);
+                }
+                else if (mode == DeploymentMode.Online)
+                {
+                    // In Online mode resolve tenant by host (or X-Debug-Tenant in Development)
+                    Guid? tid = null;
+
+                    // Development debug header override
+                    var env = context.RequestServices.GetService(typeof(Microsoft.Extensions.Hosting.IHostEnvironment)) as Microsoft.Extensions.Hosting.IHostEnvironment;
+                    if (env != null && env.IsDevelopment())
+                    {
+                        if (context.Request.Headers.TryGetValue("X-Debug-Tenant", out var dbg))
+                        {
+                            if (Guid.TryParse(dbg, out var dbgGuid)) tid = dbgGuid;
+                        }
                     }
 
-                    logger?.LogDebug("Online mode: tenant_id from claims/header => {tid}", context.Items.ContainsKey("TenantId") ? context.Items["TenantId"] : null);
+                    if (tid == null && tenantResolver != null)
+                    {
+                        tid = await tenantResolver.ResolveTenantIdFromHostAsync(host);
+                    }
+
+                    if (tid.HasValue)
+                    {
+                        CurrentTenantAccessor.CurrentTenantId = tid.Value;
+                        context.Items["TenantId"] = tid.Value;
+                        logger?.LogDebug("Online mode: resolved tenant {tid} from host {host}", tid, host);
+                    }
+                    else
+                    {
+                        logger?.LogDebug("Online mode: no tenant resolved from host {host}", host);
+                    }
                 }
                 else
                 {
-                    // OnPrem mode: resolve tenant via resolver (DB primary, config fallback)
+                    // OnPrem mode - resolve from AppSettings or config
                     if (tenantResolver != null)
                     {
                         var tid = await tenantResolver.ResolveTenantIdAsync();
-                        if (tid.HasValue) context.Items["TenantId"] = tid.Value;
-                        logger?.LogDebug("OnPrem mode: resolved tenant => {tid}", tid);
+                        if (tid.HasValue)
+                        {
+                            CurrentTenantAccessor.CurrentTenantId = tid.Value;
+                            context.Items["TenantId"] = tid.Value;
+                            logger?.LogDebug("OnPrem mode: resolved tenant => {tid}", tid);
+                        }
+                        else
+                        {
+                            // Fallback: attempt host-based resolution even in OnPrem to support domain-scoped setups
+                            try
+                            {
+                                var hostTid = await tenantResolver.ResolveTenantIdFromHostAsync(host);
+                                if (hostTid.HasValue)
+                                {
+                                    CurrentTenantAccessor.CurrentTenantId = hostTid.Value;
+                                    context.Items["TenantId"] = hostTid.Value;
+                                    logger?.LogDebug("OnPrem mode fallback: resolved tenant {tid} from host {host}", hostTid, host);
+                                }
+                                else
+                                {
+                                    logger?.LogWarning("OnPrem mode: tenant could not be resolved from AppSettings or host");
+                                }
+                            }
+                            catch { logger?.LogWarning("OnPrem mode: host-based fallback failed"); }
+                        }
                     }
                 }
             }
@@ -65,7 +134,14 @@ namespace HMS.API.Middleware
                 // never break pipeline; leave TenantId absent if resolution fails
             }
 
-            await _next(context);
+            try
+            {
+                await _next(context);
+            }
+            finally
+            {
+                CurrentTenantAccessor.Clear();
+            }
         }
     }
 }

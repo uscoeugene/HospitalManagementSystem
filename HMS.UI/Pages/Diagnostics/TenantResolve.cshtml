@@ -1,0 +1,14 @@
+@page
+@model HMS.UI.Pages.Diagnostics.TenantResolveModel
+@{
+    Layout = "~/Pages/_Layout.cshtml";
+    ViewData["Title"] = "Tenant Resolve Diagnostic";
+}
+
+<div class="container py-4">
+    <h3>Tenant Resolve Diagnostic</h3>
+
+    <pre>
+@System.Text.Json.JsonSerializer.Serialize(Model.Result ?? new { }, new System.Text.Json.JsonSerializerOptions { WriteIndented = true })
+    </pre>
+</div>

@@ -27,20 +27,45 @@ namespace HMS.UI.Controllers
             try
             {
                 var profile = await _api.GetAsync<HMS.UI.Models.Profile.UserProfileViewModel>("/api/Profile/me");
-                var tenantName = Request.Cookies["HmsTenantName"] ?? string.Empty;
-                // If cookie missing, try fetch tenant name by tenant id cookie
-                if (string.IsNullOrWhiteSpace(tenantName))
+
+                // Prefer tenant resolved by middleware (HttpContext.Items["TenantId"]) then fall back to tenant cookie
+                string tenantName = Request.Cookies["HmsTenantName"] ?? string.Empty;
+                Guid? resolvedTid = null;
+                try
+                {
+                    if (HttpContext.Items.TryGetValue("TenantId", out var tv) && tv is Guid g)
+                    {
+                        resolvedTid = g;
+                    }
+                    else
+                    {
+                        var tenantIdCookie = Request.Cookies["HmsTenantId"];
+                        if (!string.IsNullOrWhiteSpace(tenantIdCookie) && Guid.TryParse(tenantIdCookie, out var parsed)) resolvedTid = parsed;
+                    }
+                }
+                catch { }
+
+                if (string.IsNullOrWhiteSpace(tenantName) && resolvedTid.HasValue)
                 {
                     try
                     {
-                        var tenantId = Request.Cookies["HmsTenantId"];
-                        if (!string.IsNullOrWhiteSpace(tenantId))
+                        var t = await _api.GetAsync<object>($"/tenants/{resolvedTid.Value}");
+                        if (t is System.Text.Json.JsonElement te && te.TryGetProperty("name", out var n)) tenantName = n.GetString() ?? string.Empty;
+                        TempData["Info"] = "Tenant information loaded from API based on resolved tenant id.";
+
+                        // ensure cookies are set for subsequent requests
+                        try
                         {
-                            var t = await _api.GetAsync<object>($"/tenants/{tenantId}");
-                            if (t is System.Text.Json.JsonElement te && te.TryGetProperty("name", out var n)) tenantName = n.GetString() ?? string.Empty;
+                            if (!string.IsNullOrWhiteSpace(tenantName))
+                            {
+                                Response.Cookies.Append("HmsTenantName", tenantName, new Microsoft.AspNetCore.Http.CookieOptions { HttpOnly = false, SameSite = Microsoft.AspNetCore.Http.SameSiteMode.Lax });
+                                Response.Cookies.Append("HmsTenantId", resolvedTid.Value.ToString(), new Microsoft.AspNetCore.Http.CookieOptions { HttpOnly = false, SameSite = Microsoft.AspNetCore.Http.SameSiteMode.Lax });
+                            }
                         }
+                        catch { }
                     }
-                    catch {
+                    catch
+                    {
                         TempData["Error"] = "Unable to read tenant information. Please ensure the application is properly configured.";
                     }
                 }
@@ -119,11 +144,70 @@ namespace HMS.UI.Controllers
 
                 var resp = await _api.PostRawAsync("/auth/login", payload, headers);
 
+                //if (!resp.IsSuccessStatusCode)
+                //{
+                //    var error = await resp.Content.ReadAsStringAsync();
+                //    try
+                //    {
+                //        var dbg = _api.GetLastDebug();
+                //        if (dbg != null)
+                //        {
+                //            TempData["ApiDebug"] = System.Text.Json.JsonSerializer.Serialize(dbg, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+                //        }
+                //    }
+                //    catch { }
+                //    // Log or surface a friendly error
+                //    ModelState.AddModelError(string.Empty, resp.Content. + "Invalid credentials");
+                //    return View();
+                //}
+
                 if (!resp.IsSuccessStatusCode)
                 {
-                    var error = await resp.Content.ReadAsStringAsync();
-                    // Log or surface a friendly error
-                    ModelState.AddModelError(string.Empty, "Invalid credentials");
+                    var errorContent = await resp.Content.ReadAsStringAsync();
+
+                    string errorMessage = "Login failed.";
+
+                    try
+                    {
+                        using var errorDoc = System.Text.Json.JsonDocument.Parse(errorContent);
+
+                        // Prefer "detail" from API response
+                        if (errorDoc.RootElement.TryGetProperty("detail", out var detail))
+                        {
+                            errorMessage = detail.GetString() ?? errorMessage;
+                        }
+                        // fallback to title
+                        else if (errorDoc.RootElement.TryGetProperty("title", out var title))
+                        {
+                            errorMessage = title.GetString() ?? errorMessage;
+                        }
+                    }
+                    catch
+                    {
+                        // fallback if response is not valid JSON
+                        if (!string.IsNullOrWhiteSpace(errorContent))
+                        {
+                            errorMessage = errorContent;
+                        }
+                    }
+
+                    try
+                    {
+                        var dbg = _api.GetLastDebug();
+                        if (dbg != null)
+                        {
+                            TempData["ApiDebug"] = System.Text.Json.JsonSerializer.Serialize(
+                                dbg,
+                                new System.Text.Json.JsonSerializerOptions
+                                {
+                                    WriteIndented = true
+                                });
+                        }
+                    }
+                    catch { }
+
+                    ModelState.AddModelError(string.Empty, errorMessage);
+
                     return View();
                 }
 
@@ -150,6 +234,7 @@ namespace HMS.UI.Controllers
                     var id = new System.Security.Claims.ClaimsIdentity(claims, Microsoft.AspNetCore.Authentication.Cookies.CookieAuthenticationDefaults.AuthenticationScheme);
                     var principal = new System.Security.Claims.ClaimsPrincipal(id);
                     await HttpContext.SignInAsync(Microsoft.AspNetCore.Authentication.Cookies.CookieAuthenticationDefaults.AuthenticationScheme, principal);
+                
                 }
                 catch { }
 
@@ -158,6 +243,12 @@ namespace HMS.UI.Controllers
             catch (Exception ex)
             {
                 // API client may throw for unexpected errors; show a friendly message
+                try
+                {
+                    var dbg = _api.GetLastDebug();
+                    if (dbg != null) TempData["ApiDebug"] = System.Text.Json.JsonSerializer.Serialize(dbg, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+                }
+                catch { }
                 ModelState.AddModelError(string.Empty, "Login failed. " + ex.Message);
                 return View();
             }

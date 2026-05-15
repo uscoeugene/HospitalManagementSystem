@@ -26,6 +26,7 @@ namespace HMS.API.Infrastructure.Auth
 
         // Central tenants stored in auth DB
         public DbSet<Tenant> Tenants { get; set; } = null!;
+        public DbSet<TenantDomain> TenantDomains { get; set; } = null!;
 
         // Application settings persisted in auth DB (key/value)
         public DbSet<HMS.API.Domain.Common.AppSetting> AppSettings { get; set; } = null!;
@@ -150,6 +151,14 @@ namespace HMS.API.Infrastructure.Auth
                 b.Property(n => n.CallbackUrl).IsRequired().HasMaxLength(2000);
                 b.Property(n => n.Name).HasMaxLength(200);
                 b.HasIndex(n => n.TenantId);
+            });
+
+            modelBuilder.Entity<Domain.Common.TenantDomain>(b =>
+            {
+                b.HasKey(d => d.Id);
+                b.Property(d => d.Domain).IsRequired().HasMaxLength(500);
+                b.HasIndex(d => d.Domain).IsUnique();
+                b.HasIndex(d => d.TenantId);
             });
 
             // Apply global query filter for soft-delete on BaseEntity and tenant scoping for entities with TenantId

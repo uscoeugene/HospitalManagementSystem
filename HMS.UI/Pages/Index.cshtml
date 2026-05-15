@@ -17,19 +17,8 @@
 </head>
 <body>
 
-    <div class="container mt-3">
-        <div class="d-flex justify-content-end">
-            @await Component.InvokeAsync("DeploymentMode")
-        </div>
-    </div>
-
-    @{ var tenantResolveFailed = HttpContext.Request.Cookies["HmsTenantNameResolveFailed"] ?? string.Empty; }
-    @if (!string.IsNullOrWhiteSpace(tenantResolveFailed))
-    {
-        <div class="container mt-2">
-            <div class="alert alert-warning">We could not automatically determine your tenant name. Some UI features may show limited tenant information.</div>
-        </div>
-    }
+   
+   
 
     <!-- HERO -->
     <section class="hero-section text-center">

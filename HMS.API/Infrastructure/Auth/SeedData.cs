@@ -170,6 +170,11 @@ namespace HMS.API.Infrastructure.Auth
                 db.Set<HMS.API.Domain.Common.Tenant>().AddRange(hospA, hospB);
                 await db.SaveChangesAsync();
 
+                // Add tenant domain mappings for local development and examples
+                db.Set<HMS.API.Domain.Common.TenantDomain>().Add(new HMS.API.Domain.Common.TenantDomain { TenantId = hospA.Id, Domain = "smh.localtest.me", IsPrimary = true });
+                db.Set<HMS.API.Domain.Common.TenantDomain>().Add(new HMS.API.Domain.Common.TenantDomain { TenantId = hospB.Id, Domain = "gvc.localtest.me", IsPrimary = true });
+                await db.SaveChangesAsync();
+
                 // create tenant admin users and assign Admin role, set TenantId on user
                 var adminA = new User { Username = "smh_admin", Email = "admin@smh.local", PasswordHash = hasher.Hash("SmhAdmin@123"), TenantId = hospA.Id };
                 var adminB = new User { Username = "gvc_admin", Email = "admin@gvc.local", PasswordHash = hasher.Hash("GvcAdmin@123"), TenantId = hospB.Id };

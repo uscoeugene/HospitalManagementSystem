@@ -14,7 +14,27 @@ builder.Services.AddRazorPages().AddRazorRuntimeCompilation();
 builder.Services.AddControllersWithViews().AddRazorRuntimeCompilation();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<RefreshService>();
-builder.Services.AddHttpClient("HmsApi", c => c.BaseAddress = new Uri(apiBase));
+
+if (builder.Environment.IsDevelopment())
+{
+    builder.Services.AddHttpClient("HmsApi", client =>
+    {
+        client.BaseAddress = new Uri(builder.Configuration["HmsApi:BaseUrl"] ?? "https://localhost:7142");
+    })
+    .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+    {
+        // WARNING: only for local development
+        ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
+    });
+}
+else
+{
+    builder.Services.AddHttpClient("HmsApi", client =>
+    {
+        client.BaseAddress = new Uri(builder.Configuration["HmsApi:BaseUrl"] ?? "https://api.example.com");
+    });
+}
+
 builder.Services.AddScoped<HMS.UI.Services.ApiClient>();
 
 // Add simple cookie authentication so MVC Challenge/Authorize can work in the UI

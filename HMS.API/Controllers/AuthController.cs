@@ -30,12 +30,17 @@ namespace HMS.API.Controllers
         [HttpPost("login")]
         public async Task<ActionResult<LoginResponse>> Login([FromBody] LoginRequest request)
         {
-            // Determine tenant context: prefer body TenantId, fallback to header X-Tenant-Id or X-Tenant-Code
-            Guid? headerTenant = null;
-            var tid = Request.Headers["X-Tenant-Id"].ToString();
-            if (Guid.TryParse(tid, out var g)) headerTenant = g;
+            // Determine tenant context: prefer middleware-resolved value (HttpContext.Items["TenantId"]) then fall back to headers or request body for backward compatibility.
+            Guid? resolvedByMiddleware = null;
+            if (HttpContext.Items.TryGetValue("TenantId", out var val) && val is Guid gval)
+            {
+                resolvedByMiddleware = gval;
+            }
 
-            // Support tenant code header for on-premise nodes: X-Tenant-Code
+            Guid? headerTenant = null;
+            var tidHeader = Request.Headers["X-Tenant-Id"].ToString();
+            if (Guid.TryParse(tidHeader, out var g)) headerTenant = g;
+
             var tenantCode = Request.Headers["X-Tenant-Code"].ToString();
             if (!headerTenant.HasValue && !string.IsNullOrWhiteSpace(tenantCode))
             {
@@ -47,10 +52,15 @@ namespace HMS.API.Controllers
                 catch { }
             }
 
-            var effectiveTenant = request.TenantId ?? headerTenant;
-
             var previous = HMS.API.Application.Common.CurrentTenantAccessor.CurrentTenantId;
-            // Set the current tenant context (may be null)
+            // If middleware resolved a tenant, use that. Otherwise fall back to deprecated body/header values.
+            var effectiveTenant = resolvedByMiddleware ?? request.TenantId ?? headerTenant;
+            if (request.TenantId.HasValue && resolvedByMiddleware.HasValue)
+            {
+                // log warning - client-supplied tenantId is ignored
+                try { Console.WriteLine("Warning: client-supplied tenantId will be ignored because middleware resolved tenant."); } catch { }
+            }
+
             HMS.API.Application.Common.CurrentTenantAccessor.CurrentTenantId = effectiveTenant;
 
             try
