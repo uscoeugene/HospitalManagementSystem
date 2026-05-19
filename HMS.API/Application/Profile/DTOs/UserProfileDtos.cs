@@ -12,7 +12,7 @@ namespace HMS.API.Application.Profile.DTOs
         public string LastName { get; set; } = string.Empty;
         public string OtherNames { get; set; } = string.Empty;
         public string Gender { get; set; } = string.Empty;
-        public DateTimeOffset? DateOfBirth { get; set; }
+        public DateOnly? DateOfBirth { get; set; }
 
         // Contact
         public string PhoneNumber { get; set; } = string.Empty;
@@ -38,7 +38,7 @@ namespace HMS.API.Application.Profile.DTOs
         public string? LastName { get; set; }
         public string? OtherNames { get; set; }
         public string? Gender { get; set; }
-        public DateTimeOffset? DateOfBirth { get; set; }
+        public DateOnly? DateOfBirth { get; set; }
 
         public string? PhoneNumber { get; set; }
         public string? Email { get; set; }

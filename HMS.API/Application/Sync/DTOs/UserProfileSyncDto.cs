@@ -11,7 +11,7 @@ namespace HMS.API.Application.Sync.DTOs
         public string LastName { get; set; } = string.Empty;
         public string OtherNames { get; set; } = string.Empty;
         public string Gender { get; set; } = string.Empty;
-        public DateTimeOffset? DateOfBirth { get; set; }
+        public DateOnly? DateOfBirth { get; set; }
 
         public string PhoneNumber { get; set; } = string.Empty;
         public string Email { get; set; } = string.Empty;

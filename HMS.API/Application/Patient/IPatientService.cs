@@ -13,6 +13,8 @@ namespace HMS.API.Application.Patient
 
         Task<PagedResult<PatientResponse>> ListPatientsAsync(string? search, int page = 1, int pageSize = 20);
 
+        Task<PatientResponse> UpdatePatientAsync(Guid id, RegisterPatientRequest request);
+
         // enhanced duplicate detection: accepts threshold, dob tolerance in days, MRN prefix length to consider
         Task<DuplicateCandidateDto[]> FindPossibleDuplicatesAsync(string query, double threshold = 0.75, int dobToleranceDays = 365, int mrnPrefixLength = 4);
 

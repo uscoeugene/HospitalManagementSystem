@@ -905,3 +905,70 @@ a {
         height: 72px;
     }
 }
+
+
+.table-responsive {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.page-link {
+    border: none;
+    border-radius: 12px;
+    margin: 0 4px;
+    color: var(--text-dark);
+    min-width: 42px;
+    text-align: center;
+}
+
+.page-item.active .page-link {
+    background: linear-gradient( 135deg, var(--primary), var(--secondary) );
+    border: none;
+}
+
+@media(max-width: 768px) {
+
+    .table-modern {
+        min-width: 720px;
+    }
+
+    .page-title {
+        font-size: 1.6rem;
+    }
+
+    .portal-card-header {
+        padding: 18px;
+    }
+}
+
+.profile-input {
+    height: 54px;
+    border-radius: 16px !important;
+    background: #fbfcfe;
+    border: 1px solid #dbe4f0;
+    transition: all .25s ease;
+}
+
+    .profile-input:focus {
+        background: white;
+        border-color: var(--primary);
+        box-shadow: 0 0 0 4px rgba(13,110,253,.08);
+    }
+
+@media(max-width:768px) {
+
+    .profile-avatar {
+        width: 64px;
+        height: 64px;
+        font-size: 1.4rem;
+    }
+
+    .portal-card-header,
+    .portal-card-body {
+        padding: 20px;
+    }
+
+    .page-title {
+        font-size: 1.6rem;
+    }
+}

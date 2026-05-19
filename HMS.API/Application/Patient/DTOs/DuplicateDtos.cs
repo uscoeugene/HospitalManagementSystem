@@ -7,7 +7,7 @@ namespace HMS.API.Application.Patient.DTOs
         public Guid Id { get; set; }
         public string FirstName { get; set; } = string.Empty;
         public string LastName { get; set; } = string.Empty;
-        public DateTimeOffset DateOfBirth { get; set; }
+        public DateOnly DateOfBirth { get; set; }
         public string? MedicalRecordNumber { get; set; }
         public double Similarity { get; set; }
     }

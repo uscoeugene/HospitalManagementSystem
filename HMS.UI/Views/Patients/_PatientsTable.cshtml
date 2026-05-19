@@ -1,0 +1,94 @@
+﻿@model HMS.UI.Models.PagedResult<HMS.UI.Models.PatientListItemViewModel>
+
+<div class="table-responsive">
+
+    <table class="table table-modern align-middle mb-0">
+
+        <thead>
+            <tr>
+                <th class="ps-3">Patient</th>
+                <th>MRN</th>
+                <th>Phone</th>
+                <th>Email</th>
+                <th class="text-end pe-3">Actions</th>
+            </tr>
+        </thead>
+
+        <tbody>
+
+            @foreach (var it in Model.Items)
+            {
+                var initials =
+                $"{it.FirstName?.FirstOrDefault()}{it.LastName?.FirstOrDefault()}";
+
+                <tr>
+
+                    <td class="ps-3 py-2">
+
+                        <div class="d-flex align-items-center gap-2">
+
+                            <div class="avatar-sm"
+                                 style="width:36px;height:36px;font-size:0.8rem;">
+                                @initials
+                            </div>
+
+                            <div>
+                                <div class="fw-semibold small">
+                                    @(it.FirstName + " " + it.LastName)
+                                </div>
+                                <small class="text-muted-custom">Patient</small>
+                            </div>
+
+                        </div>
+
+                    </td>
+
+                    <td>
+                        <span class="badge-soft-success py-1 px-2">
+                            @it.MedicalRecordNumber
+                        </span>
+                    </td>
+
+                    <td class="small">@it.Phone</td>
+
+                    <td class="text-muted-custom small">@it.Email</td>
+
+                    <td class="text-end pe-3">
+
+                        <div class="dropdown">
+
+                            <button class="btn btn-light border btn-sm dropdown-toggle"
+                                    data-bs-toggle="dropdown">
+                                Actions
+                            </button>
+
+                            <ul class="dropdown-menu dropdown-menu-end">
+
+                                <li>
+                                    <a class="dropdown-item"
+                                       href="/Patients/Details/@it.Id">
+                                        <i class="bi bi-eye me-2"></i> View
+                                    </a>
+                                </li>
+
+                                <li>
+                                    <a class="dropdown-item"
+                                       href="/Patients/Edit/@it.Id">
+                                        <i class="bi bi-pencil me-2"></i> Edit
+                                    </a>
+                                </li>
+
+                            </ul>
+
+                        </div>
+
+                    </td>
+
+                </tr>
+            }
+
+        </tbody>
+
+    </table>
+
+</div>

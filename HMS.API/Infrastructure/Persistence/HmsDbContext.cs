@@ -64,6 +64,36 @@ namespace HMS.API.Infrastructure.Persistence
         {
             base.OnModelCreating(modelBuilder);
 
+            // Map DateOfBirth properties to SQL `date` and convert between DateOnly and DateTime for the provider
+            var dateOnlyConverter = new Microsoft.EntityFrameworkCore.Storage.ValueConversion.ValueConverter<DateOnly, DateTime>(
+                d => d.ToDateTime(System.TimeOnly.MinValue),
+                dt => DateOnly.FromDateTime(dt));
+
+            var nullableDateOnlyConverter = new Microsoft.EntityFrameworkCore.Storage.ValueConversion.ValueConverter<DateOnly?, DateTime?>(
+                d => d.HasValue ? d.Value.ToDateTime(System.TimeOnly.MinValue) : (DateTime?)null,
+                dt => dt.HasValue ? DateOnly.FromDateTime(dt.Value) : (DateOnly?)null);
+
+            // Only apply conversion for properties named "DateOfBirth" (case-insensitive) to avoid affecting other DateOnly usages
+            foreach (var entityType in modelBuilder.Model.GetEntityTypes())
+            {
+                var clrType = entityType.ClrType;
+                var props = clrType.GetProperties().Where(p => string.Equals(p.Name, "DateOfBirth", StringComparison.OrdinalIgnoreCase) && (p.PropertyType == typeof(DateOnly) || p.PropertyType == typeof(DateOnly?)));
+                if (!props.Any()) continue;
+                var eb = modelBuilder.Entity(clrType);
+                foreach (var p in props)
+                {
+                    var propBuilder = eb.Property(p.PropertyType, p.Name);
+                    if (p.PropertyType == typeof(DateOnly))
+                    {
+                        propBuilder.HasConversion(dateOnlyConverter).HasColumnType("date");
+                    }
+                    else
+                    {
+                        propBuilder.HasConversion(nullableDateOnlyConverter).HasColumnType("date");
+                    }
+                }
+            }
+
             // Note: mappings for Tenant, TenantSubscription and auth/local user entities have been
             // removed from this context and are managed by AuthDbContext to avoid duplicated tables.
 
@@ -71,9 +101,31 @@ namespace HMS.API.Infrastructure.Persistence
             {
                 b.HasKey(p => p.Id);
                 b.Property(p => p.FirstName).IsRequired().HasMaxLength(200);
+                b.Property(p => p.MiddleName).HasMaxLength(200);
                 b.Property(p => p.LastName).IsRequired().HasMaxLength(200);
                 b.Property(p => p.Gender).HasMaxLength(50);
+                b.Property(p => p.MaritalStatus).HasMaxLength(50);
+                b.Property(p => p.AlternatePhone).HasMaxLength(50);
+                b.Property(p => p.AddressLine1).HasMaxLength(200);
+                b.Property(p => p.AddressLine2).HasMaxLength(200);
+                b.Property(p => p.City).HasMaxLength(100);
+                b.Property(p => p.State).HasMaxLength(100);
+                b.Property(p => p.PostalCode).HasMaxLength(50);
+                b.Property(p => p.Country).HasMaxLength(100);
+                b.Property(p => p.Nationality).HasMaxLength(100);
+                b.Property(p => p.NationalIdNumber).HasMaxLength(100);
+                b.Property(p => p.BloodGroup).HasMaxLength(10);
+                b.Property(p => p.Genotype).HasMaxLength(10);
+                b.Property(p => p.EmergencyContactName).HasMaxLength(200);
+                b.Property(p => p.EmergencyContactRelationship).HasMaxLength(100);
+                b.Property(p => p.EmergencyContactPhone).HasMaxLength(50);
+                b.Property(p => p.InsuranceProvider).HasMaxLength(200);
+                b.Property(p => p.InsuranceNumber).HasMaxLength(200);
+                b.Property(p => p.Occupation).HasMaxLength(200);
+                b.Property(p => p.PhotoUrl).HasMaxLength(1000);
+                b.Property(p => p.IsActive).HasDefaultValue(true);
                 b.HasMany(p => p.Visits).WithOne(v => v.Patient).HasForeignKey(v => v.PatientId);
+                b.Property(p => p.DateOfBirth).HasColumnType("date");
                 b.HasIndex(p => p.MedicalRecordNumber).IsUnique(false);
 
                 b.HasIndex(p => new { p.TenantId, p.MedicalRecordNumber });

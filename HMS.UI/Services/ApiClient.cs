@@ -43,22 +43,8 @@ public class ApiClient
         var res = await client.SendAsync(req);
         await CaptureDebugResponseAsync(res);
 
-        if (!res.IsSuccessStatusCode)
-        {
-            // Treat common non-success responses as non-exceptional for UI flows
-            if (res.StatusCode == System.Net.HttpStatusCode.Unauthorized || res.StatusCode == System.Net.HttpStatusCode.Forbidden || res.StatusCode == System.Net.HttpStatusCode.NotFound)
-                return default;
-
-            var error = await res.Content.ReadAsStringAsync();
-            throw new Exception($"API Error: {res.StatusCode} - {error}");
-        }
-
-        if (res.Content.Headers.ContentLength == 0) return default;
-        //return await res.Content.ReadFromJsonAsync<T>();
-        return await res.Content.ReadFromJsonAsync<T>(new System.Text.Json.JsonSerializerOptions
-        {
-            PropertyNameCaseInsensitive = true
-        });
+        // Process wrapped ApiResponse if present, otherwise deserialize directly
+        return await ProcessApiResponseAsync<T>(res);
     }
 
     public async Task<HttpResponseMessage> PutRawAsync(string path, object payload)
@@ -86,6 +72,40 @@ public class ApiClient
         return res;
     }
 
+    private static string ExtractErrorMessage(string raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) return string.Empty;
+        try
+        {
+            using var jd = System.Text.Json.JsonDocument.Parse(raw);
+            var root = jd.RootElement;
+            // common shapes: { error: "msg" } or { errors: { field: ["msg"] } } or ProblemDetails
+            if (root.ValueKind == System.Text.Json.JsonValueKind.Object)
+            {
+                if (root.TryGetProperty("error", out var e) && e.ValueKind == System.Text.Json.JsonValueKind.String) return e.GetString() ?? string.Empty;
+                if (root.TryGetProperty("detail", out var d) && d.ValueKind == System.Text.Json.JsonValueKind.String) return d.GetString() ?? string.Empty;
+
+                if (root.TryGetProperty("errors", out var errs) && errs.ValueKind == System.Text.Json.JsonValueKind.Object)
+                {
+                    var first = errs.EnumerateObject().FirstOrDefault();
+                    if (first.Value.ValueKind == System.Text.Json.JsonValueKind.Array) return first.Value[0].GetString() ?? string.Empty;
+                }
+
+                // fallback: return first string property value
+                foreach (var p in root.EnumerateObject())
+                {
+                    if (p.Value.ValueKind == System.Text.Json.JsonValueKind.String) return p.Value.GetString() ?? string.Empty;
+                }
+            }
+
+            return raw;
+        }
+        catch
+        {
+            return raw;
+        }
+    }
+
     public async Task<T?> PutAsync<T>(string path, object payload)
     {
         var client = CreateClient();
@@ -107,20 +127,7 @@ public class ApiClient
         var res = await client.SendAsync(req);
         await CaptureDebugResponseAsync(res);
 
-        if (!res.IsSuccessStatusCode)
-        {
-            if (res.StatusCode == System.Net.HttpStatusCode.Unauthorized || res.StatusCode == System.Net.HttpStatusCode.Forbidden)
-                return default;
-
-            var error = await res.Content.ReadAsStringAsync();
-            throw new Exception($"API Error: {res.StatusCode} - {error}");
-        }
-
-        if (res.Content.Headers.ContentLength == 0) return default;
-        return await res.Content.ReadFromJsonAsync<T>(new System.Text.Json.JsonSerializerOptions
-        {
-            PropertyNameCaseInsensitive = true
-        });
+        return await ProcessApiResponseAsync<T>(res);
     }
 
     private HttpClient CreateClient()
@@ -137,6 +144,16 @@ public class ApiClient
                 new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
         }
 
+        // If UI has tenant cookie, propagate to API as header so API can resolve tenant when needed
+        try
+        {
+            var tenantCookie = _ctx.HttpContext?.Request?.Cookies["HmsTenantId"] ?? string.Empty;
+            if (!string.IsNullOrWhiteSpace(tenantCookie) && !client.DefaultRequestHeaders.Contains("X-Tenant-Id"))
+            {
+                client.DefaultRequestHeaders.TryAddWithoutValidation("X-Tenant-Id", tenantCookie);
+            }
+        }
+        catch { }
 
         return client;
     }
@@ -264,21 +281,76 @@ public class ApiClient
         var res = await client.SendAsync(req);
         await CaptureDebugResponseAsync(res);
 
+        return await ProcessApiResponseAsync<T>(res);
+    }
+
+    private async Task<T?> ProcessApiResponseAsync<T>(HttpResponseMessage res)
+    {
+        // capture raw body
+        var raw = res.Content != null ? await res.Content.ReadAsStringAsync() : string.Empty;
+
+        // If response is unsuccessful, try to extract meaningful error from ApiResponse or other shapes
         if (!res.IsSuccessStatusCode)
         {
-            // For authentication failures return null so callers can show a friendly message
+            // treat common auth failures as null for callers
             if (res.StatusCode == System.Net.HttpStatusCode.Unauthorized || res.StatusCode == System.Net.HttpStatusCode.Forbidden)
                 return default;
 
-            var error = await res.Content.ReadAsStringAsync();
-            throw new Exception($"API Error: {res.StatusCode} - {error}");
+            try
+            {
+                using var jd = System.Text.Json.JsonDocument.Parse(raw);
+                var root = jd.RootElement;
+                if (root.ValueKind == System.Text.Json.JsonValueKind.Object && root.TryGetProperty("success", out var s) && s.ValueKind == System.Text.Json.JsonValueKind.False)
+                {
+                    // ApiResponse error shape
+                    if (root.TryGetProperty("error", out var err) && err.ValueKind == System.Text.Json.JsonValueKind.Object)
+                    {
+                        var code = err.TryGetProperty("code", out var c) && c.ValueKind == System.Text.Json.JsonValueKind.String ? c.GetString() ?? string.Empty : string.Empty;
+                        var msg = err.TryGetProperty("message", out var m) && m.ValueKind == System.Text.Json.JsonValueKind.String ? m.GetString() ?? string.Empty : string.Empty;
+                        throw new Exception((string.IsNullOrWhiteSpace(msg) ? code : msg));
+                    }
+                }
+            }
+            catch { }
+
+            var friendly = ExtractErrorMessage(raw);
+            throw new Exception($"API Error: {res.StatusCode} - {friendly}");
         }
 
-        // Handle empty body
-        if (res.Content.Headers.ContentLength == 0)
-            return default;
+        // Success path: unwrap ApiResponse if present
+        if (string.IsNullOrWhiteSpace(raw)) return default;
+        try
+        {
+            using var jd = System.Text.Json.JsonDocument.Parse(raw);
+            var root = jd.RootElement;
+            if (root.ValueKind == System.Text.Json.JsonValueKind.Object && root.TryGetProperty("success", out var s))
+            {
+                // wrapped shape
+                if (s.ValueKind == System.Text.Json.JsonValueKind.True)
+                {
+                    if (root.TryGetProperty("data", out var data))
+                    {
+                        var dataJson = data.GetRawText();
+                        return System.Text.Json.JsonSerializer.Deserialize<T>(dataJson, new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                    }
 
-        return await res.Content.ReadFromJsonAsync<T>();
+                    return default;
+                }
+                else
+                {
+                    // error wrapped
+                    if (root.TryGetProperty("error", out var err) && err.ValueKind == System.Text.Json.JsonValueKind.Object)
+                    {
+                        var msg = err.TryGetProperty("message", out var m) && m.ValueKind == System.Text.Json.JsonValueKind.String ? m.GetString() ?? string.Empty : string.Empty;
+                        throw new Exception(msg);
+                    }
+                }
+            }
+        }
+        catch { }
+
+        // fallback: deserialize directly to T
+        return System.Text.Json.JsonSerializer.Deserialize<T>(raw, new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
     }
     public async Task<HttpResponseMessage> PostRawAsync(string path, object payload)
     {
@@ -350,6 +422,15 @@ public class ApiClient
 
         using var doc = System.Text.Json.JsonDocument.Parse(body);
         var root = doc.RootElement;
+
+        // If API uses unified ApiResponse<T> wrapper, unwrap the data payload
+        if (root.ValueKind == System.Text.Json.JsonValueKind.Object && root.TryGetProperty("success", out var successElem))
+        {
+            if (root.TryGetProperty("data", out var dataElem) && dataElem.ValueKind == System.Text.Json.JsonValueKind.Object)
+            {
+                root = dataElem;
+            }
+        }
 
         string? accessToken = null;
         string? refreshToken = null;

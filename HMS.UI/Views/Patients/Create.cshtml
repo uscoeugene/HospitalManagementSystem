@@ -1,0 +1,454 @@
+﻿@model HMS.UI.Models.PatientCreateViewModel
+
+@{
+    Layout = "/Pages/_Layout.cshtml";
+    ViewData["Title"] = "Patient Form";
+
+    var initials =
+        $"{Model.FirstName?.FirstOrDefault()}{Model.LastName?.FirstOrDefault()}";
+}
+
+<div class="page-content">
+
+    <!-- HEADER -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+
+        <div class="d-flex align-items-center gap-3">
+
+            <div class="profile-avatar shadow-soft">
+                @initials
+            </div>
+
+            <div>
+                <h1 class="page-title mb-0">Patient Record</h1>
+                <small class="text-muted-custom">
+                    Create or update patient information
+                </small>
+            </div>
+
+        </div>
+
+        <a href="/Patients" class="btn btn-light border btn-sm">
+            <i class="bi bi-arrow-left me-1"></i> Back
+        </a>
+
+    </div>
+
+    <form asp-action="Create" method="post">
+
+        @Html.AntiForgeryToken()
+
+        <div asp-validation-summary="ModelOnly"
+             class="alert alert-danger mb-4">
+        </div>
+        <input type="hidden" asp-for="Id" />
+
+        <div class="row g-4">
+
+            <!-- LEFT COLUMN -->
+            <div class="col-12 col-xl-8">
+
+                <!-- IDENTITY -->
+                <div class="portal-card mb-4">
+                    <div class="portal-card-header">
+                        <i class="bi bi-person-vcard me-2"></i> Identity
+                    </div>
+
+                    <div class="portal-card-body">
+                        <div class="row g-3">
+
+                            <div class="col-md-4">
+                                <label class="form-label">First Name</label>
+                                <input asp-for="FirstName" class="form-control" />
+                            </div>
+
+                            <div class="col-md-4">
+                                <label class="form-label">Middle Name</label>
+                                <input asp-for="MiddleName" class="form-control" />
+                            </div>
+
+                            <div class="col-md-4">
+                                <label class="form-label">Last Name</label>
+                                <input asp-for="LastName" class="form-control" />
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label">Date of Birth</label>
+                                <input asp-for="DateOfBirth" type="date" class="form-control" />
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label">Gender</label>
+                                <select asp-for="Gender" class="form-select">
+                                    <option value="">Select</option>
+                                    <option>Male</option>
+                                    <option>Female</option>
+                                    <option>Other</option>
+                                </select>
+                            </div>
+
+                        </div>
+                    </div>
+                </div>
+
+                <!-- CONTACT -->
+                <div class="portal-card mb-4">
+                    <div class="portal-card-header">
+                        <i class="bi bi-telephone me-2"></i> Contact
+                    </div>
+
+                    <div class="portal-card-body">
+                        <div class="row g-3">
+
+                            <div class="col-md-6">
+                                <label class="form-label">Phone</label>
+                                <input asp-for="Phone" class="form-control" />
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label">Alternate Phone</label>
+                                <input asp-for="AlternatePhone" class="form-control" />
+                            </div>
+
+                            <div class="col-12">
+                                <label class="form-label">Email</label>
+                                <input asp-for="Email" class="form-control" />
+                            </div>
+
+                        </div>
+                    </div>
+                </div>
+
+               <!-- ADDRESS -->
+<div class="portal-card mb-4">
+    <div class="portal-card-header">
+        <i class="bi bi-geo-alt me-2"></i> Address
+    </div>
+
+    <div class="portal-card-body">
+        <div class="row g-3">
+
+            <div class="col-12">
+                <label asp-for="AddressLine1" class="form-label"></label>
+                <input asp-for="AddressLine1" class="form-control" />
+                <span asp-validation-for="AddressLine1" class="text-danger"></span>
+            </div>
+
+            <div class="col-12">
+                <label asp-for="AddressLine2" class="form-label"></label>
+                <input asp-for="AddressLine2" class="form-control" />
+                <span asp-validation-for="AddressLine2" class="text-danger"></span>
+            </div>
+
+            <!-- Country -->
+            <div class="col-md-6">
+                <label asp-for="Country" class="form-label"></label>
+                <select asp-for="Country" class="form-select" id="CountrySelect">
+                    <option value="">Select country</option>
+
+                    @if (ViewData["Countries"] is IEnumerable<string> clist)
+                    {
+                        foreach (var c in clist)
+                        {
+                            <option value="@c">@c</option>
+                        }
+                    }
+                </select>
+            </div>
+
+            <!-- State -->
+            <div class="col-md-6">
+                <label asp-for="State" class="form-label"></label>
+                <select asp-for="State" class="form-select" id="StateSelect">
+                    <option value="">Select state</option>
+                </select>
+            </div>
+
+            <div class="col-md-6">
+                <label asp-for="City" class="form-label"></label>
+                <input asp-for="City" class="form-control" />
+            </div>
+
+            <div class="col-md-6">
+                <label asp-for="PostalCode" class="form-label"></label>
+                <input asp-for="PostalCode" class="form-control" />
+            </div>
+
+        </div>
+    </div>
+</div>
+
+                <!-- DEMOGRAPHICS -->
+                <div class="portal-card mb-4">
+                    <div class="portal-card-header">
+                        <i class="bi bi-globe2 me-2"></i> Demographics
+                    </div>
+
+                    <div class="portal-card-body">
+
+                        <div class="row g-3">
+
+                            <div class="col-md-4">
+                                <label asp-for="MaritalStatus" class="form-label"></label>
+                                <select asp-for="MaritalStatus" class="form-select">
+                                    <option value="">Select</option>
+                                    <option>Single</option>
+                                    <option>Married</option>
+                                    <option>Divorced</option>
+                                    <option>Widowed</option>
+                                </select>
+                            </div>
+
+                            <div class="col-md-4">
+                                <label asp-for="Nationality" class="form-label"></label>
+                                <input asp-for="Nationality" class="form-control" />
+                            </div>
+
+                            <div class="col-md-4">
+                                <label asp-for="NationalIdNumber" class="form-label"></label>
+                                <input asp-for="NationalIdNumber" class="form-control" />
+                            </div>
+
+                        </div>
+
+                    </div>
+                </div>
+                <!-- EMERGENCY -->
+                <div class="portal-card mb-4">
+                    <div class="portal-card-header">
+                        <i class="bi bi-life-preserver me-2"></i> Emergency Contact
+                    </div>
+
+                    <div class="portal-card-body">
+                        <div class="row g-3">
+
+                            <div class="col-md-4">
+                                <input asp-for="EmergencyContactName" class="form-control" placeholder="Name" />
+                            </div>
+
+                            <div class="col-md-4">
+                                <input asp-for="EmergencyContactRelationship" class="form-control" placeholder="Relationship" />
+                            </div>
+
+                            <div class="col-md-4">
+                                <input asp-for="EmergencyContactPhone" class="form-control" placeholder="Phone" />
+                            </div>
+
+                        </div>
+                    </div>
+                </div>
+
+                <!-- INSURANCE + WORK -->
+                <div class="portal-card">
+                    <div class="portal-card-header">
+                        <i class="bi bi-briefcase me-2"></i> Insurance & Occupation
+                    </div>
+
+                    <div class="portal-card-body">
+                        <div class="row g-3">
+
+                            <div class="col-md-6">
+                                <label class="form-label">Insurance Provider</label>
+                                <input asp-for="InsuranceProvider" class="form-control" />
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label">Insurance Number</label>
+                                <input asp-for="InsuranceNumber" class="form-control" />
+                            </div>
+
+                            <div class="col-12">
+                                <label class="form-label">Occupation</label>
+                                <input asp-for="Occupation" class="form-control" />
+                            </div>
+
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- RIGHT COLUMN -->
+            <div class="col-12 col-xl-4">
+
+                <!-- MEDICAL -->
+                <div class="portal-card mb-4 border-start border-3"
+                     style="border-left-color: var(--primary) !important;">
+
+                    <div class="portal-card-header">
+                        <i class="bi bi-shield-lock me-2"></i> Medical Info
+                    </div>
+
+                    <div class="portal-card-body">
+
+                        <div class="mb-3">
+                            <label asp-for="MedicalRecordNumber" class="form-label"></label>
+
+                            @if (Model.Id != Guid.Empty)
+                            {
+                                <input asp-for="MedicalRecordNumber"
+                                       class="form-control"
+                                       readonly />
+                            }
+                            else
+                            {
+                                <input asp-for="MedicalRecordNumber"
+                                       class="form-control" />
+                            }
+
+                            <small class="text-muted">
+                                Leave empty to auto-generate
+                            </small>
+                        </div>
+
+                        <div class="row g-2">
+
+                            <div class="col-6">
+                                <label asp-for="BloodGroup" class="form-label"></label>
+
+                                <select asp-for="BloodGroup" class="form-select">
+                                    <option value="">Select</option>
+
+                                    @if (ViewBag.BloodGroups is IEnumerable<string> bgs)
+                                    {
+                                        foreach (var b in bgs)
+                                        {
+                                            <option value="@b">@b</option>
+                                        }
+                                    }
+                                </select>
+                            </div>
+
+                            <div class="col-6">
+                                <label asp-for="Genotype" class="form-label"></label>
+
+                                <select asp-for="Genotype" class="form-select">
+                                    <option value="">Select</option>
+
+                                    @if (ViewBag.Genotypes is IEnumerable<string> gts)
+                                    {
+                                        foreach (var g in gts)
+                                        {
+                                            <option value="@g">@g</option>
+                                        }
+                                    }
+                                </select>
+                            </div>
+
+                        </div>
+
+                    </div>
+                </div>
+
+
+                <!-- PHOTO -->
+                <div class="portal-card mb-4">
+
+                    <div class="portal-card-header">
+                        <i class="bi bi-image me-2"></i> Photo
+                    </div>
+
+                    <div class="portal-card-body">
+
+                        <label asp-for="PhotoUrl" class="form-label"></label>
+
+                        <input asp-for="PhotoUrl"
+                               class="form-control mb-3"
+                               placeholder="https://..." />
+
+                        @if (!string.IsNullOrWhiteSpace(Model.PhotoUrl))
+                        {
+                            <div class="text-center">
+                                <img src="@Model.PhotoUrl"
+                                     class="img-fluid rounded shadow-sm"
+                                     style="max-height:220px;" />
+                            </div>
+                        }
+
+                    </div>
+
+                </div>
+                <!-- STATUS + ACTION -->
+                <div class="portal-card">
+
+                    <div class="portal-card-body">
+
+                        <div class="form-check form-switch mb-3">
+                            <input asp-for="IsActive" class="form-check-input" type="checkbox" />
+                            <label class="form-check-label">Active Patient</label>
+                        </div>
+
+                        <button type="submit" class="btn btn-primary-custom w-100 mb-2">
+                            <i class="bi bi-check-circle me-2"></i> Save
+                        </button>
+
+                        <a href="/Patients" class="btn btn-light border w-100">
+                            Cancel
+                        </a>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </form>
+
+</div>
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            try {
+                // SAFE JSON injection from Razor (already serialized server-side)
+                // countries is an array literal written into the page
+                const countries = @Html.Raw(ViewData["CountryStatesJson"] ?? "[]");
+
+                const countrySel = document.getElementById("CountrySelect");
+                const stateSel = document.getElementById("StateSelect");
+
+                if (!countrySel || !stateSel) return;
+
+                function populateStates(countryName, selectedState) {
+                    stateSel.innerHTML = '<option value="">Select state</option>';
+                    if (!countryName) return;
+
+                    // find country (case-insensitive match on Name or Code)
+                    const country = countries.find(c => {
+                        const n = (c.Name || c.name || '').toString();
+                        const code = (c.Code || c.code || '').toString();
+                        return n.toLowerCase() === countryName.toLowerCase() || code.toLowerCase() === countryName.toLowerCase();
+                    });
+
+                    const states = (country && (country.States || country.states)) || [];
+                    if (!states || !states.length) return;
+
+                    states.forEach(s => {
+                        const opt = document.createElement("option");
+                        opt.value = s;
+                        opt.textContent = s;
+                        stateSel.appendChild(opt);
+                    });
+
+                    if (selectedState) {
+                        stateSel.value = selectedState;
+                    }
+                }
+
+                // attach listeners (support change and input to be robust)
+                countrySel.addEventListener('change', function () { populateStates(this.value); });
+                countrySel.addEventListener('input', function () { populateStates(this.value); });
+
+                // auto-load if editing existing value
+                const initialCountry = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model?.Country ?? string.Empty));
+                const initialState = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model?.State ?? string.Empty));
+                if (initialCountry) populateStates(initialCountry, initialState);
+            } catch (e) {
+                console && console.error && console.error('states populate error', e);
+            }
+        });
+    </script>
+}

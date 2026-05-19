@@ -1,0 +1,332 @@
+@model HMS.UI.Models.PatientDetailsViewModel
+
+@{
+    Layout = "~/Pages/_Layout.cshtml";
+    ViewData["Title"] = "Patient Details";
+
+    var fullName = string.Join(" ",
+        new[]
+        {
+            Model.FirstName,
+            Model.MiddleName,
+            Model.LastName
+        }.Where(x => !string.IsNullOrWhiteSpace(x)));
+
+    var initial = !string.IsNullOrWhiteSpace(Model.FirstName)
+        ? Model.FirstName.Substring(0, 1).ToUpper()
+        : "P";
+
+    string Display(string? value)
+        => string.IsNullOrWhiteSpace(value) ? "—" : value;
+}
+
+<div class="page-content">
+
+    <!-- HEADER -->
+    <div class="portal-card shadow-soft mb-3 border-0">
+
+        <div class="portal-card-body">
+
+            <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-4">
+
+                <!-- PROFILE -->
+                <div class="d-flex align-items-center gap-3">
+
+                    <div class="position-relative">
+
+                        <!-- FALLBACK INITIALS -->
+                        <div id="avatarFallback"
+                             class="avatar"
+                             style="width:64px;height:64px;font-size:1.2rem;
+                @(string.IsNullOrWhiteSpace(Model.PhotoUrl) ? "" : "display:none;")">
+
+                            @initial
+
+                        </div>
+
+                        <!-- PHOTO -->
+                        @if (!string.IsNullOrWhiteSpace(Model.PhotoUrl))
+                        {
+                            <img src="@Model.PhotoUrl"
+                                 id="patientPhoto"
+                                 class="rounded-circle shadow-sm"
+                                 style="width:64px;height:64px;object-fit:cover;"
+                                 onerror="
+                    this.style.display='none';
+                    document.getElementById('avatarFallback').style.display='flex';
+                 " />
+                        }
+
+                    </div>
+
+                    <div>
+
+                        <h3 class="mb-1 fw-bold">
+                            @fullName
+                        </h3>
+
+                        <div class="d-flex flex-wrap gap-2 align-items-center small">
+
+                            <span class="badge-soft-success">
+                                MRN: @Display(Model.MedicalRecordNumber)
+                            </span>
+
+                            <span class="text-muted-custom">
+                                <i class="bi bi-gender-ambiguous me-1"></i>
+                                @Display(Model.Gender)
+                            </span>
+
+                            <span class="text-muted-custom">
+                                <i class="bi bi-calendar3 me-1"></i>
+                                @Model.DateOfBirth.ToString("yyyy-MM-dd")
+                            </span>
+
+                            @if (Model.IsActive)
+                            {
+                                <span class="badge-soft-success">
+                                    Active
+                                </span>
+                            }
+                            else
+                            {
+                                <span class="badge-soft-danger">
+                                    Inactive
+                                </span>
+                            }
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+                <!-- ACTIONS -->
+                <div class="d-flex gap-2">
+
+                    <a href="/Patients/Edit/@Model.Id"
+                       class="btn btn-primary-custom btn-sm">
+
+                        <i class="bi bi-pencil-square me-1"></i>
+                        Edit
+
+                    </a>
+
+                    <a href="/Patients"
+                       class="btn btn-light border btn-sm">
+
+                        <i class="bi bi-arrow-left me-1"></i>
+                        Back
+
+                    </a>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+    <!-- CONTENT -->
+    <div class="row g-3">
+
+        <!-- LEFT -->
+        <div class="col-12 col-lg-8">
+
+            <!-- DEMOGRAPHICS -->
+            <div class="portal-card">
+
+                <div class="portal-card-header">
+                    <i class="bi bi-person-lines-fill me-2"></i>
+                    Demographics
+                </div>
+
+                <div class="portal-card-body">
+
+                    <div class="row g-3 small">
+
+                        <div class="col-md-6">
+                            <div class="text-muted-custom">Phone</div>
+                            <div>@Display(Model.Phone)</div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <div class="text-muted-custom">Alternate Phone</div>
+                            <div>@Display(Model.AlternatePhone)</div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <div class="text-muted-custom">Email</div>
+                            <div>@Display(Model.Email)</div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <div class="text-muted-custom">Marital Status</div>
+                            <div>@Display(Model.MaritalStatus)</div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <div class="text-muted-custom">Nationality</div>
+                            <div>@Display(Model.Nationality)</div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <div class="text-muted-custom">National ID</div>
+                            <div>@Display(Model.NationalIdNumber)</div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <div class="text-muted-custom">Occupation</div>
+                            <div>@Display(Model.Occupation)</div>
+                        </div>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+            <!-- ADDRESS -->
+            <div class="portal-card mt-3">
+
+                <div class="portal-card-header">
+                    <i class="bi bi-geo-alt me-2"></i>
+                    Address
+                </div>
+
+                <div class="portal-card-body small">
+
+                    <div class="row g-3">
+
+                        <div class="col-12">
+                            <div class="text-muted-custom">Address Line 1</div>
+                            <div>@Display(Model.AddressLine1)</div>
+                        </div>
+
+                        <div class="col-12">
+                            <div class="text-muted-custom">Address Line 2</div>
+                            <div>@Display(Model.AddressLine2)</div>
+                        </div>
+
+                        <div class="col-md-4">
+                            <div class="text-muted-custom">City</div>
+                            <div>@Display(Model.City)</div>
+                        </div>
+
+                        <div class="col-md-4">
+                            <div class="text-muted-custom">State</div>
+                            <div>@Display(Model.State)</div>
+                        </div>
+
+                        <div class="col-md-4">
+                            <div class="text-muted-custom">Postal Code</div>
+                            <div>@Display(Model.PostalCode)</div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <div class="text-muted-custom">Country</div>
+                            <div>@Display(Model.Country)</div>
+                        </div>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+            <!-- EMERGENCY -->
+            <div class="portal-card mt-3">
+
+                <div class="portal-card-header">
+                    <i class="bi bi-exclamation-triangle me-2"></i>
+                    Emergency Contact
+                </div>
+
+                <div class="portal-card-body">
+
+                    <div class="row g-3 small">
+
+                        <div class="col-md-4">
+                            <div class="text-muted-custom">Name</div>
+                            <div>@Display(Model.EmergencyContactName)</div>
+                        </div>
+
+                        <div class="col-md-4">
+                            <div class="text-muted-custom">Relationship</div>
+                            <div>@Display(Model.EmergencyContactRelationship)</div>
+                        </div>
+
+                        <div class="col-md-4">
+                            <div class="text-muted-custom">Phone</div>
+                            <div>@Display(Model.EmergencyContactPhone)</div>
+                        </div>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+
+        <!-- RIGHT -->
+        <div class="col-12 col-lg-4">
+
+            <!-- MEDICAL -->
+            <div class="portal-card">
+
+                <div class="portal-card-header">
+                    <i class="bi bi-heart-pulse me-2"></i>
+                    Medical Info
+                </div>
+
+                <div class="portal-card-body">
+
+                    <div class="d-flex justify-content-between small py-2 border-bottom">
+                        <span class="text-muted-custom">Blood Group</span>
+                        <strong>@Display(Model.BloodGroup)</strong>
+                    </div>
+
+                    <div class="d-flex justify-content-between small py-2 border-bottom">
+                        <span class="text-muted-custom">Genotype</span>
+                        <strong>@Display(Model.Genotype)</strong>
+                    </div>
+
+                    <div class="d-flex justify-content-between small py-2">
+                        <span class="text-muted-custom">MRN</span>
+                        <strong>@Display(Model.MedicalRecordNumber)</strong>
+                    </div>
+
+                </div>
+
+            </div>
+
+            <!-- INSURANCE -->
+            <div class="portal-card mt-3">
+
+                <div class="portal-card-header">
+                    <i class="bi bi-shield-check me-2"></i>
+                    Insurance
+                </div>
+
+                <div class="portal-card-body">
+
+                    <div class="d-flex justify-content-between small py-2 border-bottom">
+                        <span class="text-muted-custom">Provider</span>
+                        <strong>@Display(Model.InsuranceProvider)</strong>
+                    </div>
+
+                    <div class="d-flex justify-content-between small py-2">
+                        <span class="text-muted-custom">Number</span>
+                        <strong>@Display(Model.InsuranceNumber)</strong>
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>

@@ -1,9 +1,11 @@
 @page "{code:int}"
 @model HMS.UI.Pages.Error.IndexModel
-@{
-    Layout = "~/Pages/_Layout.cshtml";
-}
 
+@{
+    Layout = User.Identity != null && User.Identity.IsAuthenticated
+        ? "_Layout"
+        : "_AuthLayout";
+}
 
 @{
     ViewData["Title"] = "Error";
@@ -54,11 +56,13 @@
         <!-- ACTIONS -->
         <div class="d-flex justify-content-center gap-3 flex-wrap">
 
-            <a href="/"
+            <a href="@(User.Identity != null && User.Identity.IsAuthenticated
+                           ? Url.Action("Dashboard", "Account")
+                           : Url.Page("/Index"))"
                class="btn btn-primary px-4 rounded-pill">
 
                 <i class="bi bi-house-door me-2"></i>
-                Dashboard
+                @(User.Identity != null && User.Identity.IsAuthenticated ? "Dashboard" : "Home")
             </a>
 
             <button class="btn btn-light border px-4 rounded-pill"

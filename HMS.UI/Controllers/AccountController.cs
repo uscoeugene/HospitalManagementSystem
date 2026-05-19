@@ -1,8 +1,9 @@
-using System.Threading.Tasks;
 using HMS.UI.Services;
-using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using System.Threading.Tasks;
 
 namespace HMS.UI.Controllers
 {
@@ -110,20 +111,25 @@ namespace HMS.UI.Controllers
         }
 
         // Parameter-injected constructor for DI when RefreshService available
-     
 
-        [HttpGet]
+
+        [HttpGet("login")]
         // Allow optional tenantCode via route (/login/{tenantCode})
-        public IActionResult Login(string? tenantCode = null)
+        public IActionResult Login(
+    string? tenantCode = null,
+    string? returnUrl = null)
         {
-            if (!string.IsNullOrWhiteSpace(tenantCode)) ViewData["TenantCode"] = tenantCode;
+            ViewData["ReturnUrl"] = returnUrl;
+
+            if (!string.IsNullOrWhiteSpace(tenantCode))
+                ViewData["TenantCode"] = tenantCode;
+
             return View();
         }
-
-        [HttpPost]
+        [HttpPost("login")]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Login(string username, string password, string tenantCode)
-        {
+        public async Task<IActionResult> Login( string username, string password, string tenantCode, string? returnUrl = null)
+        { 
             if (string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(password))
             {
                 ModelState.AddModelError(string.Empty, "Username and password required");
@@ -219,10 +225,25 @@ namespace HMS.UI.Controllers
                 {
                     var body = await resp.Content.ReadAsStringAsync();
                     using var doc = System.Text.Json.JsonDocument.Parse(body);
+                    var root = doc.RootElement;
+
+                    // If API returns wrapper { success, status, data }, unwrap to data
+                    if (root.ValueKind == System.Text.Json.JsonValueKind.Object && root.TryGetProperty("success", out var succ))
+                    {
+                        if (root.TryGetProperty("data", out var data) && data.ValueKind == System.Text.Json.JsonValueKind.Object)
+                        {
+                            root = data;
+                        }
+                    }
+
                     var claims = new System.Collections.Generic.List<System.Security.Claims.Claim>();
-                    if (doc.RootElement.TryGetProperty("userId", out var u)) claims.Add(new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.NameIdentifier, u.GetString() ?? string.Empty));
-                    if (doc.RootElement.TryGetProperty("tenant", out var t) && t.ValueKind == System.Text.Json.JsonValueKind.Object && t.TryGetProperty("name", out var tn)) claims.Add(new System.Security.Claims.Claim("tenant_name", tn.GetString() ?? string.Empty));
-                    if (doc.RootElement.TryGetProperty("permissions", out var perms) && perms.ValueKind == System.Text.Json.JsonValueKind.Array)
+                    if (root.TryGetProperty("userId", out var u) && u.ValueKind == System.Text.Json.JsonValueKind.String)
+                        claims.Add(new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.NameIdentifier, u.GetString() ?? string.Empty));
+
+                    if (root.TryGetProperty("tenant", out var t) && t.ValueKind == System.Text.Json.JsonValueKind.Object && t.TryGetProperty("name", out var tn) && tn.ValueKind == System.Text.Json.JsonValueKind.String)
+                        claims.Add(new System.Security.Claims.Claim("tenant_name", tn.GetString() ?? string.Empty));
+
+                    if (root.TryGetProperty("permissions", out var perms) && perms.ValueKind == System.Text.Json.JsonValueKind.Array)
                     {
                         foreach (var p in perms.EnumerateArray())
                         {
@@ -231,10 +252,34 @@ namespace HMS.UI.Controllers
                         }
                     }
 
+                    // Also include username/name if present for antiforgery and display purposes
+                    if (root.TryGetProperty("username", out var uname) && uname.ValueKind == System.Text.Json.JsonValueKind.String)
+                    {
+                        claims.Add(new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.Name, uname.GetString() ?? string.Empty));
+                    }
+
+                    // Ensure there is a Name claim (some flows expect it). If missing, use userId as name.
+                    if (!claims.Any(c => c.Type == System.Security.Claims.ClaimTypes.Name))
+                    {
+                        if (root.TryGetProperty("userId", out var u2) && u2.ValueKind == System.Text.Json.JsonValueKind.String)
+                        {
+                            claims.Add(new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.Name, u2.GetString() ?? string.Empty));
+                        }
+                    }
+
                     var id = new System.Security.Claims.ClaimsIdentity(claims, Microsoft.AspNetCore.Authentication.Cookies.CookieAuthenticationDefaults.AuthenticationScheme);
                     var principal = new System.Security.Claims.ClaimsPrincipal(id);
-                    await HttpContext.SignInAsync(Microsoft.AspNetCore.Authentication.Cookies.CookieAuthenticationDefaults.AuthenticationScheme, principal);
-                
+
+                    var authProperties = new AuthenticationProperties
+                    {
+                        IsPersistent = true,
+                        ExpiresUtc = DateTimeOffset.UtcNow.AddMinutes(15)
+                    };
+
+                    await HttpContext.SignInAsync(
+                        CookieAuthenticationDefaults.AuthenticationScheme,
+                        principal,
+                        authProperties);
                 }
                 catch { }
 

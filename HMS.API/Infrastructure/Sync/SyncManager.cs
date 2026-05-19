@@ -157,27 +157,22 @@ namespace HMS.API.Infrastructure.Sync
                         }
                         else
                         {
-                            _db.Entry(existing).CurrentValues.SetValues(new HMS.API.Domain.Profile.UserProfile
-                            {
-                                Id = dto.Id,
-                                UserId = dto.UserId,
-                                FirstName = dto.FirstName,
-                                LastName = dto.LastName,
-                                OtherNames = dto.OtherNames,
-                                Gender = dto.Gender,
-                                DateOfBirth = dto.DateOfBirth,
-                                PhoneNumber = dto.PhoneNumber,
-                                Email = dto.Email,
-                                Address = dto.Address,
-                                PhotoUrl = dto.PhotoUrl,
-                                StaffNumber = dto.StaffNumber,
-                                Department = dto.Department,
-                                JobTitle = dto.JobTitle,
-                                IsMedicalStaff = dto.IsMedicalStaff,
-                                CreatedAt = dto.CreatedAt,
-                                UpdatedAt = dto.UpdatedAt,
-                                UpdatedBy = dto.UpdatedByUserId
-                            });
+                            // Update only mapped properties to avoid overwriting extra fields
+                            existing.FirstName = dto.FirstName;
+                            existing.LastName = dto.LastName;
+                            existing.OtherNames = dto.OtherNames;
+                            existing.Gender = dto.Gender;
+                            existing.DateOfBirth = dto.DateOfBirth;
+                            existing.PhoneNumber = dto.PhoneNumber;
+                            existing.Email = dto.Email;
+                            existing.Address = dto.Address;
+                            existing.PhotoUrl = dto.PhotoUrl;
+                            existing.StaffNumber = dto.StaffNumber;
+                            existing.Department = dto.Department;
+                            existing.JobTitle = dto.JobTitle;
+                            existing.IsMedicalStaff = dto.IsMedicalStaff;
+                            existing.UpdatedAt = dto.UpdatedAt;
+                            existing.UpdatedBy = dto.UpdatedByUserId;
                         }
                     }
                     catch (Exception ex)

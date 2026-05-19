@@ -58,6 +58,13 @@ builder.Services.AddHttpContextAccessor();
 
 // Add services to the container.
 builder.Services.AddControllers();
+// Configure JSON options to support DateOnly serialization globally
+builder.Services.AddControllers().AddJsonOptions(opts =>
+{
+    opts.JsonSerializerOptions.Converters.Add(new HMS.API.Json.DateOnlyJsonConverter());
+    opts.JsonSerializerOptions.Converters.Add(new HMS.API.Json.NullableDateOnlyJsonConverter());
+    opts.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
+});
 
 // Configure DbContexts
 var conn = builder.Configuration.GetConnectionString("Default") ?? "Server=(localdb)\\MSSQLLocalDB;Database=HmsDb;Trusted_Connection=True;";
@@ -214,6 +221,29 @@ builder.Services.AddSwaggerGen(c =>
 
     // Add simple example responses for a few endpoints via operation filter
     c.OperationFilter<SimpleResponseExamplesFilter>();
+    // Add JWT bearer security definition so Swagger UI can accept tokens
+    c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    {
+        Description = "JWT Authorization header using the Bearer scheme. Enter 'Bearer {token}'",
+        Name = "Authorization",
+        In = ParameterLocation.Header,
+        Type = SecuritySchemeType.Http,
+        Scheme = "bearer",
+        BearerFormat = "JWT"
+    });
+
+    c.AddSecurityRequirement(new OpenApiSecurityRequirement
+    {
+        {
+            new OpenApiSecurityScheme
+            {
+                Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = "Bearer" }
+            },
+            new string[] { }
+        }
+    });
+    // Add optional tenant header parameters via operation filter
+    c.OperationFilter<HMS.API.Swagger.SwaggerAuthOperationFilter>();
 });
 
 // register the operation filter
@@ -317,6 +347,11 @@ if (!app.Environment.IsEnvironment("Migration"))
     app.UseMiddleware<HybridTenantMiddleware>();
 }
 
+// Global API response middleware to wrap exceptions into unified response format
+app.UseMiddleware<HMS.API.Middleware.ApiResponseMiddleware>();
+// Wrap successful responses into standard ApiResponse<T> format
+app.UseMiddleware<HMS.API.Middleware.ApiResponseWrappingMiddleware>();
+
 
 app.UseAuthentication();
 app.UseAuthorization();
@@ -338,6 +373,8 @@ app.Use(async (context, next) =>
                 await context.Response.BodyWriter.WriteAsync(System.Text.Encoding.UTF8.GetBytes("Tenant subscription inactive or past due"));
                 return;
             }
+
+        
         }
     }
 
@@ -384,6 +421,55 @@ public class SimpleResponseExamplesFilter : IOperationFilter
                     ["revenue"] = new Microsoft.OpenApi.Any.OpenApiDouble(12345.00)
                 }
             };
+        }
+
+        // Ensure unified ApiResponse<T> examples are shown for JSON responses when no explicit example exists
+        try
+        {
+            foreach (var kv in operation.Responses)
+            {
+                var statusCode = kv.Key;
+                var resp = kv.Value;
+                if (resp.Content == null || !resp.Content.ContainsKey("application/json")) continue;
+
+                var media = resp.Content["application/json"];
+                if (media.Example != null) continue;
+
+                if (int.TryParse(statusCode, out var code))
+                {
+                    if (code >= 200 && code < 300)
+                    {
+                        var ex = new Microsoft.OpenApi.Any.OpenApiObject
+                        {
+                            ["success"] = new Microsoft.OpenApi.Any.OpenApiBoolean(true),
+                            ["status"] = new Microsoft.OpenApi.Any.OpenApiInteger(code),
+                            ["data"] = new Microsoft.OpenApi.Any.OpenApiObject
+                            {
+                                ["message"] = new Microsoft.OpenApi.Any.OpenApiString("Replace with response data")
+                            }
+                        };
+                        media.Example = ex;
+                    }
+                    else
+                    {
+                        var ex = new Microsoft.OpenApi.Any.OpenApiObject
+                        {
+                            ["success"] = new Microsoft.OpenApi.Any.OpenApiBoolean(false),
+                            ["status"] = new Microsoft.OpenApi.Any.OpenApiInteger(code),
+                            ["error"] = new Microsoft.OpenApi.Any.OpenApiObject
+                            {
+                                ["code"] = new Microsoft.OpenApi.Any.OpenApiString("ERROR_CODE"),
+                                ["message"] = new Microsoft.OpenApi.Any.OpenApiString("Replace with error message")
+                            }
+                        };
+                        media.Example = ex;
+                    }
+                }
+            }
+        }
+        catch
+        {
+            // ignore example errors
         }
     }
 }

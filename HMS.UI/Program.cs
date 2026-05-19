@@ -1,7 +1,10 @@
-using Microsoft.AspNetCore.Builder;
 using HMS.UI.Services;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using System.IdentityModel.Tokens.Jwt;
 
 
 var builder = WebApplication.CreateBuilder(args);
@@ -13,6 +16,8 @@ var apiBase = builder.Configuration["Api:BaseUrl"] ?? "https://localhost:7142/";
 builder.Services.AddRazorPages().AddRazorRuntimeCompilation();
 builder.Services.AddControllersWithViews().AddRazorRuntimeCompilation();
 builder.Services.AddHttpContextAccessor();
+// register antiforgery provider so we can support authenticated identities without Name claim
+builder.Services.AddSingleton<Microsoft.AspNetCore.Antiforgery.IAntiforgeryAdditionalDataProvider, HMS.UI.Services.AntiforgeryAdditionalDataProvider>();
 builder.Services.AddScoped<RefreshService>();
 
 if (builder.Environment.IsDevelopment())
@@ -36,17 +41,89 @@ else
 }
 
 builder.Services.AddScoped<HMS.UI.Services.ApiClient>();
+builder.Services.AddSingleton<HMS.UI.Services.StaticDataService>();
 
 // Add simple cookie authentication so MVC Challenge/Authorize can work in the UI
-builder.Services.AddAuthentication(options =>
-{
-    options.DefaultAuthenticateScheme = Microsoft.AspNetCore.Authentication.Cookies.CookieAuthenticationDefaults.AuthenticationScheme;
-    options.DefaultChallengeScheme = Microsoft.AspNetCore.Authentication.Cookies.CookieAuthenticationDefaults.AuthenticationScheme;
-})
+
+    builder.Services.AddAuthentication(options =>
+    {
+        options.DefaultAuthenticateScheme =
+            CookieAuthenticationDefaults.AuthenticationScheme;
+
+        options.DefaultChallengeScheme =
+            CookieAuthenticationDefaults.AuthenticationScheme;
+    })
 .AddCookie(options =>
 {
     options.LoginPath = "/Account/Login";
     options.AccessDeniedPath = "/Error/403";
+
+    options.Events = new CookieAuthenticationEvents
+    {
+        OnValidatePrincipal = context =>
+        {
+            var token = context.Request.Cookies["HmsAuth"];
+
+            if (string.IsNullOrWhiteSpace(token))
+            {
+                context.RejectPrincipal();
+                context.Response.Redirect("/Account/Login");
+                return Task.CompletedTask;
+            }
+
+            var handler = new JwtSecurityTokenHandler();
+
+            try
+            {
+                var jwt = handler.ReadJwtToken(token);
+
+                if (jwt.ValidTo < DateTime.UtcNow)
+                {
+                    context.RejectPrincipal();
+                    context.Response.Redirect("/Account/Login");
+                }
+            }
+            catch
+            {
+                context.RejectPrincipal();
+                context.Response.Redirect("/Account/Login");
+            }
+
+            return Task.CompletedTask;
+        }
+    };
+    //options.Events = new CookieAuthenticationEvents
+    //{
+    //    OnValidatePrincipal = async context =>
+    //    {
+    //        var token = context.Request.Cookies["HmsAuth"];
+
+    //        if (string.IsNullOrWhiteSpace(token))
+    //        {
+    //            context.RejectPrincipal();
+    //            await context.HttpContext.SignOutAsync();
+    //            return;
+    //        }
+
+    //        var handler = new JwtSecurityTokenHandler();
+
+    //        try
+    //        {
+    //            var jwt = handler.ReadJwtToken(token);
+
+    //            if (jwt.ValidTo < DateTime.UtcNow)
+    //            {
+    //                context.RejectPrincipal();
+    //                await context.HttpContext.SignOutAsync();
+    //            }
+    //        }
+    //        catch
+    //        {
+    //            context.RejectPrincipal();
+    //            await context.HttpContext.SignOutAsync();
+    //        }
+    //    }
+    //};
 });
 
 var app = builder.Build();
@@ -77,6 +154,19 @@ app.MapControllerRoute(
     pattern: "login/{tenantCode?}",
     defaults: new { controller = "Account", action = "Login" });
 
+app.MapGet("/", async context =>
+{
+    if (context.User.Identity?.IsAuthenticated ?? false)
+    {
+        context.Response.Redirect("/Account/Dashboard");
+    }
+    else
+    {
+        context.Response.Redirect("/Account/Login");
+    }
+
+    await Task.CompletedTask;
+});
 // Also map Razor Pages for any remaining pages
 app.MapRazorPages();
 

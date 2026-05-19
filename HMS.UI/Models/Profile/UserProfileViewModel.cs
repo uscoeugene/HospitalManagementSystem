@@ -24,7 +24,7 @@ public class UserProfileViewModel
     public string Gender { get; set; } = string.Empty;
 
     [Display(Name = "Date of birth")]
-    public DateTimeOffset? DateOfBirth { get; set; }
+    public DateOnly? DateOfBirth { get; set; }
 
     [Display(Name = "Phone number")]
     [Phone]

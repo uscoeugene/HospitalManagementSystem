@@ -1,0 +1,165 @@
+@model HMS.UI.Models.PagedResult<HMS.UI.Models.PatientListItemViewModel>
+
+@{
+    Layout = "~/Pages/_Layout.cshtml";
+    ViewData["Title"] = "Patients";
+
+    var currentQ = ViewContext.HttpContext.Request.Query["q"];
+    var totalPages = Math.Max(1, (int)Math.Ceiling((double)Model.TotalCount / Model.PageSize));
+}
+
+<div class="container py-3">
+
+    <!-- HEADER (compact) -->
+    <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-2 mb-3">
+
+        <div>
+            <h1 class="page-title mb-0">Patients</h1>
+            <small class="text-muted-custom">
+                Manage patients and medical records
+            </small>
+        </div>
+
+        <a href="/Patients/Create" class="btn btn-primary-custom btn-sm">
+            <i class="bi bi-plus-lg me-2"></i>
+            New Patient
+        </a>
+
+    </div>
+
+    <!-- STATS (compact) -->
+    <div class="row g-3 mb-3">
+
+        <div class="col-12 col-md-4">
+            <div class="stats-card bg-gradient-primary shadow-soft p-3">
+                <h3 class="mb-0">@Model.TotalCount</h3>
+                <small>Total Patients</small>
+                <i class="bi bi-people"></i>
+            </div>
+        </div>
+
+        <div class="col-12 col-md-4">
+            <div class="stats-card bg-gradient-success shadow-soft p-3">
+                <h3 class="mb-0">@Model.Items.Count()</h3>
+                <small>Displayed</small>
+                <i class="bi bi-person-lines-fill"></i>
+            </div>
+        </div>
+
+        <div class="col-12 col-md-4">
+            <div class="stats-card bg-gradient-warning shadow-soft p-3">
+                <h3 class="mb-0">@Model.Page</h3>
+                <small>Page</small>
+                <i class="bi bi-collection"></i>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- MAIN TABLE CARD -->
+    <div class="portal-card">
+
+        <!-- HEADER (compact search) -->
+        <div class="portal-card-header d-flex justify-content-between align-items-center py-3">
+
+            <div>
+                <div class="fw-bold">Patient Directory</div>
+                <small class="text-muted-custom">Search registered patients</small>
+            </div>
+
+            <form method="get" id="searchForm" class="d-flex gap-2">
+
+                <div class="position-relative">
+
+                    <i class="bi bi-search position-absolute"
+                       style="left:12px; top:9px; font-size:0.9rem; color:#64748b;"></i>
+
+                    <input id="searchInput"
+                           name="q"
+                           value="@currentQ"
+                           class="form-control form-control-sm ps-4"
+                           style="min-width:220px;"
+                           placeholder="Search MRN / Name" />
+
+                </div>
+
+                <button class="btn btn-primary-custom btn-sm">
+                    Search
+                </button>
+
+            </form>
+
+        </div>
+
+        <!-- TABLE -->
+        <div class="portal-card-body p-0" id="patientsTableContainer">
+            <partial name="_PatientsTable" model="Model" />
+        </div>
+
+        <!-- PAGINATION (compact) -->
+        @if (totalPages > 1)
+        {
+            <div class="portal-card-body border-top py-2">
+
+                <div class="d-flex justify-content-between align-items-center">
+
+                    <small class="text-muted-custom">
+                        Page @Model.Page of @totalPages
+                    </small>
+
+                    <ul class="pagination pagination-sm mb-0">
+
+                        @for (int i = 1; i <= totalPages; i++)
+                        {
+                            <li class="page-item @(i == Model.Page ? "active" : "")">
+                                <a class="page-link" href="?q=@currentQ&page=@i">
+                                    @i
+                                </a>
+                            </li>
+                        }
+
+                    </ul>
+
+                </div>
+
+            </div>
+        }
+
+    </div>
+
+</div>
+
+@section Scripts {
+
+    <partial name="_ValidationScriptsPartial" />
+
+    <script>
+
+        let debounceTimer;
+
+        document
+            .getElementById("searchInput")
+            .addEventListener("keyup", function () {
+
+                clearTimeout(debounceTimer);
+
+                debounceTimer = setTimeout(() => {
+
+                    const query = this.value;
+
+                    fetch(`/Patients/Search?q=${encodeURIComponent(query)}`)
+                        .then(response => response.text())
+                        .then(html => {
+
+                            document.getElementById(
+                                "patientsTableContainer"
+                            ).innerHTML = html;
+
+                        });
+
+                }, 300);
+
+            });
+
+    </script>
+}
