@@ -1,0 +1,140 @@
+@model HMS.UI.Models.EnterVitalsPageViewModel
+
+@{
+    Layout = "~/Pages/_Layout.cshtml";
+    ViewData["Title"] = "Enter Vitals";
+}
+
+<div class="page-content">
+    <div class="portal-card">
+        <div class="portal-card-header">Enter Vitals</div>
+        <div class="portal-card-body">
+            <partial name="_PatientHeader" model="Model.Patient" />
+            <div class="mt-2 text-end small text-muted">Visit: @Model.Visit?.VisitType • @Model.Visit?.VisitAt.ToString("yyyy-MM-dd HH:mm")</div>
+
+            <form id="enterVitalsForm" method="post" asp-action="EnterVitals" asp-controller="Patients">
+                @Html.AntiForgeryToken()
+                <input type="hidden" id="PatientId" name="PatientId" value="@Model.Form.PatientId" />
+                <input type="hidden" id="VisitId" name="VisitId" value="@Model.Form.VisitId" />
+
+                <div class="row g-2">
+                    <div class="col-6">
+                        <label class="form-label">Recorded At</label>
+                        <input name="RecordedAt" id="RecordedAt" type="datetime-local" class="form-control" value="@Model.Form.RecordedAt.ToLocalTime().ToString("yyyy-MM-ddTHH:mm")" />
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label">Temperature (°C)</label>
+                        <input name="Temperature" id="Temperature" type="number" step="0.1" class="form-control" value="@Model.Form.Temperature" />
+                    </div>
+                    <div class="col-4">
+                        <label class="form-label">Pulse Rate</label>
+                        <input name="PulseRate" id="PulseRate" type="number" class="form-control" value="@Model.Form.PulseRate" />
+                    </div>
+                    <div class="col-4">
+                        <label class="form-label">Respiratory Rate</label>
+                        <input name="RespiratoryRate" id="RespiratoryRate" type="number" class="form-control" value="@Model.Form.RespiratoryRate" />
+                    </div>
+                    <div class="col-4">
+                        <label class="form-label">Oxygen Saturation (%)</label>
+                        <input name="OxygenSaturation" id="OxygenSaturation" type="number" class="form-control" value="@Model.Form.OxygenSaturation" />
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label">Systolic BP</label>
+                        <input name="SystolicBP" id="SystolicBP" type="number" class="form-control" value="@Model.Form.SystolicBP" />
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label">Diastolic BP</label>
+                        <input name="DiastolicBP" id="DiastolicBP" type="number" class="form-control" value="@Model.Form.DiastolicBP" />
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label">Weight (kg)</label>
+                        <input name="WeightKg" id="WeightKg" type="number" step="0.1" class="form-control" value="@Model.Form.WeightKg" />
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label">Height (cm)</label>
+                        <input name="HeightCm" id="HeightCm" type="number" step="0.1" class="form-control" value="@Model.Form.HeightCm" />
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label">BMI</label>
+                        <input name="BMI" id="BMI" class="form-control" readonly value="@Model.Form.BMI" />
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label">Blood Sugar</label>
+                        <input name="BloodSugar" id="BloodSugar" type="number" step="0.1" class="form-control" value="@Model.Form.BloodSugar" />
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label">Notes</label>
+                        <textarea name="Notes" id="Notes" class="form-control" rows="3">@Model.Form.Notes</textarea>
+                    </div>
+                </div>
+
+                <div class="mt-3">
+                    <button type="submit" class="btn btn-primary">Save</button>
+                    <a asp-action="Visits" asp-route-id="@Model.Form.PatientId" class="btn btn-light">Cancel</a>
+                </div>
+            </form>
+
+            <hr />
+
+            <h5>Recent Vitals for this Visit</h5>
+            <div id="recentVitals">
+                @if (Model.RecentVitals == null || Model.RecentVitals.Length == 0)
+                {
+                    <div class="text-muted">No vitals recorded for this visit.</div>
+                }
+                else
+                {
+                    <table class="table table-sm">
+                        <thead>
+                            <tr><th>Recorded</th><th>Temp</th><th>Pulse</th><th>BP</th><th>SPO2</th><th>BMI</th><th>BS</th><th></th></tr>
+                        </thead>
+                        <tbody>
+                            @foreach(var v in Model.RecentVitals)
+                            {
+                                <tr>
+                                    <td>@v.RecordedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</td>
+                                    <td>@v.Temperature</td>
+                                    <td>@v.PulseRate</td>
+                                    <td>@v.SystolicBP/@v.DiastolicBP</td>
+                                    <td>@v.OxygenSaturation</td>
+                                    <td>@v.BMI</td>
+                                    <td>@v.BloodSugar</td>
+                                    <td><a asp-action="VisitDetails" asp-route-id="@v.VisitId" class="btn btn-sm btn-outline-secondary">View</a></td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        (function(){
+            try{
+                const weight = document.getElementById('WeightKg');
+                const height = document.getElementById('HeightCm');
+                const bmi = document.getElementById('BMI');
+
+                function calcBMI(){
+                    const w = parseFloat(weight.value) || 0;
+                    const h = parseFloat(height.value) || 0;
+                    if(!w || !h){ bmi.value = ''; return; }
+                    const m = h / 100.0;
+                    const b = w / (m*m);
+                    bmi.value = b.toFixed(2);
+                }
+
+                weight.addEventListener('input', calcBMI);
+                height.addEventListener('input', calcBMI);
+
+                // recent vitals are server-rendered; no client fetch
+
+                // form posts to server; no client-side submit override to preserve antiforgery and server flow
+
+            }catch(e){ }
+        })();
+    </script>
+}

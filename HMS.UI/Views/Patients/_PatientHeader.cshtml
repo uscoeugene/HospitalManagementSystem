@@ -1,0 +1,46 @@
+@model dynamic
+
+@{
+    // Model is dynamic to accept PatientDetailsViewModel or PatientCreateViewModel
+    var photoUrl = Model?.PhotoUrl as string;
+    var firstName = Model?.FirstName as string ?? string.Empty;
+    var middleName = Model?.MiddleName as string ?? string.Empty;
+    var lastName = Model?.LastName as string ?? string.Empty;
+    var fullName = string.Join(" ", new[] { firstName, middleName, lastName }.Where(x => !string.IsNullOrWhiteSpace(x)));
+    var initial = !string.IsNullOrWhiteSpace(firstName) ? firstName.Substring(0,1).ToUpper() : "P";
+    string Display(object? v) => string.IsNullOrWhiteSpace(Convert.ToString(v)) ? "—" : Convert.ToString(v)!;
+}
+
+<div class="d-flex align-items-center gap-3">
+    <div class="position-relative">
+        <div id="avatarFallback" class="avatar" style="width:64px;height:64px;font-size:1.2rem; @(string.IsNullOrWhiteSpace(photoUrl) ? "" : "display:none;")">
+            @initial
+        </div>
+
+        @if (!string.IsNullOrWhiteSpace(photoUrl))
+        {
+            <img src="@photoUrl" id="patientPhoto" class="rounded-circle shadow-sm" style="width:64px;height:64px;object-fit:cover;" onerror="this.style.display='none'; document.getElementById('avatarFallback').style.display='flex';" />
+        }
+    </div>
+
+    <div>
+        <h3 class="mb-1 fw-bold">@fullName</h3>
+
+        <div class="d-flex flex-wrap gap-2 align-items-center small">
+            <span class="badge-soft-success">MRN: @Display(Model?.MedicalRecordNumber)</span>
+            <span class="text-muted-custom"><i class="bi bi-gender-ambiguous me-1"></i>@Display(Model?.Gender)</span>
+            <span class="text-muted-custom"><i class="bi bi-calendar3 me-1"></i>@(Model?.DateOfBirth != null ? Model.DateOfBirth.ToString("yyyy-MM-dd") : "—")</span>
+            @if (Model != null && (Model.IsActive ?? true))
+            {
+                <span class="badge-soft-success">Active</span>
+            }
+            else if (Model != null)
+            {
+                <span class="badge-soft-danger">Inactive</span>
+            }
+
+            <span class="text-muted-custom">BG: @Display(Model?.BloodGroup)</span>
+            <span class="text-muted-custom">GT: @Display(Model?.Genotype)</span>
+        </div>
+    </div>
+</div>

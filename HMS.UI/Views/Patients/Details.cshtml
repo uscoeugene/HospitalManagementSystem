@@ -30,73 +30,7 @@
             <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-4">
 
                 <!-- PROFILE -->
-                <div class="d-flex align-items-center gap-3">
-
-                    <div class="position-relative">
-
-                        <!-- FALLBACK INITIALS -->
-                        <div id="avatarFallback"
-                             class="avatar"
-                             style="width:64px;height:64px;font-size:1.2rem;
-                @(string.IsNullOrWhiteSpace(Model.PhotoUrl) ? "" : "display:none;")">
-
-                            @initial
-
-                        </div>
-
-                        <!-- PHOTO -->
-                        @if (!string.IsNullOrWhiteSpace(Model.PhotoUrl))
-                        {
-                            <img src="@Model.PhotoUrl"
-                                 id="patientPhoto"
-                                 class="rounded-circle shadow-sm"
-                                 style="width:64px;height:64px;object-fit:cover;"
-                                 onerror="
-                    this.style.display='none';
-                    document.getElementById('avatarFallback').style.display='flex';
-                 " />
-                        }
-
-                    </div>
-
-                    <div>
-
-                        <h3 class="mb-1 fw-bold">
-                            @fullName
-                        </h3>
-
-                        <div class="d-flex flex-wrap gap-2 align-items-center small">
-
-                            <span class="badge-soft-success">
-                                MRN: @Display(Model.MedicalRecordNumber)
-                            </span>
-
-                            <span class="text-muted-custom">
-                                <i class="bi bi-gender-ambiguous me-1"></i>
-                                @Display(Model.Gender)
-                            </span>
-
-                            <span class="text-muted-custom">
-                                <i class="bi bi-calendar3 me-1"></i>
-                                @Model.DateOfBirth.ToString("yyyy-MM-dd")
-                            </span>
-
-                            @if (Model.IsActive)
-                            {
-                                <span class="badge-soft-success">
-                                    Active
-                                </span>
-                            }
-                            else
-                            {
-                                <span class="badge-soft-danger">
-                                    Inactive
-                                </span>
-                            }
-
-                        </div>
-
-                    </div>
+                <partial name="_PatientHeader" model="Model" />
 
                 </div>
 
@@ -111,6 +45,12 @@
 
                     </a>
 
+                    <a href="/Patients/Visits/@Model.Id"
+                       class="btn btn-outline-primary btn-sm">
+                        <i class="bi bi-journal-text me-1"></i>
+                        Visits
+                    </a>
+                           
                     <a href="/Patients"
                        class="btn btn-light border btn-sm">
 

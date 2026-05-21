@@ -20,6 +20,50 @@ public class ApiClient
         _ctx = ctx;
     }
 
+    public async Task<HttpResponseMessage> PutRawAsync(string path, object payload)
+    {
+        var client = CreateClient();
+
+        var req = new HttpRequestMessage(HttpMethod.Put, path);
+        req.Content = JsonContent.Create(payload);
+        try
+        {
+            var incomingHost = GetIncomingHostWithoutPort();
+            if (!string.IsNullOrWhiteSpace(incomingHost))
+            {
+                req.Headers.Host = incomingHost;
+                if (!req.Headers.Contains("X-Forwarded-Host")) req.Headers.TryAddWithoutValidation("X-Forwarded-Host", incomingHost);
+            }
+        }
+        catch { }
+
+        await CaptureDebugRequestAsync(req, payload);
+        var res = await client.SendAsync(req);
+        await CaptureDebugResponseAsync(res);
+        return res;
+    }
+
+    public async Task<HttpResponseMessage> DeleteRawAsync(string path)
+    {
+        var client = CreateClient();
+        var req = new HttpRequestMessage(HttpMethod.Delete, path);
+        try
+        {
+            var incomingHost = GetIncomingHostWithoutPort();
+            if (!string.IsNullOrWhiteSpace(incomingHost))
+            {
+                req.Headers.Host = incomingHost;
+                if (!req.Headers.Contains("X-Forwarded-Host")) req.Headers.TryAddWithoutValidation("X-Forwarded-Host", incomingHost);
+            }
+        }
+        catch { }
+
+        await CaptureDebugRequestAsync(req, null);
+        var res = await client.SendAsync(req);
+        await CaptureDebugResponseAsync(res);
+        return res;
+    }
+
     public ApiClientDebugInfo? GetLastDebug() => _lastDebug ?? _globalLastDebug;
 
     public async Task<T?> GetAsync<T>(string path)
@@ -47,30 +91,7 @@ public class ApiClient
         return await ProcessApiResponseAsync<T>(res);
     }
 
-    public async Task<HttpResponseMessage> PutRawAsync(string path, object payload)
-    {
-        var client = CreateClient();
-
-        var req = new HttpRequestMessage(HttpMethod.Put, path);
-        req.Content = JsonContent.Create(payload);
-
-        // Propagate original request host so API can resolve tenant based on client host
-        try
-        {
-            var incomingHost = GetIncomingHostWithoutPort();
-            if (!string.IsNullOrWhiteSpace(incomingHost))
-            {
-                req.Headers.Host = incomingHost;
-                if (!req.Headers.Contains("X-Forwarded-Host")) req.Headers.TryAddWithoutValidation("X-Forwarded-Host", incomingHost);
-            }
-        }
-        catch { }
-
-        await CaptureDebugRequestAsync(req, payload);
-        var res = await client.SendAsync(req);
-        await CaptureDebugResponseAsync(res);
-        return res;
-    }
+    
 
     private static string ExtractErrorMessage(string raw)
     {

@@ -41,7 +41,8 @@ else
 }
 
 builder.Services.AddScoped<HMS.UI.Services.ApiClient>();
-builder.Services.AddSingleton<HMS.UI.Services.StaticDataService>();
+// Static data service depends on ApiClient (scoped) so register as scoped as well
+builder.Services.AddScoped<HMS.UI.Services.StaticDataService>();
 
 // Add simple cookie authentication so MVC Challenge/Authorize can work in the UI
 

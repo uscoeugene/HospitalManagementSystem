@@ -14,18 +14,11 @@
     <div class="d-flex justify-content-between align-items-center mb-4">
 
         <div class="d-flex align-items-center gap-3">
-
-            <div class="profile-avatar shadow-soft">
-                @initials
-            </div>
-
+            <partial name="_PatientHeader" model="Model" />
             <div>
                 <h1 class="page-title mb-0">Patient Record</h1>
-                <small class="text-muted-custom">
-                    Create or update patient information
-                </small>
+                <small class="text-muted-custom">Create or update patient information</small>
             </div>
-
         </div>
 
         <a href="/Patients" class="btn btn-light border btn-sm">
@@ -150,7 +143,14 @@
                     {
                         foreach (var c in clist)
                         {
-                            <option value="@c">@c</option>
+                            if (string.Equals(c, Model?.Country, StringComparison.OrdinalIgnoreCase))
+                            {
+                                <option value="@c" selected>@c</option>
+                            }
+                            else
+                            {
+                                <option value="@c">@c</option>
+                            }
                         }
                     }
                 </select>
@@ -441,6 +441,11 @@
                 // attach listeners (support change and input to be robust)
                 countrySel.addEventListener('change', function () { populateStates(this.value); });
                 countrySel.addEventListener('input', function () { populateStates(this.value); });
+
+                // When user selects a country, also update hidden server model country value (if using simple select binding)
+                countrySel.addEventListener('change', function () {
+                    // no-op for now; server model binding uses the select value
+                });
 
                 // auto-load if editing existing value
                 const initialCountry = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model?.Country ?? string.Empty));

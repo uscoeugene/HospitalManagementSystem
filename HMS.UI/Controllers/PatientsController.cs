@@ -22,6 +22,54 @@ namespace HMS.UI.Controllers
             _static = staticData;
         }
 
+        [HasPermission("patients.view")]
+        public async Task<IActionResult> VisitDetails(Guid id)
+        {
+            try
+            {
+                // id is visit id
+                var v = await _api.GetAsync<HMS.UI.Models.VisitViewModel>($"/patients/visits/{id}");
+                if (v == null) return NotFound();
+
+                // fetch patient
+                var p = await _api.GetAsync<PatientDetailsViewModel>($"/patients/{v.PatientId}");
+
+                // fetch recent vitals for visit (API returns ApiResponse wrapper -> use GetAsync on array type via client)
+                var vitals = await _api.GetAsync<HMS.UI.Models.VitalSignViewModel[]>($"/patients/visits/{v.Id}/vitals");
+                var vm = new HMS.UI.Models.VisitDetailsViewModel
+                {
+                    Visit = v,
+                    Patient = p,
+                    RecentVitals = (vitals ?? Array.Empty<HMS.UI.Models.VitalSignViewModel>()).Select(x => new HMS.UI.Models.VitalSignListItem
+                    {
+                        Id = x.GetType().GetProperty("Id") != null ? (Guid)x.GetType().GetProperty("Id").GetValue(x)! : Guid.Empty,
+                        PatientId = x.PatientId,
+                        VisitId = x.VisitId,
+                        RecordedAt = x.RecordedAt,
+                        Temperature = x.Temperature,
+                        PulseRate = x.PulseRate,
+                        RespiratoryRate = x.RespiratoryRate,
+                        SystolicBP = x.SystolicBP,
+                        DiastolicBP = x.DiastolicBP,
+                        OxygenSaturation = x.OxygenSaturation,
+                        WeightKg = x.WeightKg,
+                        HeightCm = x.HeightCm,
+                        BMI = x.BMI,
+                        BloodSugar = x.BloodSugar,
+                        Notes = x.Notes,
+                        RecordedByUserId = x.GetType().GetProperty("RecordedByUserId") != null ? (Guid?)x.GetType().GetProperty("RecordedByUserId").GetValue(x) : null
+                    }).ToArray()
+                };
+
+                return View(vm);
+            }
+            catch (Exception ex)
+            {
+                TempData["Error"] = ex.Message;
+                return RedirectToAction("Index");
+            }
+        }
+
         private async Task PopulateStaticListsAsync()
         {
             var med = await _static.GetMedicalDataAsync();
@@ -181,6 +229,306 @@ namespace HMS.UI.Controllers
             catch
             {
                 return NotFound();
+            }
+        }
+
+        [HasPermission("patients.view")]
+        public async Task<IActionResult> Visits(Guid id)
+        {
+            try
+            {
+                var visits = await _api.GetAsync<HMS.UI.Models.VisitViewModel[]>($"/patients/{id}/visits");
+                if (visits == null) visits = Array.Empty<HMS.UI.Models.VisitViewModel>();
+                ViewData["PatientId"] = id;
+                return View(visits);
+            }
+            catch (Exception ex)
+            {
+                TempData["Error"] = ex.Message;
+                return RedirectToAction("Details", new { id = id });
+            }
+        }
+
+        [HasPermission("patients.manage")]
+        public async Task<IActionResult> CreateVisit(Guid patientId)
+        {
+            var vm = new HMS.UI.Models.VisitCreateViewModel { PatientId = patientId, VisitAt = DateTimeOffset.UtcNow };
+            try
+            {
+                var types = await _api.GetAsync<string[]>("/visittypes");
+                ViewBag.VisitTypes = types ?? Array.Empty<string>();
+            }
+            catch { ViewBag.VisitTypes = Array.Empty<string>(); }
+            return View(vm);
+        }
+
+        [HasPermission("patients.manage")]
+        public async Task<IActionResult> EnterVitals(Guid id)
+        {
+            // id is visit id
+            try
+            {
+                var visit = await _api.GetAsync<HMS.UI.Models.VisitViewModel>($"/patients/visits/{id}");
+                if (visit == null) return NotFound();
+
+                var patient = await _api.GetAsync<PatientDetailsViewModel>($"/patients/{visit.PatientId}");
+
+                // fetch recent vitals
+                var vitals = await _api.GetAsync<HMS.UI.Models.VitalSignViewModel[]>($"/patients/visits/{visit.Id}/vitals");
+
+                var vm = new HMS.UI.Models.EnterVitalsPageViewModel
+                {
+                    Form = new HMS.UI.Models.VitalSignViewModel { PatientId = visit.PatientId, VisitId = visit.Id, RecordedAt = DateTimeOffset.UtcNow },
+                    Patient = patient,
+                    Visit = visit,
+                    RecentVitals = (vitals ?? Array.Empty<HMS.UI.Models.VitalSignViewModel>()).Select(x => new HMS.UI.Models.VitalSignListItem
+                    {
+                        Id = x.Id,
+                        PatientId = x.PatientId,
+                        VisitId = x.VisitId,
+                        RecordedAt = x.RecordedAt,
+                        Temperature = x.Temperature,
+                        PulseRate = x.PulseRate,
+                        RespiratoryRate = x.RespiratoryRate,
+                        SystolicBP = x.SystolicBP,
+                        DiastolicBP = x.DiastolicBP,
+                        OxygenSaturation = x.OxygenSaturation,
+                        WeightKg = x.WeightKg,
+                        HeightCm = x.HeightCm,
+                        BMI = x.BMI,
+                        BloodSugar = x.BloodSugar,
+                        Notes = x.Notes,
+                        RecordedByUserId = x.RecordedByUserId
+                    }).ToArray()
+                };
+
+                return View(vm);
+            }
+            catch
+            {
+                return NotFound();
+            }
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        [HasPermission("patients.manage")]
+        public async Task<IActionResult> EnterVitals(HMS.UI.Models.VitalSignViewModel vm)
+        {
+            if (!ModelState.IsValid) 
+            {
+                // rebuild page vm to include patient and recent vitals
+                var visit = await _api.GetAsync<HMS.UI.Models.VisitViewModel>($"/patients/visits/{vm.VisitId}");
+                var patient = visit != null ? await _api.GetAsync<PatientDetailsViewModel>($"/patients/{visit.PatientId}") : null;
+                var vitals = await _api.GetAsync<HMS.UI.Models.VitalSignViewModel[]>($"/patients/visits/{vm.VisitId}/vitals");
+                var pageVm = new HMS.UI.Models.EnterVitalsPageViewModel
+                {
+                    Form = vm,
+                    Patient = patient,
+                    Visit = visit,
+                    RecentVitals = (vitals ?? Array.Empty<HMS.UI.Models.VitalSignViewModel>()).Select(x => new HMS.UI.Models.VitalSignListItem
+                    {
+                        Id = x.Id,
+                        PatientId = x.PatientId,
+                        VisitId = x.VisitId,
+                        RecordedAt = x.RecordedAt,
+                        Temperature = x.Temperature,
+                        PulseRate = x.PulseRate,
+                        RespiratoryRate = x.RespiratoryRate,
+                        SystolicBP = x.SystolicBP,
+                        DiastolicBP = x.DiastolicBP,
+                        OxygenSaturation = x.OxygenSaturation,
+                        WeightKg = x.WeightKg,
+                        HeightCm = x.HeightCm,
+                        BMI = x.BMI,
+                        BloodSugar = x.BloodSugar,
+                        Notes = x.Notes,
+                        RecordedByUserId = x.RecordedByUserId
+                    }).ToArray()
+                };
+                return View(pageVm);
+            }
+
+            try
+            {
+                var payload = new
+                {
+                    PatientId = vm.PatientId,
+                    VisitId = vm.VisitId,
+                    RecordedAt = vm.RecordedAt,
+                    Temperature = vm.Temperature,
+                    PulseRate = vm.PulseRate,
+                    RespiratoryRate = vm.RespiratoryRate,
+                    SystolicBP = vm.SystolicBP,
+                    DiastolicBP = vm.DiastolicBP,
+                    OxygenSaturation = vm.OxygenSaturation,
+                    WeightKg = vm.WeightKg,
+                    HeightCm = vm.HeightCm,
+                    BMI = vm.BMI,
+                    BloodSugar = vm.BloodSugar,
+                    Notes = vm.Notes
+                };
+
+                var resp = await _api.PostRawAsync($"/patients/{vm.PatientId}/visits/{vm.VisitId}/vitals", payload);
+                if (resp.IsSuccessStatusCode)
+                {
+                    TempData["Success"] = "Vitals saved";
+                    return RedirectToAction("Visits", new { id = vm.PatientId });
+                }
+                var txt = await resp.Content.ReadAsStringAsync();
+
+                ModelState.AddModelError(string.Empty, "Failed to save vitals: " + txt);
+
+                // rebuild page viewmodel to return proper context
+                var visit2 = await _api.GetAsync<HMS.UI.Models.VisitViewModel>($"/patients/visits/{vm.VisitId}");
+                var patient2 = visit2 != null ? await _api.GetAsync<PatientDetailsViewModel>($"/patients/{visit2.PatientId}") : null;
+                var vitals2 = await _api.GetAsync<HMS.UI.Models.VitalSignViewModel[]>($"/patients/visits/{vm.VisitId}/vitals");
+                var pageVm2 = new HMS.UI.Models.EnterVitalsPageViewModel
+                {
+                    Form = vm,
+                    Patient = patient2,
+                    Visit = visit2,
+                    RecentVitals = (vitals2 ?? Array.Empty<HMS.UI.Models.VitalSignViewModel>()).Select(x => new HMS.UI.Models.VitalSignListItem
+                    {
+                        Id = x.Id,
+                        PatientId = x.PatientId,
+                        VisitId = x.VisitId,
+                        RecordedAt = x.RecordedAt,
+                        Temperature = x.Temperature,
+                        PulseRate = x.PulseRate,
+                        RespiratoryRate = x.RespiratoryRate,
+                        SystolicBP = x.SystolicBP,
+                        DiastolicBP = x.DiastolicBP,
+                        OxygenSaturation = x.OxygenSaturation,
+                        WeightKg = x.WeightKg,
+                        HeightCm = x.HeightCm,
+                        BMI = x.BMI,
+                        BloodSugar = x.BloodSugar,
+                        Notes = x.Notes,
+                        RecordedByUserId = x.RecordedByUserId
+                    }).ToArray()
+                };
+
+                return View(pageVm2);
+            }
+            catch (Exception ex)
+            {
+                ModelState.AddModelError(string.Empty, ex.Message);
+                return View(vm);
+            }
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        [HasPermission("patients.manage")]
+        public async Task<IActionResult> CreateVisit(HMS.UI.Models.VisitCreateViewModel vm)
+        {
+            if (!ModelState.IsValid) return View(vm);
+
+            // Ensure VisitType and VisitAt are provided
+            if (string.IsNullOrWhiteSpace(vm.VisitType))
+            {
+                ModelState.AddModelError(nameof(vm.VisitType), "Visit type is required");
+                return View(vm);
+            }
+
+            try
+            {
+                // payload expects VisitAt as DateTimeOffset
+                var payload = new { VisitAt = vm.VisitAt, VisitType = vm.VisitType, Notes = vm.Notes };
+                var resp = await _api.PostAsync<object>($"/patients/{vm.PatientId}/visits", payload);
+                if (resp != null)
+                {
+                    TempData["Success"] = "Visit created";
+                    return RedirectToAction("Details", new { id = vm.PatientId });
+                }
+                TempData["Error"] = "Failed to create visit";
+                return View(vm);
+            }
+            catch (Exception ex)
+            {
+                TempData["Error"] = ex.Message;
+                return View(vm);
+            }
+        }
+
+        [HasPermission("patients.manage")]
+        public async Task<IActionResult> VisitEdit(Guid id)
+        {
+            try
+            {
+                var v = await _api.GetAsync<HMS.UI.Models.VisitViewModel>($"/patients/visits/{id}");
+                if (v == null) return NotFound();
+                var vm = new HMS.UI.Models.VisitCreateViewModel { Id = v.Id, PatientId = v.PatientId, VisitAt = v.VisitAt, VisitType = v.VisitType, Notes = v.Notes };
+                // try to discover patientId via visit details API not provided; user will be redirected back to Details after edit
+                try
+                {
+                    var types = await _api.GetAsync<string[]>("/visittypes");
+                    ViewBag.VisitTypes = types ?? Array.Empty<string>();
+                }
+                catch { ViewBag.VisitTypes = Array.Empty<string>(); }
+                return View(vm);
+            }
+            catch
+            {
+                return NotFound();
+            }
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        [HasPermission("patients.manage")]
+        public async Task<IActionResult> VisitEdit(HMS.UI.Models.VisitCreateViewModel vm)
+        {
+            if (!ModelState.IsValid) return View(vm);
+
+            if (string.IsNullOrWhiteSpace(vm.VisitType))
+            {
+                ModelState.AddModelError(nameof(vm.VisitType), "Visit type is required");
+                return View(vm);
+            }
+
+            try
+            {
+                var payload = new { VisitAt = vm.VisitAt, VisitType = vm.VisitType, Notes = vm.Notes };
+                var resp = await _api.PutRawAsync($"/patients/visits/{vm.Id}", payload);
+                if (resp.IsSuccessStatusCode)
+                {
+                    TempData["Success"] = "Visit updated";
+                    if (vm.PatientId != Guid.Empty) return RedirectToAction("Details", new { id = vm.PatientId });
+                    return RedirectToAction("Index");
+                }
+                TempData["Error"] = "Failed to update visit";
+                return View(vm);
+            }
+            catch (Exception ex)
+            {
+                TempData["Error"] = ex.Message;
+                return View(vm);
+            }
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        [HasPermission("patients.manage")]
+        public async Task<IActionResult> DeleteVisit(Guid id, Guid? patientId)
+        {
+            try
+            {
+                var resp = await _api.DeleteRawAsync($"/patients/visits/{id}");
+                if (resp.IsSuccessStatusCode)
+                {
+                    TempData["Success"] = "Visit deleted";
+                    if (patientId.HasValue) return RedirectToAction("Details", new { id = patientId.Value });
+                    return RedirectToAction("Index");
+                }
+                TempData["Error"] = "Failed to delete visit";
+                return RedirectToAction("Index");
+            }
+            catch (Exception ex)
+            {
+                TempData["Error"] = ex.Message;
+                return RedirectToAction("Index");
             }
         }
 

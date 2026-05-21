@@ -1,0 +1,126 @@
+﻿@model HMS.UI.Models.VisitDetailsViewModel
+@{
+    Layout = "~/Pages/_Layout.cshtml";
+    ViewData["Title"] = "Visit Details";
+}
+
+<div class="page-content">
+
+    <!-- Patient & Visit Header -->
+    <div class="portal-card shadow-soft mb-4">
+        <div class="portal-card-body d-flex flex-column flex-md-row justify-content-between align-items-md-center">
+            <div class="mb-3 mb-md-0">
+                <partial name="_PatientHeader" model="Model.Patient" />
+            </div>
+            <div class="text-md-end mb-3 mb-md-0">
+                <div class="small text-muted-custom">Visit Type: @Model.Visit?.VisitType</div>
+                <div class="small text-muted-custom">@Model.Visit?.VisitAt.ToString("yyyy-MM-dd HH:mm")</div>
+            </div>
+            <div>
+                <a asp-action="VisitEdit" asp-route-id="@Model.Visit?.Id" class="btn btn-primary-custom btn-sm me-2">
+                    <i class="bi bi-pencil"></i> Edit
+                </a>
+                <a asp-action="Visits" asp-route-id="@Model.Visit?.PatientId" class="btn btn-light btn-sm">
+                    <i class="bi bi-arrow-left"></i> Back
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="portal-card shadow-soft">
+        <div class="portal-card-header">
+            Visit Activities
+        </div>
+        <div class="portal-card-body">
+
+            <ul class="nav nav-tabs mb-3" role="tablist">
+                <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#tab-vitals">Vitals</a></li>
+                <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-dx">Diagnosis</a></li>
+                <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-cons">Consultations</a></li>
+                <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-inv">Invoices</a></li>
+            </ul>
+
+            <div class="tab-content">
+
+                <!-- Vitals Tab -->
+                <div id="tab-vitals" class="tab-pane fade show active">
+                    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-3">
+                        <h6 class="mb-2 mb-md-0 page-title">Vitals</h6>
+                        <a asp-action="EnterVitals" asp-route-id="@Model.Visit?.Id" class="btn btn-primary-custom btn-sm">
+                            <i class="bi bi-plus-lg"></i> Add Vitals
+                        </a>
+                    </div>
+
+                    @if (Model.RecentVitals == null || Model.RecentVitals.Length == 0)
+                    {
+                        <div class="text-muted-custom">No vitals recorded for this visit.</div>
+                    }
+                    else
+                    {
+                        <div class="row g-3">
+                            @foreach (var v in Model.RecentVitals)
+                            {
+                                <div class="col-12 col-md-6 col-lg-4">
+                                    <div class="portal-card shadow-soft h-100">
+                                        <div class="portal-card-header d-flex justify-content-between align-items-center bg-gradient-primary text-white">
+                                            <small class="fw-bold">@v.RecordedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</small>
+                                            <a asp-action="VisitDetails" asp-route-id="@v.VisitId" class="btn btn-light btn-sm">
+                                                <i class="bi bi-eye"></i>
+                                            </a>
+                                        </div>
+                                        <div class="portal-card-body">
+                                            <div class="mb-2"><i class="bi bi-thermometer-half me-1"></i><strong>Temp:</strong> @(v.Temperature.HasValue? v.Temperature.Value.ToString("F1") + " °C" : "-")</div>
+                                            <div class="mb-2"><i class="bi bi-heart-pulse me-1"></i><strong>Pulse:</strong> @(v.PulseRate.HasValue? v.PulseRate.Value + " bpm" : "-")</div>
+                                            <div class="mb-2"><i class="bi bi-lungs me-1"></i><strong>Resp:</strong> @(v.RespiratoryRate.HasValue? v.RespiratoryRate.Value + " /min" : "-")</div>
+                                            <div class="mb-2"><i class="bi bi-activity me-1"></i><strong>BP:</strong> @((v.SystolicBP.HasValue ? v.SystolicBP.Value.ToString() : "-") + "/" + (v.DiastolicBP.HasValue ? v.DiastolicBP.Value.ToString() : "-") + " mmHg")</div>
+                                            <div class="mb-2"><i class="bi bi-droplet-half me-1"></i><strong>O₂:</strong> @(v.OxygenSaturation.HasValue? v.OxygenSaturation.Value + " %" : "-")</div>
+                                            <div class="mb-2"><i class="bi bi-weight me-1"></i><strong>Weight:</strong> @(v.WeightKg.HasValue? v.WeightKg.Value.ToString("F2") + " kg" : "-")</div>
+                                            <div class="mb-2"><i class="bi bi-person me-1"></i><strong>Height:</strong> @(v.HeightCm.HasValue? v.HeightCm.Value.ToString("F2") + " cm" : "-")</div>
+                                            <div class="mb-2"><i class="bi bi-calculator me-1"></i><strong>BMI:</strong> @(v.BMI.HasValue? v.BMI.Value.ToString("F2") : "-")</div>
+                                            <div class="mb-2"><i class="bi bi-droplet me-1"></i><strong>BS:</strong> @(v.BloodSugar.HasValue? v.BloodSugar.Value.ToString("F2") : "-")</div>
+
+                                            @if (!string.IsNullOrWhiteSpace(v.Notes))
+                                            {
+                                                <div class="mt-2">
+                                                    <strong>Notes:</strong>
+                                                    <div class="border rounded p-2 bg-hover">@v.Notes</div>
+                                                </div>
+                                            }
+                                        </div>
+                                        <div class="portal-card-footer text-muted-custom text-end small">
+                                          
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+
+                <!-- Diagnosis Tab -->
+                <div id="tab-dx" class="tab-pane fade">
+                 
+                        <div class="text-muted-custom">No diagnoses recorded for this visit.</div>
+                 
+                </div>
+
+                <!-- Consultations Tab -->
+                <div id="tab-cons" class="tab-pane fade">
+                   
+                        <div class="text-muted-custom">No consultations recorded for this visit.</div>
+                  
+                </div>
+
+                <!-- Invoices Tab -->
+                <div id="tab-inv" class="tab-pane fade">
+                  
+                        <div class="text-muted-custom">No invoices recorded for this visit.</div>
+                 
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+</div>

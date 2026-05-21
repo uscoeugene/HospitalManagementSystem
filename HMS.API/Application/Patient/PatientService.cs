@@ -20,6 +20,106 @@ namespace HMS.API.Application.Patient
             _authDb = authDb;
         }
 
+        private static VitalSignResponse MapToVitalSignResponse(HMS.API.Domain.Patient.VitalSign v)
+        {
+            return new VitalSignResponse
+            {
+                Id = v.Id,
+                PatientId = v.PatientId,
+                VisitId = v.VisitId,
+                RecordedAt = v.RecordedAt,
+                Temperature = v.Temperature,
+                PulseRate = v.PulseRate,
+                RespiratoryRate = v.RespiratoryRate,
+                SystolicBP = v.SystolicBP,
+                DiastolicBP = v.DiastolicBP,
+                OxygenSaturation = v.OxygenSaturation,
+                WeightKg = v.WeightKg,
+                HeightCm = v.HeightCm,
+                BMI = v.BMI,
+                BloodSugar = v.BloodSugar,
+                Notes = v.Notes,
+                RecordedByUserId = v.RecordedByUserId
+            };
+        }
+
+        // Vital signs
+        public async Task<VitalSignResponse> AddVitalSignAsync(Guid patientId, CreateVitalSignRequest request)
+        {
+            var patient = await _db.Patients.SingleOrDefaultAsync(p => p.Id == patientId);
+            if (patient == null) throw new InvalidOperationException("Patient not found");
+
+            // Ensure VisitId provided and belongs to the patient
+            if (request.VisitId == Guid.Empty) throw new InvalidOperationException("VisitId is required");
+            var visit = await _db.Visits.SingleOrDefaultAsync(v => v.Id == request.VisitId && !v.IsDeleted);
+            if (visit == null) throw new InvalidOperationException("Visit not found");
+            if (visit.PatientId != patientId) throw new InvalidOperationException("Visit does not belong to patient");
+
+            var vs = new HMS.API.Domain.Patient.VitalSign
+            {
+                PatientId = patientId,
+                VisitId = request.VisitId,
+                RecordedAt = request.RecordedAt,
+                Temperature = request.Temperature,
+                PulseRate = request.PulseRate,
+                RespiratoryRate = request.RespiratoryRate,
+                SystolicBP = request.SystolicBP,
+                DiastolicBP = request.DiastolicBP,
+                OxygenSaturation = request.OxygenSaturation,
+                WeightKg = request.WeightKg,
+                HeightCm = request.HeightCm,
+                BMI = request.BMI,
+                BloodSugar = request.BloodSugar,
+                Notes = request.Notes
+            };
+
+            _db.Set<HMS.API.Domain.Patient.VitalSign>().Add(vs);
+            await _db.SaveChangesAsync();
+
+            return MapToVitalSignResponse(vs);
+        }
+
+        public async Task<VitalSignResponse?> GetVitalSignAsync(Guid id)
+        {
+            var v = await _db.Set<HMS.API.Domain.Patient.VitalSign>().AsNoTracking().SingleOrDefaultAsync(x => x.Id == id && !x.IsDeleted);
+            if (v == null) return null;
+            return MapToVitalSignResponse(v);
+        }
+
+        public async Task<VitalSignResponse[]> ListVitalSignsForVisitAsync(Guid visitId)
+        {
+            var list = await _db.Set<HMS.API.Domain.Patient.VitalSign>().AsNoTracking().Where(v => !v.IsDeleted && v.VisitId == visitId).OrderByDescending(v => v.RecordedAt).ToListAsync();
+            return list.Select(MapToVitalSignResponse).ToArray();
+        }
+
+        public async Task<VitalSignResponse> UpdateVitalSignAsync(Guid id, CreateVitalSignRequest request)
+        {
+            var v = await _db.Set<HMS.API.Domain.Patient.VitalSign>().SingleOrDefaultAsync(x => x.Id == id && !x.IsDeleted);
+            if (v == null) throw new InvalidOperationException("Vital sign not found");
+
+            // Ensure visit exists and belongs to same patient
+            var visit = await _db.Visits.SingleOrDefaultAsync(x => x.Id == request.VisitId && !x.IsDeleted);
+            if (visit == null) throw new InvalidOperationException("Visit not found");
+            if (visit.PatientId != v.PatientId) throw new InvalidOperationException("Visit does not belong to same patient");
+
+            v.VisitId = request.VisitId;
+            v.RecordedAt = request.RecordedAt;
+            v.Temperature = request.Temperature;
+            v.PulseRate = request.PulseRate;
+            v.RespiratoryRate = request.RespiratoryRate;
+            v.SystolicBP = request.SystolicBP;
+            v.DiastolicBP = request.DiastolicBP;
+            v.OxygenSaturation = request.OxygenSaturation;
+            v.WeightKg = request.WeightKg;
+            v.HeightCm = request.HeightCm;
+            v.BMI = request.BMI;
+            v.BloodSugar = request.BloodSugar;
+            v.Notes = request.Notes;
+
+            await _db.SaveChangesAsync();
+            return MapToVitalSignResponse(v);
+        }
+
         public async Task<PatientResponse> UpdatePatientAsync(Guid id, RegisterPatientRequest request)
         {
             var patient = await _db.Patients.SingleOrDefaultAsync(p => p.Id == id);
@@ -184,6 +284,11 @@ namespace HMS.API.Application.Patient
         {
             var patient = await _db.Patients.SingleOrDefaultAsync(p => p.Id == patientId);
             if (patient == null) throw new InvalidOperationException("Patient not found");
+            // validate visit type
+            if (!Enum.TryParse(typeof(VisitType), request.VisitType, true, out var _))
+            {
+                throw new InvalidOperationException("Invalid visit type");
+            }
 
             var visit = new HMS.API.Domain.Patient.Visit
             {
@@ -199,10 +304,49 @@ namespace HMS.API.Application.Patient
             return new VisitResponse
             {
                 Id = visit.Id,
+                PatientId = visit.PatientId,
                 VisitAt = visit.VisitAt,
                 VisitType = visit.VisitType,
                 Notes = visit.Notes
             };
+        }
+
+        public async Task<VisitResponse?> GetVisitAsync(Guid id)
+        {
+            var v = await _db.Visits.AsNoTracking().SingleOrDefaultAsync(x => x.Id == id && !x.IsDeleted);
+            if (v == null) return null;
+            return new VisitResponse { Id = v.Id, PatientId = v.PatientId, VisitAt = v.VisitAt, VisitType = v.VisitType, Notes = v.Notes };
+        }
+
+        public async Task<VisitResponse[]> ListVisitsForPatientAsync(Guid patientId)
+        {
+            var list = await _db.Visits.AsNoTracking().Where(v => !v.IsDeleted && v.PatientId == patientId).OrderByDescending(v => v.VisitAt).ToListAsync();
+            return list.Select(v => new VisitResponse { Id = v.Id, PatientId = v.PatientId, VisitAt = v.VisitAt, VisitType = v.VisitType, Notes = v.Notes }).ToArray();
+        }
+
+        public async Task<VisitResponse> UpdateVisitAsync(Guid id, AddVisitRequest request)
+        {
+            var v = await _db.Visits.SingleOrDefaultAsync(x => x.Id == id && !x.IsDeleted);
+            if (v == null) throw new InvalidOperationException("Visit not found");
+            // validate visit type
+            if (!Enum.TryParse(typeof(VisitType), request.VisitType, true, out var _))
+            {
+                throw new InvalidOperationException("Invalid visit type");
+            }
+
+            v.VisitAt = request.VisitAt;
+            v.VisitType = request.VisitType;
+            v.Notes = request.Notes ?? string.Empty;
+            await _db.SaveChangesAsync();
+            return new VisitResponse { Id = v.Id, VisitAt = v.VisitAt, VisitType = v.VisitType, Notes = v.Notes };
+        }
+
+        public async Task DeleteVisitAsync(Guid id)
+        {
+            var v = await _db.Visits.SingleOrDefaultAsync(x => x.Id == id && !x.IsDeleted);
+            if (v == null) throw new InvalidOperationException("Visit not found");
+            v.SoftDelete();
+            await _db.SaveChangesAsync();
         }
 
         public async Task<PagedResult<PatientResponse>> ListPatientsAsync(string? search, int page = 1, int pageSize = 20)

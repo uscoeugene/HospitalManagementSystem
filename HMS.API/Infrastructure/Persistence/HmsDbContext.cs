@@ -27,6 +27,7 @@ namespace HMS.API.Infrastructure.Persistence
 
         public DbSet<Patient> Patients { get; set; } = null!;
         public DbSet<Visit> Visits { get; set; } = null!;
+        public DbSet<VitalSign> VitalSigns { get; set; } = null!;
 
         // Billing
         public DbSet<Invoice> Invoices { get; set; } = null!;
@@ -139,6 +140,17 @@ namespace HMS.API.Infrastructure.Persistence
                 b.HasOne(v => v.Patient).WithMany(p => p.Visits).HasForeignKey(v => v.PatientId);
                 b.HasIndex(v => v.PatientId);
                 b.HasIndex(v => v.VisitAt);
+            });
+
+            modelBuilder.Entity<HMS.API.Domain.Patient.VitalSign>(b =>
+            {
+                b.HasKey(v => v.Id);
+                b.Property(v => v.RecordedAt).IsRequired();
+                b.Property(v => v.Notes).HasMaxLength(2000);
+                b.HasOne(v => v.Visit).WithMany().HasForeignKey(v => v.VisitId).OnDelete(Microsoft.EntityFrameworkCore.DeleteBehavior.Cascade);
+                b.HasIndex(v => v.PatientId);
+                b.HasIndex(v => v.VisitId);
+                b.HasIndex(v => v.RecordedAt);
             });
 
             // Billing mappings

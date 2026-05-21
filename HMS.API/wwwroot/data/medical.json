@@ -1,0 +1,20 @@
+{
+  "bloodGroups": [
+    "A+",
+    "A-",
+    "B+",
+    "B-",
+    "AB+",
+    "AB-",
+    "O+",
+    "O-"
+  ],
+  "genotypes": [
+    "AA",
+    "AS",
+    "AC",
+    "SS",
+    "SC",
+    "CC"
+  ]
+}

@@ -19,6 +19,132 @@ namespace HMS.API.Controllers
             _service = service;
         }
 
+        [HttpPost("{id}/vitals")]
+        [HasPermission("patients.manage")]
+        public async Task<IActionResult> AddVitalForPatient(Guid id, [FromBody] HMS.API.Application.Patient.DTOs.CreateVitalSignRequest req)
+        {
+            try
+            {
+                var v = await _service.AddVitalSignAsync(id, req);
+                return CreatedAtAction(nameof(GetVitalSign), new { id = v.Id }, HMS.API.Application.Common.ApiResponse<HMS.API.Application.Patient.DTOs.VitalSignResponse>.ForSuccess(v, 201));
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(HMS.API.Application.Common.ApiResponse<object>.ForError("INVALID_OPERATION", ex.Message, 400));
+            }
+        }
+
+        [HttpGet("{id}/visits")]
+        [HasPermission("patients.view")]
+        public async Task<IActionResult> ListVisits(Guid id)
+        {
+            var visits = await _service.ListVisitsForPatientAsync(id);
+            return Ok(HMS.API.Application.Common.ApiResponse<VisitResponse[]>.ForSuccess(visits, 200));
+        }
+
+        [HttpPost("{id}/visits/{visitId}/vitals")]
+        [HasPermission("patients.manage")]
+        public async Task<IActionResult> AddVital(Guid id, Guid visitId, [FromBody] HMS.API.Application.Patient.DTOs.CreateVitalSignRequest req)
+        {
+            try
+            {
+                // enforce request.VisitId matches route visitId
+                if (req.VisitId != visitId) return BadRequest(HMS.API.Application.Common.ApiResponse<object>.ForError("INVALID_REQUEST", "VisitId mismatch", 400));
+                var v = await _service.AddVitalSignAsync(id, req);
+                return CreatedAtAction(nameof(GetVitalSign), new { id = v.Id }, HMS.API.Application.Common.ApiResponse<HMS.API.Application.Patient.DTOs.VitalSignResponse>.ForSuccess(v, 201));
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(HMS.API.Application.Common.ApiResponse<object>.ForError("INVALID_OPERATION", ex.Message, 400));
+            }
+        }
+
+        [HttpGet("vitals/{id}")]
+        [HasPermission("patients.view")]
+        public async Task<IActionResult> GetVitalSign(Guid id)
+        {
+            var vs = await _service.GetVitalSignAsync(id);
+            if (vs == null) return NotFound();
+            return Ok(HMS.API.Application.Common.ApiResponse<HMS.API.Application.Patient.DTOs.VitalSignResponse>.ForSuccess(vs, 200));
+        }
+
+        [HttpPut("vitals/{id}")]
+        [HasPermission("patients.manage")]
+        public async Task<IActionResult> UpdateVitalSign(Guid id, [FromBody] CreateVitalSignRequest req)
+        {
+            try
+            {
+                var vs = await _service.UpdateVitalSignAsync(id, req);
+                return Ok(HMS.API.Application.Common.ApiResponse<VitalSignResponse>.ForSuccess(vs, 200));
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(HMS.API.Application.Common.ApiResponse<object>.ForError("INVALID_OPERATION", ex.Message, 400));
+            }
+        }
+
+        [HttpGet("visits/{visitId}/vitals")]
+        [HasPermission("patients.view")]
+        public async Task<IActionResult> ListVitalsForVisit(Guid visitId)
+        {
+            var list = await _service.ListVitalSignsForVisitAsync(visitId);
+            return Ok(HMS.API.Application.Common.ApiResponse<HMS.API.Application.Patient.DTOs.VitalSignResponse[]>.ForSuccess(list, 200));
+        }
+
+        [HttpGet("visits/{id}")]
+        [HasPermission("patients.view")]
+        public async Task<IActionResult> GetVisit(Guid id)
+        {
+            var v = await _service.GetVisitAsync(id);
+            if (v == null) return NotFound();
+            return Ok(HMS.API.Application.Common.ApiResponse<VisitResponse>.ForSuccess(v, 200));
+        }
+
+        [HttpPost("{id}/visits")]
+        [HasPermission("patients.manage")]
+        public async Task<IActionResult> CreateVisit(Guid id, [FromBody] AddVisitRequest request)
+        {
+            try
+            {
+                var v = await _service.AddVisitAsync(id, request);
+                return CreatedAtAction(nameof(GetVisit), new { id = v.Id }, HMS.API.Application.Common.ApiResponse<VisitResponse>.ForSuccess(v, 201));
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(HMS.API.Application.Common.ApiResponse<object>.ForError("INVALID_OPERATION", ex.Message, 400));
+            }
+        }
+
+        [HttpPut("visits/{id}")]
+        [HasPermission("patients.manage")]
+        public async Task<IActionResult> UpdateVisit(Guid id, [FromBody] AddVisitRequest request)
+        {
+            try
+            {
+                var v = await _service.UpdateVisitAsync(id, request);
+                return Ok(HMS.API.Application.Common.ApiResponse<VisitResponse>.ForSuccess(v, 200));
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(HMS.API.Application.Common.ApiResponse<object>.ForError("INVALID_OPERATION", ex.Message, 400));
+            }
+        }
+
+        [HttpDelete("visits/{id}")]
+        [HasPermission("patients.manage")]
+        public async Task<IActionResult> DeleteVisit(Guid id)
+        {
+            try
+            {
+                await _service.DeleteVisitAsync(id);
+                return NoContent();
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(HMS.API.Application.Common.ApiResponse<object>.ForError("INVALID_OPERATION", ex.Message, 400));
+            }
+        }
+
         [HttpPut("{id}")]
         [HasPermission("patients.manage")]
         public async Task<IActionResult> Update(Guid id, [FromBody] RegisterPatientRequest request)
@@ -70,20 +196,7 @@ namespace HMS.API.Controllers
             return Ok(HMS.API.Application.Common.ApiResponse<PagedResult<PatientResponse>>.ForSuccess(res, 200));
         }
 
-        [HttpPost("{id}/visits")]
-        [HasPermission("patients.manage")]
-        public async Task<IActionResult> AddVisit(Guid id, [FromBody] AddVisitRequest request)
-        {
-            try
-            {
-                var v = await _service.AddVisitAsync(id, request);
-                return CreatedAtAction(nameof(Get), new { id = id }, HMS.API.Application.Common.ApiResponse<VisitResponse>.ForSuccess(v, 201));
-            }
-            catch (InvalidOperationException)
-            {
-                return NotFound(HMS.API.Application.Common.ApiResponse<object>.ForError("PATIENT_NOT_FOUND", "Patient not found", 404));
-            }
-        }
+        
 
         [HttpGet("possible-duplicates")]
         [HasPermission("patients.manage")]

@@ -1,35 +1,44 @@
-using System.IO;
-using System.Text.Json;
+using System;
 using System.Threading.Tasks;
+using HMS.UI.Services;
 using Microsoft.AspNetCore.Hosting;
+using System.Text.Json;
 
 namespace HMS.UI.Services
 {
     public class StaticDataService
     {
-        private readonly IWebHostEnvironment _env;
+        private readonly ApiClient _api;
 
-        public StaticDataService(IWebHostEnvironment env)
+        public StaticDataService(ApiClient api)
         {
-            _env = env;
+            _api = api;
         }
-
-        private string DataPath(string fileName) => Path.Combine(_env.WebRootPath ?? string.Empty, "data", fileName);
 
         public async Task<MedicalData?> GetMedicalDataAsync()
         {
-            var path = DataPath("medical.json");
-            if (!File.Exists(path)) return null;
-            var txt = await File.ReadAllTextAsync(path);
-            return JsonSerializer.Deserialize<MedicalData>(txt, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            try
+            {
+                var res = await _api.GetAsync<MedicalData>("/staticdata/medical");
+                return res;
+            }
+            catch
+            {
+                return null;
+            }
         }
 
         public async Task<CountryEntry[]?> GetCountriesAsync()
         {
-            var path = DataPath("countries.json");
-            if (!File.Exists(path)) return null;
-            var txt = await File.ReadAllTextAsync(path);
-            return JsonSerializer.Deserialize<CountryEntry[]>(txt, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            try
+            {
+                var res = await _api.GetAsync<CountryEntry[]>("/staticdata/countries");
+                return res;
+            }
+            catch
+            {
+                return null;
+            }
         }
 
         public record MedicalData(string[]? BloodGroups, string[]? Genotypes);

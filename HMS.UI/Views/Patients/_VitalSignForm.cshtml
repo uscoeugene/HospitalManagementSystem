@@ -1,0 +1,48 @@
+<div class="vitals-form">
+    <div class="row g-2">
+        <div class="col-6">
+            <label class="form-label">Recorded At</label>
+            <input name="RecordedAt" type="datetime-local" class="form-control" value="@DateTimeOffset.UtcNow.ToLocalTime().ToString("yyyy-MM-ddTHH:mm")" />
+        </div>
+        <div class="col-6">
+            <label class="form-label">Temperature (°C)</label>
+            <input name="Temperature" class="form-control" />
+        </div>
+        <div class="col-4">
+            <label class="form-label">Pulse Rate</label>
+            <input name="PulseRate" class="form-control" />
+        </div>
+        <div class="col-4">
+            <label class="form-label">Respiratory Rate</label>
+            <input name="RespiratoryRate" class="form-control" />
+        </div>
+        <div class="col-4">
+            <label class="form-label">Oxygen Saturation (%)</label>
+            <input name="OxygenSaturation" class="form-control" />
+        </div>
+        <div class="col-6">
+            <label class="form-label">Systolic BP</label>
+            <input name="SystolicBP" class="form-control" />
+        </div>
+        <div class="col-6">
+            <label class="form-label">Diastolic BP</label>
+            <input name="DiastolicBP" class="form-control" />
+        </div>
+        <div class="col-6">
+            <label class="form-label">Weight (kg)</label>
+            <input name="WeightKg" type="number" step="0.1" class="form-control" />
+        </div>
+        <div class="col-6">
+            <label class="form-label">Height (cm)</label>
+            <input name="HeightCm" type="number" step="0.1" class="form-control" />
+        </div>
+        <div class="col-6">
+            <label class="form-label">Blood Sugar</label>
+            <input name="BloodSugar" type="number" step="0.1" class="form-control" />
+        </div>
+        <div class="col-6">
+            <label class="form-label">Notes</label>
+            <textarea name="Notes" class="form-control" rows="3"></textarea>
+        </div>
+    </div>
+</div>

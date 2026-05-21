@@ -126,6 +126,7 @@ namespace HMS.API.Application.Patient.DTOs
         [Required]
         public DateTimeOffset VisitAt { get; set; }
 
+        [Required]
         [MaxLength(100)]
         public string VisitType { get; set; } = string.Empty;
 
@@ -136,6 +137,7 @@ namespace HMS.API.Application.Patient.DTOs
     public class VisitResponse
     {
         public Guid Id { get; set; }
+        public Guid PatientId { get; set; }
         public DateTimeOffset VisitAt { get; set; }
         public string VisitType { get; set; } = string.Empty;
         public string? Notes { get; set; }
