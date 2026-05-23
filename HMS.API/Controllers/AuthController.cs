@@ -15,15 +15,11 @@ namespace HMS.API.Controllers
     public class AuthController : ControllerBase
     {
         private readonly IAuthService _authService;
-        private readonly LocalAuthService _localAuthService;
-        private readonly HMS.API.Application.Auth.LocalTokenService _localTokenService;
         private readonly AuthDbContext _authDb;
 
-        public AuthController(IAuthService authService, LocalAuthService localAuthService, HMS.API.Application.Auth.LocalTokenService localTokenService, AuthDbContext authDb)
+        public AuthController(IAuthService authService, AuthDbContext authDb)
         {
             _authService = authService;
-            _localAuthService = localAuthService;
-            _localTokenService = localTokenService;
             _authDb = authDb;
         }
 
@@ -65,110 +61,42 @@ namespace HMS.API.Controllers
 
             try
             {
+                var resp = await _authService.LoginAsync(request);
+                var cookieOptions = new CookieOptions { HttpOnly = true, Secure = Request.IsHttps, SameSite = SameSiteMode.Strict, Expires = resp.ExpiresAt.UtcDateTime };
+                Response.Cookies.Append("HmsAuth", resp.AccessToken, cookieOptions);
+
+                // Also set tenant cookies so UI can read tenant name without extra roundtrip. Do not rely on UI to parse response body.
                 try
                 {
-                    var resp = await _authService.LoginAsync(request);
-                    var cookieOptions = new CookieOptions { HttpOnly = true, Secure = true, SameSite = SameSiteMode.Strict, Expires = resp.ExpiresAt.UtcDateTime };
-                    Response.Cookies.Append("HmsAuth", resp.AccessToken, cookieOptions);
-                    return Ok(resp);
-                }
-                catch (UnauthorizedAccessException uex)
-                {
-                    // If tenant-scoped login failed and a tenant was specified, try central (TenantId == null)
-                    if (effectiveTenant != null)
+                    if (resp.Tenant != null)
                     {
-                        try
-                        {
-                            HMS.API.Application.Common.CurrentTenantAccessor.CurrentTenantId = null;
-                            var centralResp = await _authService.LoginAsync(request);
-                            var cookieOptions = new CookieOptions { HttpOnly = true, Secure = true, SameSite = SameSiteMode.Strict, Expires = centralResp.ExpiresAt.UtcDateTime };
-                            Response.Cookies.Append("HmsAuth", centralResp.AccessToken, cookieOptions);
-                            return Ok(centralResp);
-                        }
-                        catch
-                        {
-                            // central login failed, proceed to local fallback
-                        }
-                        finally
-                        {
-                            HMS.API.Application.Common.CurrentTenantAccessor.CurrentTenantId = previous;
-                        }
+                        var tnOptions = new CookieOptions { HttpOnly = false, Secure = Request.IsHttps, SameSite = SameSiteMode.Strict };
+                        Response.Cookies.Append("HmsTenantId", resp.Tenant.Id.ToString(), tnOptions);
+                        Response.Cookies.Append("HmsTenantName", resp.Tenant.Name ?? string.Empty, tnOptions);
                     }
-
-                    // Attempt local fallback
-                    try
+                    else if (resp.TenantId.HasValue)
                     {
-                        var localResp = await _localAuthService.LoginLocalAsync(request);
-
-                        var roles = await _authDb.Set<LocalRole>().AsNoTracking().Where(r => r.TenantId == localResp.TenantId).Select(r => r.Name).ToArrayAsync();
-                        var perms = await _authDb.Set<LocalPermission>().AsNoTracking().Where(p => p.TenantId == localResp.TenantId).Select(p => p.Code).ToArrayAsync();
-
-                        var (tokenString, expiresAt) = _localTokenService.BuildLocalJwt(localResp.UserId, request.Username, localResp.TenantId, roles, perms);
-
-                        var cookieOptions = new CookieOptions { HttpOnly = true, Secure = true, SameSite = SameSiteMode.Strict, Expires = expiresAt.UtcDateTime };
-                        Response.Cookies.Append("HmsAuth", tokenString, cookieOptions);
-
-                        var outResp = new LoginResponse
-                        {
-                            AccessToken = tokenString,
-                            ExpiresAt = expiresAt,
-                            UserId = localResp.UserId,
-                            TenantId = localResp.TenantId,
-                            Permissions = perms
-                        };
-
-                        return Ok(outResp);
-                    }
-                    catch (UnauthorizedAccessException)
-                    {
-                        var pd = new ProblemDetails { Title = "Unauthorized", Detail = uex.Message, Status = StatusCodes.Status401Unauthorized };
-                        return Unauthorized(pd);
+                        var tnOptions = new CookieOptions { HttpOnly = false, Secure = Request.IsHttps, SameSite = SameSiteMode.Strict };
+                        Response.Cookies.Append("HmsTenantId", resp.TenantId.Value.ToString(), tnOptions);
                     }
                 }
+                catch { }
+                return Ok(resp);
+            }
+            catch (UnauthorizedAccessException uex)
+            {
+                var pd = new ProblemDetails { Title = "Unauthorized", Detail = uex.Message, Status = StatusCodes.Status401Unauthorized };
+                return Unauthorized(pd);
             }
             catch (Exception ex)
             {
-                // If central auth throws unexpected exception try local fallback
-                try
-                {
-                    var localResp = await _localAuthService.LoginLocalAsync(request);
-
-                    var roles = await _authDb.Set<LocalRole>().AsNoTracking().Where(r => r.TenantId == localResp.TenantId).Select(r => r.Name).ToArrayAsync();
-                    var perms = await _authDb.Set<LocalPermission>().AsNoTracking().Where(p => p.TenantId == localResp.TenantId).Select(p => p.Code).ToArrayAsync();
-
-                    var (tokenString, expiresAt) = _localTokenService.BuildLocalJwt(localResp.UserId, request.Username, localResp.TenantId, roles, perms);
-
-                    var cookieOptions = new CookieOptions { HttpOnly = true, Secure = true, SameSite = SameSiteMode.Strict, Expires = expiresAt.UtcDateTime };
-                    Response.Cookies.Append("HmsAuth", tokenString, cookieOptions);
-
-                    var outResp = new LoginResponse
-                    {
-                        AccessToken = tokenString,
-                        ExpiresAt = expiresAt,
-                        UserId = localResp.UserId,
-                        TenantId = localResp.TenantId,
-                        Permissions = perms
-                    };
-
-                    return Ok(outResp);
-                }
-                catch (UnauthorizedAccessException uex2)
-                {
-                    var pd = new ProblemDetails { Title = "Unauthorized", Detail = uex2.Message, Status = StatusCodes.Status401Unauthorized };
-                    return Unauthorized(pd);
-                }
-                catch (Exception ex2)
-                {
-                    var pd = new ProblemDetails { Title = "Authentication Failure", Detail = ex2.Message, Status = StatusCodes.Status500InternalServerError };
-                    return StatusCode(500, pd);
-                }
+                var pd = new ProblemDetails { Title = "Authentication Failure", Detail = ex.Message, Status = StatusCodes.Status500InternalServerError };
+                return StatusCode(500, pd);
             }
             finally
             {
                 HMS.API.Application.Common.CurrentTenantAccessor.CurrentTenantId = previous;
             }
-
-            return StatusCode(500);
         }
 
         [HttpPost("register")]
@@ -213,7 +141,7 @@ namespace HMS.API.Controllers
         public IActionResult LogoutCookie()
         {
             Response.Cookies.Delete("HmsAuth");
-            return Redirect("/LocalAuth/Login");
+            return Redirect("/Account/Login");
         }
     }
 }

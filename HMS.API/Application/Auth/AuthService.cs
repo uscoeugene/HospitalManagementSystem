@@ -22,13 +22,15 @@ namespace HMS.API.Application.Auth
         private readonly IPasswordHasher _hasher;
         private readonly IConfiguration _config;
         private readonly ILogger<AuthService> _logger;
+        private readonly HMS.API.Application.Profile.IProfileService? _profileService;
 
-        public AuthService(AuthDbContext db, IPasswordHasher hasher, IConfiguration config, ILogger<AuthService> logger)
+        public AuthService(AuthDbContext db, IPasswordHasher hasher, IConfiguration config, ILogger<AuthService> logger, HMS.API.Application.Profile.IProfileService? profileService = null)
         {
             _db = db;
             _hasher = hasher;
             _config = config;
             _logger = logger;
+            _profileService = profileService;
         }
 
         public async Task<LoginResponse> LoginAsync(LoginRequest request)
@@ -152,7 +154,8 @@ namespace HMS.API.Application.Auth
             {
                 Username = request.Username,
                 Email = request.Email,
-                PasswordHash = _hasher.Hash(request.Password)
+                PasswordHash = _hasher.Hash(request.Password),
+                TenantId = HMS.API.Application.Common.CurrentTenantAccessor.CurrentTenantId
             };
 
             _db.Users.Add(user);
@@ -166,8 +169,34 @@ namespace HMS.API.Application.Auth
 
             await _db.SaveChangesAsync();
 
-            // issue token
-            var permissions = new string[0];
+            // ensure a user profile exists in the HMS DB for this user
+            try
+            {
+                if (_profileService != null)
+                {
+                    var profileReq = new HMS.API.Application.Profile.DTOs.UpdateUserProfileRequest
+                    {
+                        FirstName = request.FirstName,
+                        LastName = request.LastName,
+                        Email = request.Email
+                    };
+
+                    await _profileService.CreateOrUpdateAsync(user.Id, profileReq, null);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to create user profile for {UserId}", user.Id);
+            }
+
+            // compute permissions from assigned roles
+            var perms = await _db.UserRoles
+                .Where(ur => ur.UserId == user.Id)
+                .Include(ur => ur.Role).ThenInclude(r => r.RolePermissions).ThenInclude(rp => rp.Permission)
+                .ToListAsync();
+
+            var permissions = perms.SelectMany(ur => ur.Role.RolePermissions).Select(rp => rp.Permission.Code).Distinct().ToArray();
+
             var token = BuildJwtToken(user.Id, user.Username, permissions, user.TenantId);
             var (refreshPlain, refreshEntity) = await CreateRefreshToken(user);
 

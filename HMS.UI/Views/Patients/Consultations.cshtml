@@ -1,0 +1,32 @@
+@model HMS.UI.Models.ConsultationViewModel[]
+@{
+    Layout = "~/Pages/_Layout.cshtml";
+}
+
+<div class="portal-card">
+    <div class="portal-card-header">Consultations</div>
+    <div class="portal-card-body">
+        @if (Model == null || Model.Length == 0)
+        {
+            <div class="text-muted">No consultations found.</div>
+        }
+        else
+        {
+            <table class="table table-sm">
+                <thead><tr><th>Date</th><th>Provider</th><th>CC</th><th>Status</th><th></th></tr></thead>
+                <tbody>
+                    @foreach(var c in Model)
+                    {
+                        <tr>
+                            <td>@c.ConsultationAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</td>
+                            <td>@c.DoctorId</td>
+                            <td>@c.ChiefComplaint</td>
+                            <td>@c.Status</td>
+                            <td><a asp-action="ConsultationDetails" asp-route-id="@c.Id" class="btn btn-sm btn-outline-secondary">View</a></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </div>
+</div>

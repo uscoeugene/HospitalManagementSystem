@@ -1,0 +1,30 @@
+@model System.Collections.Generic.List<HMS.UI.Models.Users.UserListItemViewModel>
+@{
+    Layout = "~/Pages/_Layout.cshtml";
+    ViewData["Title"] = "Users";
+}
+
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h3>Users</h3>
+        <a href="/Users/Create" class="btn btn-primary">New User</a>
+    </div>
+
+    <table class="table">
+        <thead>
+            <tr><th>Id</th><th>Username</th><th>Email</th><th>Tenant</th><th></th></tr>
+        </thead>
+        <tbody>
+            @foreach(var u in Model)
+            {
+                <tr>
+                    <td>@u.Id</td>
+                    <td>@u.Username</td>
+                    <td>@u.Email</td>
+                    <td>@u.TenantId</td>
+                    <td><a class="btn btn-sm btn-outline-secondary" href="/Users/Edit?id=@u.Id">Edit</a></td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>

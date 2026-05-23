@@ -1,0 +1,42 @@
+@model HMS.UI.Models.ConsultationViewModel
+@{
+    Layout = "~/Pages/_Layout.cshtml";
+}
+
+<div class="portal-card">
+    <div class="portal-card-header">Consultation Details</div>
+    <div class="portal-card-body">
+        <partial name="_PatientHeader" model="ViewBag.Patient" />
+        <hr />
+        <div><strong>Date:</strong> @Model.ConsultationAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</div>
+        @{ var prov = (ViewBag.ProvidersMap as System.Collections.Generic.Dictionary<Guid, HMS.UI.Models.Profile.ProviderViewModel>)?.GetValueOrDefault(Model.DoctorId ?? Guid.Empty); }
+        <div><strong>Doctor:</strong>
+            @if (prov != null)
+            {
+                <span class="d-inline-flex align-items-center gap-2">
+                    @if (!string.IsNullOrWhiteSpace(prov.PhotoUrl)) { <img src="@prov.PhotoUrl" class="rounded-circle" style="width:40px;height:40px;object-fit:cover;" /> }
+                    <span>@prov.FullName <small class="text-muted">@prov.JobTitle</small></span>
+                </span>
+            }
+            else
+            {
+                @Model.DoctorId
+            }
+        </div>
+        <div><strong>Chief Complaint:</strong> @Model.ChiefComplaint</div>
+        <div><strong>HPI:</strong><div>@Model.HistoryOfPresentIllness</div></div>
+        <div><strong>Physical Exam:</strong><div>@Model.PhysicalExamination</div></div>
+        <div><strong>Diagnoses:</strong> @Model.DiagnosisCodes</div>
+        <div><strong>Procedures:</strong> @Model.Procedures</div>
+        <div><strong>Notes:</strong><div>@Model.Notes</div></div>
+        <div class="mt-3">
+            <a asp-action="EditConsultation" asp-route-id="@Model.Id" class="btn btn-primary">Edit</a>
+            <form method="post" asp-action="DeleteConsultation" style="display:inline" onsubmit="return confirm('Delete this consultation?');">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="id" value="@Model.Id" />
+                <input type="hidden" name="visitId" value="@Model.VisitId" />
+                <button class="btn btn-danger">Delete</button>
+            </form>
+        </div>
+    </div>
+</div>

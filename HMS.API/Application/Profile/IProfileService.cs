@@ -10,5 +10,6 @@ namespace HMS.API.Application.Profile
         Task<UserProfileDto?> GetByIdAsync(Guid id);
         Task<UserProfileDto> CreateOrUpdateAsync(Guid userId, UpdateUserProfileRequest request, Guid? updatedBy = null);
         Task<UserProfileDto?> UpdateForUserAsync(Guid userId, UpdateUserProfileRequest request, Guid? updatedBy = null);
+        Task<HMS.API.Application.Profile.DTOs.ProviderDto[]> ListProvidersAsync();
     }
 }

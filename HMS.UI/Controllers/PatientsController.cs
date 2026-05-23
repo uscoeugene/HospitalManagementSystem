@@ -36,6 +36,20 @@ namespace HMS.UI.Controllers
 
                 // fetch recent vitals for visit (API returns ApiResponse wrapper -> use GetAsync on array type via client)
                 var vitals = await _api.GetAsync<HMS.UI.Models.VitalSignViewModel[]>($"/patients/visits/{v.Id}/vitals");
+                var consultations = await _api.GetAsync<HMS.UI.Models.ConsultationViewModel[]>($"/patients/visits/{v.Id}/consultations");
+
+                // load providers (medical staff)
+                try
+                {
+                    var providers = await _api.GetAsync<HMS.UI.Models.Profile.ProviderViewModel[]>($"/api/profile/providers");
+                    var providerMap = new System.Collections.Generic.Dictionary<Guid, HMS.UI.Models.Profile.ProviderViewModel>();
+                    if (providers != null)
+                    {
+                        foreach (var prov in providers) providerMap[prov.UserId] = prov;
+                    }
+                    ViewBag.ProvidersMap = providerMap;
+                }
+                catch { ViewBag.ProvidersMap = null; }
                 var vm = new HMS.UI.Models.VisitDetailsViewModel
                 {
                     Visit = v,
@@ -58,7 +72,8 @@ namespace HMS.UI.Controllers
                         BloodSugar = x.BloodSugar,
                         Notes = x.Notes,
                         RecordedByUserId = x.GetType().GetProperty("RecordedByUserId") != null ? (Guid?)x.GetType().GetProperty("RecordedByUserId").GetValue(x) : null
-                    }).ToArray()
+                    }).ToArray(),
+                Consultations = consultations ?? Array.Empty<HMS.UI.Models.ConsultationViewModel>()
                 };
 
                 return View(vm);
@@ -67,6 +82,197 @@ namespace HMS.UI.Controllers
             {
                 TempData["Error"] = ex.Message;
                 return RedirectToAction("Index");
+            }
+        }
+
+        [HasPermission("patients.view")]
+        public async Task<IActionResult> ConsultationDetails(Guid id)
+        {
+            try
+            {
+                var c = await _api.GetAsync<HMS.UI.Models.ConsultationViewModel>($"/patients/consultations/{id}");
+                if (c == null) return NotFound();
+                // populate patient header
+                try { ViewBag.Patient = await _api.GetAsync<HMS.UI.Models.PatientDetailsViewModel>($"/patients/{c.PatientId}"); } catch { ViewBag.Patient = null; }
+
+                // providers map
+                try
+                {
+                    var profilesPage = await _api.GetAsync<HMS.UI.Models.Reporting.PagedReportResult<HMS.UI.Models.Reporting.ProfileSummaryDto>>("/reports/Profile/summary?page=1&pageSize=200");
+                    var providerMap = new System.Collections.Generic.Dictionary<Guid, string>();
+                    if (profilesPage != null && profilesPage.Items != null)
+                    {
+                        foreach (var prof in profilesPage.Items) providerMap[prof.UserId] = prof.FullName;
+                    }
+                    ViewBag.ProvidersMap = providerMap;
+                }
+                catch { ViewBag.ProvidersMap = null; }
+
+                return View(c);
+            }
+            catch
+            {
+                return NotFound();
+            }
+        }
+
+        [HasPermission("patients.manage")]
+        public async Task<IActionResult> EditConsultation(Guid id)
+        {
+            try
+            {
+                var c = await _api.GetAsync<HMS.UI.Models.ConsultationViewModel>($"/patients/consultations/{id}");
+                if (c == null) return NotFound();
+                var vm = new HMS.UI.Models.CreateConsultationViewModel
+                {
+                    PatientId = c.PatientId,
+                    VisitId = c.VisitId,
+                    DoctorId = c.DoctorId,
+                    ConsultationAt = c.ConsultationAt,
+                    FollowUpAt = c.FollowUpAt,
+                    ChiefComplaint = c.ChiefComplaint,
+                    HistoryOfPresentIllness = c.HistoryOfPresentIllness,
+                    PhysicalExamination = c.PhysicalExamination,
+                    DiagnosisCodes = c.DiagnosisCodes,
+                    Procedures = c.Procedures,
+                    Notes = c.Notes,
+                    Status = c.Status
+                };
+                ViewBag.ConsultationId = id;
+                return View(vm);
+            }
+            catch
+            {
+                return NotFound();
+            }
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        [HasPermission("patients.manage")]
+        public async Task<IActionResult> EditConsultation(Guid id, HMS.UI.Models.CreateConsultationViewModel vm)
+        {
+            if (!ModelState.IsValid) return View(vm);
+            try
+            {
+                var payload = new
+                {
+                    PatientId = vm.PatientId,
+                    VisitId = vm.VisitId,
+                    DoctorId = vm.DoctorId,
+                    ConsultationAt = vm.ConsultationAt,
+                    FollowUpAt = vm.FollowUpAt,
+                    ChiefComplaint = vm.ChiefComplaint,
+                    HistoryOfPresentIllness = vm.HistoryOfPresentIllness,
+                    PhysicalExamination = vm.PhysicalExamination,
+                    DiagnosisCodes = vm.DiagnosisCodes,
+                    Procedures = vm.Procedures,
+                    Notes = vm.Notes,
+                    Status = vm.Status
+                };
+                var raw = await _api.PutRawAsync($"/patients/consultations/{id}", payload);
+                if (raw.IsSuccessStatusCode)
+                {
+                    TempData["Success"] = "Consultation updated";
+                    return RedirectToAction("ConsultationDetails", new { id = id });
+                }
+                var body = await raw.Content.ReadAsStringAsync();
+                TempData["Error"] = body;
+                return View(vm);
+            }
+            catch (Exception ex)
+            {
+                TempData["Error"] = ex.Message;
+                return View(vm);
+            }
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        [HasPermission("patients.manage")]
+        public async Task<IActionResult> DeleteConsultation(Guid id, Guid? visitId)
+        {
+            try
+            {
+                var raw = await _api.DeleteRawAsync($"/patients/consultations/{id}");
+                if (raw.IsSuccessStatusCode)
+                {
+                    TempData["Success"] = "Consultation deleted";
+                    if (visitId.HasValue && visitId.Value != Guid.Empty) return RedirectToAction("VisitDetails", new { id = visitId.Value });
+                    return RedirectToAction("Index");
+                }
+                var body = await raw.Content.ReadAsStringAsync();
+                TempData["Error"] = body;
+                return RedirectToAction("Index");
+            }
+            catch (Exception ex)
+            {
+                TempData["Error"] = ex.Message;
+                return RedirectToAction("Index");
+            }
+        }
+
+        [HasPermission("patients.view")]
+        public async Task<IActionResult> Consultations(Guid visitId)
+        {
+            try
+            {
+                var list = await _api.GetAsync<HMS.UI.Models.ConsultationViewModel[]>($"/patients/visits/{visitId}/consultations");
+                return View(list ?? Array.Empty<HMS.UI.Models.ConsultationViewModel>());
+            }
+            catch (Exception ex)
+            {
+                TempData["Error"] = ex.Message;
+                return RedirectToAction("VisitDetails", new { id = visitId });
+            }
+        }
+
+        [HasPermission("patients.manage")]
+        public async Task<IActionResult> CreateConsultation(Guid visitId)
+        {
+            try
+            {
+                var visit = await _api.GetAsync<HMS.UI.Models.VisitViewModel>($"/patients/visits/{visitId}");
+                if (visit == null) return NotFound();
+                var vm = new HMS.UI.Models.CreateConsultationViewModel { PatientId = visit.PatientId, VisitId = visit.Id, ConsultationAt = DateTimeOffset.UtcNow };
+                try
+                {
+                    var providers = await _api.GetAsync<HMS.UI.Models.Profile.ProviderViewModel[]>($"/api/profile/providers");
+                    ViewBag.Providers = providers ?? Array.Empty<HMS.UI.Models.Profile.ProviderViewModel>();
+                }
+                catch { ViewBag.Providers = Array.Empty<HMS.UI.Models.Profile.ProviderViewModel>(); }
+                // Fetch patient summary for header
+                try { ViewBag.Patient = await _api.GetAsync<HMS.UI.Models.PatientDetailsViewModel>($"/patients/{vm.PatientId}"); } catch { ViewBag.Patient = null; }
+                return View(vm);
+            }
+            catch
+            {
+                return NotFound();
+            }
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        [HasPermission("patients.manage")]
+        public async Task<IActionResult> CreateConsultation(HMS.UI.Models.CreateConsultationViewModel vm)
+        {
+            if (!ModelState.IsValid) return View(vm);
+            try
+            {
+                var payload = new { PatientId = vm.PatientId, VisitId = vm.VisitId, DoctorId = vm.DoctorId, ConsultationAt = vm.ConsultationAt, Notes = vm.Notes, ChiefComplaint = vm.ChiefComplaint };
+                var resp = await _api.PostAsync<object>($"/patients/{vm.PatientId}/visits/{vm.VisitId}/consultations", payload);
+                if (resp != null)
+                {
+                    TempData["Success"] = "Consultation created";
+                    return RedirectToAction("VisitDetails", new { id = vm.VisitId });
+                }
+                TempData["Error"] = "Failed to create consultation";
+                return View(vm);
+            }
+            catch (Exception ex)
+            {
+                TempData["Error"] = ex.Message;
+                return View(vm);
             }
         }
 

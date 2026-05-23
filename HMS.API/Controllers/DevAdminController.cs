@@ -86,8 +86,7 @@ namespace HMS.API.Controllers
             var user = await _db.Users.IgnoreQueryFilters().AsNoTracking().SingleOrDefaultAsync(u => u.Username == req.Username && !u.IsDeleted);
             if (user == null)
             {
-                var local = await _db.Set<HMS.API.Domain.Auth.LocalUser>().IgnoreQueryFilters().AsNoTracking().SingleOrDefaultAsync(u => u.Username == req.Username && !u.IsDeleted);
-                return Ok(new { existsInAuth = false, existsInLocal = local != null });
+                return Ok(new { existsInAuth = false, existsInLocal = false });
             }
 
             var verify = false;
@@ -252,8 +251,7 @@ namespace HMS.API.Controllers
             var tenants = await _db.Tenants.IgnoreQueryFilters().ToListAsync();
             _db.Tenants.RemoveRange(tenants);
 
-            var localUsers = await _db.Set<HMS.API.Domain.Auth.LocalUser>().IgnoreQueryFilters().ToListAsync();
-            _db.Set<HMS.API.Domain.Auth.LocalUser>().RemoveRange(localUsers);
+            // LocalUser model has been removed; nothing to delete here
 
             await _db.SaveChangesAsync();
 

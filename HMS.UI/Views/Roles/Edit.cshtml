@@ -1,0 +1,61 @@
+@model HMS.UI.Models.Roles.RoleEditViewModel
+@{
+    Layout = "~/Pages/_Layout.cshtml";
+    ViewData["Title"] = "Edit Role";
+}
+<div class="container py-4">
+    <h3>Edit Role</h3>
+
+    @if (TempData["Error"] != null) { <div class="alert alert-danger">@TempData["Error"]</div> }
+    @if (TempData["Success"] != null) { <div class="alert alert-success">@TempData["Success"]</div> }
+
+    <form method="post">
+        @Html.AntiForgeryToken()
+        <div class="mb-3">
+            <label class="form-label">Name</label>
+            <input name="Name" value="@Model.Name" class="form-control" />
+        </div>
+        <div class="mb-3">
+            <label class="form-label">Description</label>
+            <input name="Description" value="@Model.Description" class="form-control" />
+        </div>
+        <button class="btn btn-primary">Save</button>
+    </form>
+
+    <h4 class="mt-4">Permissions</h4>
+    <form method="post" action="/Roles/AddPermission/@Model.Id">
+        @Html.AntiForgeryToken()
+        <div class="row">
+            <div class="col-md-5">
+                <input name="code" placeholder="permission.code" class="form-control" />
+            </div>
+            <div class="col-md-5">
+                <input name="description" placeholder="description" class="form-control" />
+            </div>
+            <div class="col-md-2">
+                <button class="btn btn-secondary">Add</button>
+            </div>
+        </div>
+    </form>
+
+    <table class="table mt-3">
+        <thead>
+            <tr><th>Code</th><th></th></tr>
+        </thead>
+        <tbody>
+            @foreach(var p in Model.Permissions)
+            {
+                <tr>
+                    <td>@p</td>
+                    <td>
+                        <form method="post" action="/Roles/RemovePermission/@Model.Id">
+                            @Html.AntiForgeryToken()
+                            <input type="hidden" name="code" value="@p" />
+                            <button class="btn btn-sm btn-danger">Remove</button>
+                        </form>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>

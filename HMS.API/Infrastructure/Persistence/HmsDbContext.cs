@@ -28,6 +28,7 @@ namespace HMS.API.Infrastructure.Persistence
         public DbSet<Patient> Patients { get; set; } = null!;
         public DbSet<Visit> Visits { get; set; } = null!;
         public DbSet<VitalSign> VitalSigns { get; set; } = null!;
+        public DbSet<HMS.API.Domain.Patient.Consultation> Consultations { get; set; } = null!;
 
         // Billing
         public DbSet<Invoice> Invoices { get; set; } = null!;
@@ -151,6 +152,23 @@ namespace HMS.API.Infrastructure.Persistence
                 b.HasIndex(v => v.PatientId);
                 b.HasIndex(v => v.VisitId);
                 b.HasIndex(v => v.RecordedAt);
+            });
+
+            modelBuilder.Entity<HMS.API.Domain.Patient.Consultation>(b =>
+            {
+                b.HasKey(c => c.Id);
+                b.Property(c => c.ConsultationAt).IsRequired();
+                b.Property(c => c.Status).HasMaxLength(50).HasDefaultValue("Pending");
+                b.Property(c => c.ChiefComplaint).HasMaxLength(1000);
+                b.Property(c => c.HistoryOfPresentIllness).HasMaxLength(4000);
+                b.Property(c => c.PhysicalExamination).HasMaxLength(4000);
+                b.Property(c => c.DiagnosisCodes).HasMaxLength(1000);
+                b.Property(c => c.Procedures).HasMaxLength(1000);
+                b.Property(c => c.Notes).HasMaxLength(4000);
+                b.HasOne(c => c.Visit).WithMany().HasForeignKey(c => c.VisitId).OnDelete(Microsoft.EntityFrameworkCore.DeleteBehavior.Cascade);
+                b.HasIndex(c => c.PatientId);
+                b.HasIndex(c => c.VisitId);
+                b.HasIndex(c => c.ConsultationAt);
             });
 
             // Billing mappings

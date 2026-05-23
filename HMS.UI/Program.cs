@@ -155,6 +155,11 @@ app.MapControllerRoute(
     pattern: "login/{tenantCode?}",
     defaults: new { controller = "Account", action = "Login" });
 
+// make /Users map to UsersController Index when /users is requested (without explicit /index)
+app.MapControllerRoute(
+    name: "usersIndex",
+    pattern: "{controller=Users}/{action=Index}/{id?}");
+
 app.MapGet("/", async context =>
 {
     if (context.User.Identity?.IsAuthenticated ?? false)

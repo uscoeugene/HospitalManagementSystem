@@ -29,5 +29,12 @@ namespace HMS.API.Application.Patient
         Task<VitalSignResponse?> GetVitalSignAsync(Guid id);
         Task<VitalSignResponse[]> ListVitalSignsForVisitAsync(Guid visitId);
         Task<VitalSignResponse> UpdateVitalSignAsync(Guid id, CreateVitalSignRequest request);
+
+        // Consultations
+        Task<ConsultationResponse> AddConsultationAsync(Guid patientId, CreateConsultationRequest request);
+        Task<ConsultationResponse?> GetConsultationAsync(Guid id);
+        Task<ConsultationResponse[]> ListConsultationsForVisitAsync(Guid visitId);
+        Task<ConsultationResponse> UpdateConsultationAsync(Guid id, CreateConsultationRequest request);
+        Task DeleteConsultationAsync(Guid id);
     }
 }

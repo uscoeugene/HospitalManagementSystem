@@ -11,8 +11,19 @@ public static class AuthServiceExtensions
         if (resp == null || httpContext == null) return false;
 
         // If API already sets cookie header, nothing to do
-        if (resp.Headers.TryGetValues("Set-Cookie", out var _))
+        if (resp.Headers.TryGetValues("Set-Cookie", out var setCookies))
+        {
+            try
+            {
+                // Copy Set-Cookie headers from API response to UI response so browser receives them
+                foreach (var sc in setCookies)
+                {
+                    httpContext.Response.Headers.Append("Set-Cookie", sc);
+                }
+            }
+            catch { }
             return true;
+        }
 
         try
         {
@@ -46,7 +57,7 @@ public static class AuthServiceExtensions
                 else if (expElem.ValueKind == JsonValueKind.Number && expElem.TryGetInt64(out var num)) expires = DateTimeOffset.FromUnixTimeSeconds(num);
             }
 
-            var cookieOptions = new CookieOptions { HttpOnly = true, Secure = true, SameSite = SameSiteMode.Strict };
+            var cookieOptions = new CookieOptions { HttpOnly = true, Secure = httpContext.Request.IsHttps, SameSite = SameSiteMode.Strict, Path = "/" };
             if (expires.HasValue) cookieOptions.Expires = expires.Value.UtcDateTime;
 
             httpContext.Response.Cookies.Append("HmsAuth", accessToken, cookieOptions);
@@ -70,7 +81,7 @@ public static class AuthServiceExtensions
                         var tname = nameElem.GetString();
                         if (!string.IsNullOrWhiteSpace(tname))
                         {
-                            var tnOptions = new CookieOptions { HttpOnly = false, Secure = true, SameSite = SameSiteMode.Strict };
+                            var tnOptions = new CookieOptions { HttpOnly = false, Secure = httpContext.Request.IsHttps, SameSite = SameSiteMode.Strict, Path = "/" };
                             httpContext.Response.Cookies.Append("HmsTenantName", tname, tnOptions);
                         }
                     }

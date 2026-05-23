@@ -1,0 +1,60 @@
+@{
+    Layout = "~/Pages/_Layout.cshtml";
+    ViewData["Title"] = "Create User";
+}
+
+<div class="container py-4">
+    <h3>Create User</h3>
+    <form method="post">
+        @Html.AntiForgeryToken()
+        <div class="mb-3">
+            <label class="form-label">Username</label>
+            <input name="username" class="form-control" />
+        </div>
+        <div class="mb-3">
+            <label class="form-label">First name</label>
+            <input name="firstName" class="form-control" />
+        </div>
+        <div class="mb-3">
+            <label class="form-label">Last name</label>
+            <input name="lastName" class="form-control" />
+        </div>
+        <div class="mb-3">
+            <label class="form-label">Email</label>
+            <input name="email" class="form-control" />
+        </div>
+        @if(ViewBag.Tenants != null && ((System.Collections.IEnumerable)ViewBag.Tenants).GetEnumerator().MoveNext())
+        {
+            <div class="mb-3">
+                <label class="form-label">Tenant</label>
+                <select name="tenantId" class="form-select">
+                    <option value="">-- Select tenant --</option>
+                    @foreach(var t in (HMS.UI.Models.TenantItem[])ViewBag.Tenants)
+                    {
+                        <option value="@t.Id">@t.Name</option>
+                    }
+                </select>
+            </div>
+        }
+        <div class="mb-3">
+            <label class="form-label">Password</label>
+            <input name="password" type="password" class="form-control" />
+        </div>
+        @if(ViewBag.Roles != null && ((System.Collections.IEnumerable)ViewBag.Roles).GetEnumerator().MoveNext())
+        {
+            <div class="mb-3">
+                <label class="form-label">Roles</label>
+                <div>
+                @foreach(var r in (HMS.UI.Models.Users.RoleViewModel[])ViewBag.Roles)
+                {
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" name="roles" value="@r.Id" id="role_@r.Id" />
+                        <label class="form-check-label" for="role_@r.Id">@r.Name</label>
+                    </div>
+                }
+                </div>
+            </div>
+        }
+        <button class="btn btn-primary">Create</button>
+    </form>
+</div>

@@ -2,6 +2,7 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
 using HMS.API.Application.Common;
 using System;
+using Microsoft.EntityFrameworkCore;
 
 namespace HMS.API.Middleware
 {
@@ -69,6 +70,17 @@ namespace HMS.API.Middleware
                     // In Online mode resolve tenant by host (or X-Debug-Tenant in Development)
                     Guid? tid = null;
 
+                    // Allow explicit X-Tenant-Id header as an override (useful for API clients/UI). Honor if valid GUID.
+                    try
+                    {
+                        var hdr = context.Request.Headers["X-Tenant-Id"].ToString();
+                        if (!string.IsNullOrWhiteSpace(hdr) && Guid.TryParse(hdr, out var parsedHdr))
+                        {
+                            tid = parsedHdr;
+                        }
+                    }
+                    catch { }
+
                     // Development debug header override
                     var env = context.RequestServices.GetService(typeof(Microsoft.Extensions.Hosting.IHostEnvironment)) as Microsoft.Extensions.Hosting.IHostEnvironment;
                     if (env != null && env.IsDevelopment())
@@ -89,6 +101,28 @@ namespace HMS.API.Middleware
                         CurrentTenantAccessor.CurrentTenantId = tid.Value;
                         context.Items["TenantId"] = tid.Value;
                         logger?.LogDebug("Online mode: resolved tenant {tid} from host {host}", tid, host);
+                        // Set tenant cookies so UI can read resolved tenant without extra API call.
+                        try
+                        {
+                            var cookieOptions = new Microsoft.AspNetCore.Http.CookieOptions { HttpOnly = false, Secure = context.Request.IsHttps, SameSite = Microsoft.AspNetCore.Http.SameSiteMode.Lax, Path = "/" };
+                            context.Response.Cookies.Append("HmsTenantId", tid.Value.ToString(), cookieOptions);
+
+                            // attempt to lookup tenant name from auth DB
+                            try
+                            {
+                                var db = context.RequestServices.GetService(typeof(HMS.API.Infrastructure.Auth.AuthDbContext)) as HMS.API.Infrastructure.Auth.AuthDbContext;
+                                if (db != null)
+                                {
+                                    var t = await db.Tenants.AsNoTracking().SingleOrDefaultAsync(x => x.Id == tid.Value);
+                                    if (t != null && !string.IsNullOrWhiteSpace(t.Name))
+                                    {
+                                        context.Response.Cookies.Append("HmsTenantName", t.Name, cookieOptions);
+                                    }
+                                }
+                            }
+                            catch { }
+                        }
+                        catch { }
                     }
                     else
                     {

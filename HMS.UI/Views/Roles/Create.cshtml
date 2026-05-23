@@ -1,0 +1,20 @@
+@{
+    Layout = "~/Pages/_Layout.cshtml";
+    ViewData["Title"] = "Create Role";
+}
+<div class="container py-4">
+    <h3>Create Role</h3>
+    @if (TempData["Error"] != null) { <div class="alert alert-danger">@TempData["Error"]</div> }
+    <form method="post">
+        @Html.AntiForgeryToken()
+        <div class="mb-3">
+            <label class="form-label">Name</label>
+            <input name="name" class="form-control" />
+        </div>
+        <div class="mb-3">
+            <label class="form-label">Description</label>
+            <input name="description" class="form-control" />
+        </div>
+        <button class="btn btn-primary">Create</button>
+    </form>
+</div>

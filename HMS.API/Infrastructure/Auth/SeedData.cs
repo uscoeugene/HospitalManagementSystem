@@ -76,6 +76,11 @@ namespace HMS.API.Infrastructure.Auth
 
             await db.SaveChangesAsync();
 
+            // grant basic profile permissions to default 'User' role
+            db.RolePermissions.Add(new RolePermission { Role = userRole, Permission = permProfileRead });
+            db.RolePermissions.Add(new RolePermission { Role = userRole, Permission = permProfileUpdate });
+            await db.SaveChangesAsync();
+
             // assign permissions to admin
             db.RolePermissions.Add(new RolePermission { Role = adminRole, Permission = permManageUsers });
             db.RolePermissions.Add(new RolePermission { Role = adminRole, Permission = permManageRoles });
@@ -190,27 +195,6 @@ namespace HMS.API.Infrastructure.Auth
                 var subB = new HMS.API.Domain.Common.TenantSubscription { TenantId = hospB.Id, Plan = "basic", Status = HMS.API.Domain.Common.SubscriptionStatus.Trial, StartAt = DateTimeOffset.UtcNow, EndAt = DateTimeOffset.UtcNow.AddMonths(1) };
                 db.Set<HMS.API.Domain.Common.TenantSubscription>().AddRange(subA, subB);
                 await db.SaveChangesAsync();
-
-                // Seed local roles and permissions for offline/local auth per tenant
-                var localAdminRoleA = new LocalRole { Name = "Admin", Description = "Local admin", TenantId = hospA.Id };
-                var localUserRoleA = new LocalRole { Name = "User", Description = "Local user", TenantId = hospA.Id };
-                var localAdminRoleB = new LocalRole { Name = "Admin", Description = "Local admin", TenantId = hospB.Id };
-                var localUserRoleB = new LocalRole { Name = "User", Description = "Local user", TenantId = hospB.Id };
-
-                db.Set<LocalRole>().AddRange(localAdminRoleA, localUserRoleA, localAdminRoleB, localUserRoleB);
-
-                var lp1 = new LocalPermission { Code = "patients.view", Description = "View patients (local)", TenantId = hospA.Id };
-                var lp2 = new LocalPermission { Code = "patients.manage", Description = "Manage patients (local)", TenantId = hospA.Id };
-                var lp3 = new LocalPermission { Code = "patients.view", Description = "View patients (local)", TenantId = hospB.Id };
-                var lp4 = new LocalPermission { Code = "patients.manage", Description = "Manage patients (local)", TenantId = hospB.Id };
-
-                db.Set<LocalPermission>().AddRange(lp1, lp2, lp3, lp4);
-
-                // create LocalUser entries for tenant admins to allow offline login fallback
-                var localAdminA = new LocalUser { Username = "smh_admin", Email = "admin@smh.local", PasswordHash = hasher.Hash("SmhAdmin@123"), TenantId = hospA.Id };
-                var localAdminB = new LocalUser { Username = "gvc_admin", Email = "admin@gvc.local", PasswordHash = hasher.Hash("GvcAdmin@123"), TenantId = hospB.Id };
-
-                db.Set<LocalUser>().AddRange(localAdminA, localAdminB);
 
                 await db.SaveChangesAsync();
             }

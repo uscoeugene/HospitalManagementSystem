@@ -15,10 +15,12 @@ namespace HMS.API.Application.Profile
     public class ProfileService : IProfileService
     {
         private readonly HmsDbContext _db;
+        private readonly HMS.API.Infrastructure.Auth.AuthDbContext? _authDb;
 
-        public ProfileService(HmsDbContext db)
+        public ProfileService(HmsDbContext db, HMS.API.Infrastructure.Auth.AuthDbContext? authDb = null)
         {
             _db = db;
+            _authDb = authDb;
         }
 
         public async Task<UserProfileDto?> GetByUserIdAsync(Guid userId)
@@ -126,5 +128,34 @@ namespace HMS.API.Application.Profile
             CreatedAt = p.CreatedAt,
             UpdatedAt = p.UpdatedAt
         };
+
+        public async Task<HMS.API.Application.Profile.DTOs.ProviderDto[]> ListProvidersAsync()
+        {
+            var profiles = await _db.UserProfiles.AsNoTracking().Where(p => p.IsMedicalStaff).ToArrayAsync();
+
+            var doctorUserIds = new System.Collections.Generic.HashSet<Guid>();
+            if (_authDb != null)
+            {
+                // find role id for role named 'doctor' (case-insensitive)
+                var doctorRole = await _authDb.Roles.AsNoTracking().FirstOrDefaultAsync(r => r.Name.ToLower() == "doctor");
+                if (doctorRole != null)
+                {
+                    var ur = await _authDb.UserRoles.AsNoTracking().Where(x => x.RoleId == doctorRole.Id).Select(x => x.UserId).ToArrayAsync();
+                    foreach (var uid in ur) doctorUserIds.Add(uid);
+                }
+            }
+
+            var res = profiles.Select(p => new HMS.API.Application.Profile.DTOs.ProviderDto
+            {
+                UserId = p.UserId,
+                FullName = p.FirstName + " " + p.LastName,
+                JobTitle = p.JobTitle,
+                PhotoUrl = p.PhotoUrl,
+                IsMedicalStaff = p.IsMedicalStaff,
+                IsDoctor = doctorUserIds.Contains(p.UserId)
+            }).ToArray();
+
+            return res;
+        }
     }
 }

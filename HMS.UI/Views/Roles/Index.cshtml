@@ -1,0 +1,47 @@
+@model HMS.UI.Models.Roles.RoleListItemViewModel[]
+@{
+    Layout = "~/Pages/_Layout.cshtml";
+    ViewData["Title"] = "Roles";
+}
+
+<div class="container py-4">
+    <h3>Roles</h3>
+    <p><a class="btn btn-primary" href="/Roles/Create">Create role</a></p>
+
+    @if (TempData["Error"] != null)
+    {
+        <div class="alert alert-danger">@TempData["Error"]</div>
+    }
+    @if (TempData["Success"] != null)
+    {
+        <div class="alert alert-success">@TempData["Success"]</div>
+    }
+
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Description</th>
+                <th>Permissions</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var r in Model)
+            {
+                <tr>
+                    <td>@r.Name</td>
+                    <td>@r.Description</td>
+                    <td>@string.Join(", ", r.Permissions)</td>
+                    <td>
+                        <a class="btn btn-sm btn-secondary" href="/Roles/Edit/@r.Id">Edit</a>
+                        <form method="post" action="/Roles/Delete/@r.Id" style="display:inline" onsubmit="return confirm('Delete role?');">
+                            @Html.AntiForgeryToken()
+                            <button class="btn btn-sm btn-danger">Delete</button>
+                        </form>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>

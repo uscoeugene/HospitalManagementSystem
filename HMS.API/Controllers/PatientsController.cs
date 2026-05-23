@@ -19,6 +19,69 @@ namespace HMS.API.Controllers
             _service = service;
         }
 
+        [HttpDelete("consultations/{id}")]
+        [HasPermission("patients.manage")]
+        public async Task<IActionResult> DeleteConsultation(Guid id)
+        {
+            try
+            {
+                await _service.DeleteConsultationAsync(id);
+                return NoContent();
+            }
+            catch (InvalidOperationException ex)
+            {
+                return NotFound(HMS.API.Application.Common.ApiResponse<object>.ForError("NOT_FOUND", ex.Message, 404));
+            }
+        }
+
+        [HttpGet("visits/{visitId}/consultations")]
+        [HasPermission("patients.view")]
+        public async Task<IActionResult> ListConsultationsForVisit(Guid visitId)
+        {
+            var list = await _service.ListConsultationsForVisitAsync(visitId);
+            return Ok(HMS.API.Application.Common.ApiResponse<HMS.API.Application.Patient.DTOs.ConsultationResponse[]>.ForSuccess(list, 200));
+        }
+
+        [HttpPost("{id}/visits/{visitId}/consultations")]
+        [HasPermission("patients.manage")]
+        public async Task<IActionResult> AddConsultation(Guid id, Guid visitId, [FromBody] CreateConsultationRequest req)
+        {
+            try
+            {
+                if (req.VisitId != visitId) return BadRequest(HMS.API.Application.Common.ApiResponse<object>.ForError("INVALID_REQUEST", "VisitId mismatch", 400));
+                var c = await _service.AddConsultationAsync(id, req);
+                return CreatedAtAction(nameof(GetConsultation), new { id = c.Id }, HMS.API.Application.Common.ApiResponse<HMS.API.Application.Patient.DTOs.ConsultationResponse>.ForSuccess(c, 201));
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(HMS.API.Application.Common.ApiResponse<object>.ForError("INVALID_OPERATION", ex.Message, 400));
+            }
+        }
+
+        [HttpGet("consultations/{id}")]
+        [HasPermission("patients.view")]
+        public async Task<IActionResult> GetConsultation(Guid id)
+        {
+            var c = await _service.GetConsultationAsync(id);
+            if (c == null) return NotFound();
+            return Ok(HMS.API.Application.Common.ApiResponse<HMS.API.Application.Patient.DTOs.ConsultationResponse>.ForSuccess(c, 200));
+        }
+
+        [HttpPut("consultations/{id}")]
+        [HasPermission("patients.manage")]
+        public async Task<IActionResult> UpdateConsultation(Guid id, [FromBody] CreateConsultationRequest req)
+        {
+            try
+            {
+                var c = await _service.UpdateConsultationAsync(id, req);
+                return Ok(HMS.API.Application.Common.ApiResponse<HMS.API.Application.Patient.DTOs.ConsultationResponse>.ForSuccess(c, 200));
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(HMS.API.Application.Common.ApiResponse<object>.ForError("INVALID_OPERATION", ex.Message, 400));
+            }
+        }
+
         [HttpPost("{id}/vitals")]
         [HasPermission("patients.manage")]
         public async Task<IActionResult> AddVitalForPatient(Guid id, [FromBody] HMS.API.Application.Patient.DTOs.CreateVitalSignRequest req)

@@ -31,10 +31,7 @@ namespace HMS.API.Infrastructure.Auth
         // Application settings persisted in auth DB (key/value)
         public DbSet<HMS.API.Domain.Common.AppSetting> AppSettings { get; set; } = null!;
 
-        // Local/offline entities
-        public DbSet<LocalUser> LocalUsers { get; set; } = null!;
-        public DbSet<LocalRole> LocalRoles { get; set; } = null!;
-        public DbSet<LocalPermission> LocalPermissions { get; set; } = null!;
+        // Local/offline entities (removed - single source of truth retained)
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -111,31 +108,7 @@ namespace HMS.API.Infrastructure.Auth
                 b.HasIndex(s => s.Key).IsUnique();
             });
 
-            modelBuilder.Entity<LocalUser>(b =>
-            {
-                b.HasKey(u => u.Id);
-                b.Property(u => u.Username).IsRequired().HasMaxLength(100);
-                b.Property(u => u.PasswordHash).IsRequired().HasMaxLength(256);
-                b.Property(u => u.Email).HasMaxLength(255);
-                b.HasIndex(u => u.Username);
-                b.HasIndex(u => u.TenantId);
-            });
-
-            modelBuilder.Entity<LocalRole>(b =>
-            {
-                b.HasKey(r => r.Id);
-                b.Property(r => r.Name).IsRequired().HasMaxLength(100);
-                b.Property(r => r.Description).HasMaxLength(1000);
-                b.HasIndex(r => r.TenantId);
-            });
-
-            modelBuilder.Entity<LocalPermission>(b =>
-            {
-                b.HasKey(p => p.Id);
-                b.Property(p => p.Code).IsRequired().HasMaxLength(200);
-                b.Property(p => p.Description).HasMaxLength(1000);
-                b.HasIndex(p => p.TenantId);
-            });
+            // Local cached entities removed - single source of truth for auth is enforced
 
             modelBuilder.Entity<Domain.Common.TenantSubscription>(b =>
             {
@@ -187,7 +160,9 @@ namespace HMS.API.Infrastructure.Auth
 
         private static void ApplyTenantQueryFilter<TEntity>(ModelBuilder builder) where TEntity : BaseEntity
         {
-            builder.Entity<TEntity>().HasQueryFilter(e => e.TenantId == null || e.TenantId == CurrentTenantAccessor.CurrentTenantId);
+            // If CurrentTenantAccessor.CurrentTenantId is null (central/super-admin context) then do not restrict by tenant.
+            // If it has a value, restrict entities to that tenant only.
+            builder.Entity<TEntity>().HasQueryFilter(e => CurrentTenantAccessor.CurrentTenantId == null || e.TenantId == CurrentTenantAccessor.CurrentTenantId);
         }
 
         public override int SaveChanges()

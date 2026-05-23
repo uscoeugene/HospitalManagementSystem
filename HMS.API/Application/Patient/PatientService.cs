@@ -79,6 +79,103 @@ namespace HMS.API.Application.Patient
             return MapToVitalSignResponse(vs);
         }
 
+        private static ConsultationResponse MapToConsultationResponse(HMS.API.Domain.Patient.Consultation c)
+        {
+            return new ConsultationResponse
+            {
+                Id = c.Id,
+                PatientId = c.PatientId,
+                VisitId = c.VisitId,
+                DoctorId = c.DoctorId,
+                ConsultationAt = c.ConsultationAt,
+                FollowUpAt = c.FollowUpAt,
+                ChiefComplaint = c.ChiefComplaint,
+                HistoryOfPresentIllness = c.HistoryOfPresentIllness,
+                PhysicalExamination = c.PhysicalExamination,
+                DiagnosisCodes = c.DiagnosisCodes,
+                Procedures = c.Procedures,
+                Notes = c.Notes,
+                Status = c.Status
+            };
+        }
+
+        public async Task<ConsultationResponse> AddConsultationAsync(Guid patientId, CreateConsultationRequest request)
+        {
+            var patient = await _db.Patients.SingleOrDefaultAsync(p => p.Id == patientId);
+            if (patient == null) throw new InvalidOperationException("Patient not found");
+
+            if (request.VisitId == Guid.Empty) throw new InvalidOperationException("VisitId is required");
+            var visit = await _db.Visits.SingleOrDefaultAsync(v => v.Id == request.VisitId && !v.IsDeleted);
+            if (visit == null) throw new InvalidOperationException("Visit not found");
+            if (visit.PatientId != patientId) throw new InvalidOperationException("Visit does not belong to patient");
+
+            var c = new HMS.API.Domain.Patient.Consultation
+            {
+                PatientId = patientId,
+                VisitId = request.VisitId,
+                DoctorId = request.DoctorId,
+                ConsultationAt = request.ConsultationAt,
+                FollowUpAt = request.FollowUpAt,
+                ChiefComplaint = request.ChiefComplaint,
+                HistoryOfPresentIllness = request.HistoryOfPresentIllness,
+                PhysicalExamination = request.PhysicalExamination,
+                DiagnosisCodes = request.DiagnosisCodes,
+                Procedures = request.Procedures,
+                Notes = request.Notes,
+                Status = string.IsNullOrWhiteSpace(request.Status) ? "Pending" : request.Status
+            };
+
+            _db.Set<HMS.API.Domain.Patient.Consultation>().Add(c);
+            await _db.SaveChangesAsync();
+            return MapToConsultationResponse(c);
+        }
+
+        public async Task DeleteConsultationAsync(Guid id)
+        {
+            var c = await _db.Set<HMS.API.Domain.Patient.Consultation>().SingleOrDefaultAsync(x => x.Id == id && !x.IsDeleted);
+            if (c == null) throw new InvalidOperationException("Consultation not found");
+            c.SoftDelete();
+            await _db.SaveChangesAsync();
+        }
+
+        public async Task<ConsultationResponse?> GetConsultationAsync(Guid id)
+        {
+            var c = await _db.Set<HMS.API.Domain.Patient.Consultation>().AsNoTracking().SingleOrDefaultAsync(x => x.Id == id && !x.IsDeleted);
+            if (c == null) return null;
+            return MapToConsultationResponse(c);
+        }
+
+        public async Task<ConsultationResponse[]> ListConsultationsForVisitAsync(Guid visitId)
+        {
+            var list = await _db.Set<HMS.API.Domain.Patient.Consultation>().AsNoTracking().Where(c => !c.IsDeleted && c.VisitId == visitId).OrderByDescending(c => c.ConsultationAt).ToListAsync();
+            return list.Select(MapToConsultationResponse).ToArray();
+        }
+
+        public async Task<ConsultationResponse> UpdateConsultationAsync(Guid id, CreateConsultationRequest request)
+        {
+            var c = await _db.Set<HMS.API.Domain.Patient.Consultation>().SingleOrDefaultAsync(x => x.Id == id && !x.IsDeleted);
+            if (c == null) throw new InvalidOperationException("Consultation not found");
+
+            var visit = await _db.Visits.SingleOrDefaultAsync(x => x.Id == request.VisitId && !x.IsDeleted);
+            if (visit == null) throw new InvalidOperationException("Visit not found");
+            if (visit.PatientId != c.PatientId) throw new InvalidOperationException("Visit does not belong to same patient");
+
+            c.VisitId = request.VisitId;
+            c.DoctorId = request.DoctorId;
+            c.ConsultationAt = request.ConsultationAt;
+            c.FollowUpAt = request.FollowUpAt;
+            c.ChiefComplaint = request.ChiefComplaint;
+            c.HistoryOfPresentIllness = request.HistoryOfPresentIllness;
+            c.PhysicalExamination = request.PhysicalExamination;
+            c.DiagnosisCodes = request.DiagnosisCodes;
+            c.Procedures = request.Procedures;
+            c.Notes = request.Notes;
+            c.Status = string.IsNullOrWhiteSpace(request.Status) ? c.Status : request.Status;
+
+            await _db.SaveChangesAsync();
+            return MapToConsultationResponse(c);
+        }
+
         public async Task<VitalSignResponse?> GetVitalSignAsync(Guid id)
         {
             var v = await _db.Set<HMS.API.Domain.Patient.VitalSign>().AsNoTracking().SingleOrDefaultAsync(x => x.Id == id && !x.IsDeleted);

@@ -36,6 +36,7 @@ namespace HMS.UI.Models
         public VisitViewModel? Visit { get; set; }
         public PatientDetailsViewModel? Patient { get; set; }
         public VitalSignListItem[] RecentVitals { get; set; } = Array.Empty<VitalSignListItem>();
+        public ConsultationViewModel[] Consultations { get; set; } = Array.Empty<ConsultationViewModel>();
     }
 
     public class EnterVitalsPageViewModel
@@ -44,6 +45,39 @@ namespace HMS.UI.Models
         public PatientDetailsViewModel? Patient { get; set; }
         public VisitViewModel? Visit { get; set; }
         public VitalSignListItem[] RecentVitals { get; set; } = Array.Empty<VitalSignListItem>();
+    }
+
+    public class ConsultationViewModel
+    {
+        public Guid Id { get; set; }
+        public Guid PatientId { get; set; }
+        public Guid VisitId { get; set; }
+        public Guid? DoctorId { get; set; }
+        public DateTimeOffset ConsultationAt { get; set; }
+        public DateTimeOffset? FollowUpAt { get; set; }
+        public string? ChiefComplaint { get; set; }
+        public string? HistoryOfPresentIllness { get; set; }
+        public string? PhysicalExamination { get; set; }
+        public string? DiagnosisCodes { get; set; }
+        public string? Procedures { get; set; }
+        public string? Notes { get; set; }
+        public string? Status { get; set; }
+    }
+
+    public class CreateConsultationViewModel
+    {
+        public Guid PatientId { get; set; }
+        public Guid VisitId { get; set; }
+        public Guid? DoctorId { get; set; }
+        public DateTimeOffset ConsultationAt { get; set; } = DateTimeOffset.UtcNow;
+        public DateTimeOffset? FollowUpAt { get; set; }
+        public string? ChiefComplaint { get; set; }
+        public string? HistoryOfPresentIllness { get; set; }
+        public string? PhysicalExamination { get; set; }
+        public string? DiagnosisCodes { get; set; }
+        public string? Procedures { get; set; }
+        public string? Notes { get; set; }
+        public string? Status { get; set; }
     }
 
     public class PatientListItemViewModel

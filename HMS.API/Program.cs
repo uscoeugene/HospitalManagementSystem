@@ -74,15 +74,12 @@ builder.Services.AddDbContext<AuthDbContext>(options =>
 builder.Services.AddDbContext<HmsDbContext>(options =>
     options.UseSqlServer(conn, sqlOptions => sqlOptions.MigrationsHistoryTable("__HmsMigrationsHistory")));
 
-// Register LocalAuthService after DbContexts to ensure its dependencies are available
-builder.Services.AddScoped<HMS.API.Application.Auth.LocalAuthService>();
 
 // Application services
 builder.Services.AddScoped<IPasswordHasher, PasswordHasher>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 
-// Local token service used for offline tokens - register as singleton (only depends on IConfiguration)
-builder.Services.AddSingleton<HMS.API.Application.Auth.LocalTokenService>();
+// Local auth/token services removed - single source of truth enforced
 
 // Reporting services
 builder.Services.AddScoped<HMS.API.Application.Patient.IPatientReportService, HMS.API.Application.Patient.PatientReportService>();
@@ -114,6 +111,8 @@ builder.Services.AddScoped<HMS.API.Application.Pharmacy.IInventoryService, HMS.A
 
 // Current user
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
+// Tenant provider - single source of tenant metadata for controllers/services
+builder.Services.AddScoped<ITenantProvider, HMS.API.Application.Common.TenantProvider>();
 
 // App settings and tenancy services
 builder.Services.AddMemoryCache();

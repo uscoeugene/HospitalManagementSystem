@@ -43,6 +43,41 @@ public class ApiClient
         return res;
     }
 
+    // Overload allowing custom headers for PUT requests (used to propagate tenant header)
+    public async Task<HttpResponseMessage> PutRawAsync(string path, object payload, System.Collections.Generic.IDictionary<string, string>? headers)
+    {
+        var client = CreateClient();
+
+        var req = new HttpRequestMessage(HttpMethod.Put, path);
+        req.Content = JsonContent.Create(payload);
+
+        // Propagate original request host so API can resolve tenant based on client host
+        try
+        {
+            var incomingHost = GetIncomingHostWithoutPort();
+            if (!string.IsNullOrWhiteSpace(incomingHost))
+            {
+                req.Headers.Host = incomingHost;
+                if (!req.Headers.Contains("X-Forwarded-Host")) req.Headers.TryAddWithoutValidation("X-Forwarded-Host", incomingHost);
+            }
+        }
+        catch { }
+
+        if (headers != null)
+        {
+            foreach (var kv in headers)
+            {
+                if (!string.IsNullOrWhiteSpace(kv.Key) && !string.IsNullOrWhiteSpace(kv.Value))
+                    req.Headers.TryAddWithoutValidation(kv.Key, kv.Value);
+            }
+        }
+
+        await CaptureDebugRequestAsync(req, payload);
+        var res = await client.SendAsync(req);
+        await CaptureDebugResponseAsync(res);
+        return res;
+    }
+
     public async Task<HttpResponseMessage> DeleteRawAsync(string path)
     {
         var client = CreateClient();
@@ -164,14 +199,24 @@ public class ApiClient
             client.DefaultRequestHeaders.Authorization =
                 new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
         }
-
-        // If UI has tenant cookie, propagate to API as header so API can resolve tenant when needed
+        
+        // Prefer server-resolved tenant id from middleware (HttpContext.Items) and send as header.
         try
         {
-            var tenantCookie = _ctx.HttpContext?.Request?.Cookies["HmsTenantId"] ?? string.Empty;
-            if (!string.IsNullOrWhiteSpace(tenantCookie) && !client.DefaultRequestHeaders.Contains("X-Tenant-Id"))
+            var ctx = _ctx.HttpContext;
+            if (ctx != null && ctx.Items.TryGetValue("TenantId", out var tidObj) && tidObj is Guid tid)
             {
-                client.DefaultRequestHeaders.TryAddWithoutValidation("X-Tenant-Id", tenantCookie);
+                if (!client.DefaultRequestHeaders.Contains("X-Tenant-Id"))
+                    client.DefaultRequestHeaders.TryAddWithoutValidation("X-Tenant-Id", tid.ToString());
+            }
+            else
+            {
+                // Fallback: if no middleware-resolved tenant, optionally propagate tenant cookie (less secure)
+                var tenantCookie = ctx?.Request?.Cookies["HmsTenantId"] ?? string.Empty;
+                if (!string.IsNullOrWhiteSpace(tenantCookie) && !client.DefaultRequestHeaders.Contains("X-Tenant-Id"))
+                {
+                    client.DefaultRequestHeaders.TryAddWithoutValidation("X-Tenant-Id", tenantCookie);
+                }
             }
         }
         catch { }
@@ -313,8 +358,8 @@ public class ApiClient
         // If response is unsuccessful, try to extract meaningful error from ApiResponse or other shapes
         if (!res.IsSuccessStatusCode)
         {
-            // treat common auth failures as null for callers
-            if (res.StatusCode == System.Net.HttpStatusCode.Unauthorized || res.StatusCode == System.Net.HttpStatusCode.Forbidden)
+            // treat common auth failures and resource-missing as null for callers
+            if (res.StatusCode == System.Net.HttpStatusCode.Unauthorized || res.StatusCode == System.Net.HttpStatusCode.Forbidden || res.StatusCode == System.Net.HttpStatusCode.NotFound)
                 return default;
 
             try
@@ -524,21 +569,53 @@ public class ApiClient
             var tenantNameExists = !string.IsNullOrWhiteSpace(httpContext.Request.Cookies["HmsTenantName"]);
             if (!tenantNameExists && !string.IsNullOrWhiteSpace(tenantId))
             {
-                var client = _factory.CreateClient("HmsApi");
-                var tenantResp = await client.GetAsync($"/tenants/{tenantId}");
-                if (tenantResp.IsSuccessStatusCode)
+                try
                 {
-                    var json = await tenantResp.Content.ReadAsStringAsync();
+                    var client = _factory.CreateClient("HmsApi");
+
+                    // If we have an access token from the auth response, use it for the tenant lookup
+                    if (!string.IsNullOrWhiteSpace(accessToken))
+                    {
+                        client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
+                    }
+
+                    // Propagate original incoming host so API can resolve tenant by host when needed
                     try
                     {
-                        using var jd = System.Text.Json.JsonDocument.Parse(json);
-                        var rootElem = jd.RootElement;
-                        if (rootElem.TryGetProperty("name", out var n) && n.ValueKind == System.Text.Json.JsonValueKind.String)
+                        var incomingHost = GetIncomingHostWithoutPort();
+                        if (!string.IsNullOrWhiteSpace(incomingHost))
                         {
-                            httpContext.Response.Cookies.Append("HmsTenantName", n.GetString() ?? string.Empty, cookieOptions);
+                            client.DefaultRequestHeaders.Host = incomingHost;
+                            if (!client.DefaultRequestHeaders.Contains("X-Forwarded-Host")) client.DefaultRequestHeaders.TryAddWithoutValidation("X-Forwarded-Host", incomingHost);
                         }
                     }
                     catch { }
+
+                    // Also add X-Tenant-Id header so tenant endpoint can be resolved without relying on host
+                    if (!client.DefaultRequestHeaders.Contains("X-Tenant-Id"))
+                    {
+                        client.DefaultRequestHeaders.TryAddWithoutValidation("X-Tenant-Id", tenantId);
+                    }
+
+                    var tenantResp = await client.GetAsync($"/tenants/{tenantId}");
+                    if (tenantResp.IsSuccessStatusCode)
+                    {
+                        var json = await tenantResp.Content.ReadAsStringAsync();
+                        try
+                        {
+                            using var jd = System.Text.Json.JsonDocument.Parse(json);
+                            var rootElem = jd.RootElement;
+                            if (rootElem.TryGetProperty("name", out var n) && n.ValueKind == System.Text.Json.JsonValueKind.String)
+                            {
+                                httpContext.Response.Cookies.Append("HmsTenantName", n.GetString() ?? string.Empty, cookieOptions);
+                            }
+                        }
+                        catch { }
+                    }
+                }
+                catch
+                {
+                    // ignore tenant lookup errors
                 }
             }
                 // If we still don't have a tenant name but we had a tenant id, set a short-lived flag cookie

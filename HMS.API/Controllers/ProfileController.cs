@@ -1,6 +1,7 @@
 using System;
 using System.Threading.Tasks;
 using HMS.API.Application.Profile;
+using Microsoft.EntityFrameworkCore;
 using HMS.API.Application.Profile.DTOs;
 using HMS.API.Application.Common;
 using Microsoft.AspNetCore.Authorization;
@@ -21,6 +22,14 @@ namespace HMS.API.Controllers
             _profiles = profiles;
             _currentUser = currentUser;
             _authorization = authorization;
+        }
+
+        // GET /api/profile/providers
+        [HttpGet("providers")]
+        public async Task<ActionResult> Providers()
+        {
+            var list = await _profiles.ListProvidersAsync();
+            return Ok(list);
         }
 
         // GET /api/profile/me
@@ -62,6 +71,19 @@ namespace HMS.API.Controllers
             // Non-owner: require PROFILE.READ permission
             var authResult = await _authorization.AuthorizeAsync(User, "PROFILE.READ");
             if (!authResult.Succeeded) return Forbid();
+
+            // If caller is tenant-scoped, ensure the requested user belongs to same tenant
+            var callerTenant = _currentUser.TenantId;
+            if (callerTenant.HasValue)
+            {
+                var authDb = HttpContext.RequestServices.GetService(typeof(HMS.API.Infrastructure.Auth.AuthDbContext)) as HMS.API.Infrastructure.Auth.AuthDbContext;
+                if (authDb != null)
+                {
+                    var targetUser = await authDb.Users.AsNoTracking().SingleOrDefaultAsync(u => u.Id == userId);
+                    if (targetUser == null) return NotFound();
+                    if (targetUser.TenantId != callerTenant) return Forbid();
+                }
+            }
 
             var profile = await _profiles.GetByUserIdAsync(userId);
             if (profile == null) return NotFound();
