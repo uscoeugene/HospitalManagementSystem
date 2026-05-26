@@ -143,5 +143,65 @@ namespace HMS.API.Controllers
 
             return Ok(new { user.Id, user.Username, user.Email, user.TenantId, user.IsLocked });
         }
+
+        // POST auth/users/{id}/reset-password
+        [HttpPost("{id}/reset-password")]
+        [HasPermission("users.manage")]
+        public async Task<IActionResult> ResetPassword(Guid id, [FromBody] ResetPasswordRequest req)
+        {
+            var user = await _authDb.Users.SingleOrDefaultAsync(u => u.Id == id);
+            if (user == null) return NotFound(new { error = "User not found" });
+
+            user.PasswordHash = req.NewPasswordHash ?? string.Empty;
+            // If a plain password supplied, hash it
+            if (!string.IsNullOrWhiteSpace(req.NewPasswordPlain))
+            {
+                // Use configured hasher from DI
+                var hasher = HttpContext.RequestServices.GetService(typeof(HMS.API.Application.Auth.IPasswordHasher)) as HMS.API.Application.Auth.IPasswordHasher;
+                if (hasher != null)
+                {
+                    user.PasswordHash = hasher.Hash(req.NewPasswordPlain);
+                }
+            }
+
+            user.IsLocked = false;
+            user.LockedUntil = null;
+            await _authDb.SaveChangesAsync();
+            return NoContent();
+        }
+
+        public class ResetPasswordRequest
+        {
+            public string? NewPasswordHash { get; set; }
+            public string? NewPasswordPlain { get; set; }
+        }
+
+        // POST auth/users/{id}/lock
+        [HttpPost("{id}/lock")]
+        [HasPermission("users.manage")]
+        public async Task<IActionResult> LockUser(Guid id, [FromBody] LockRequest req)
+        {
+            var user = await _authDb.Users.SingleOrDefaultAsync(u => u.Id == id);
+            if (user == null) return NotFound(new { error = "User not found" });
+            user.IsLocked = true;
+            if (req.LockedUntil.HasValue) user.LockedUntil = req.LockedUntil.Value;
+            await _authDb.SaveChangesAsync();
+            return NoContent();
+        }
+
+        // POST auth/users/{id}/unlock
+        [HttpPost("{id}/unlock")]
+        [HasPermission("users.manage")]
+        public async Task<IActionResult> UnlockUser(Guid id)
+        {
+            var user = await _authDb.Users.SingleOrDefaultAsync(u => u.Id == id);
+            if (user == null) return NotFound(new { error = "User not found" });
+            user.IsLocked = false;
+            user.LockedUntil = null;
+            await _authDb.SaveChangesAsync();
+            return NoContent();
+        }
+
+        public class LockRequest { public DateTimeOffset? LockedUntil { get; set; } }
     }
 }

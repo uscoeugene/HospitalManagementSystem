@@ -13,10 +13,23 @@ namespace HMS.API.Domain.Lab
         CANCELLED
     }
 
+    public enum LabResultStatus
+    {
+        PENDING,
+        RESULTED,
+        VERIFIED,
+        AMENDED
+    }
+
     public class LabRequest : BaseEntity
     {
         public Guid PatientId { get; set; }
         public Guid? VisitId { get; set; }
+        // Human-readable request/code (e.g. LR-20240501-xxx)
+        public string RequestNumber { get; set; } = string.Empty;
+
+        // Linked invoice created when charging the lab request (optional)
+        public Guid? InvoiceId { get; set; }
 
         public LabRequestStatus Status { get; set; } = LabRequestStatus.ORDERED;
 
@@ -35,5 +48,17 @@ namespace HMS.API.Domain.Lab
         public string Currency { get; set; } = "USD";
 
         public Guid? ChargeInvoiceItemId { get; set; } // reference to billing invoice item if created
+
+        public LabResultStatus ResultStatus { get; set; } = LabResultStatus.PENDING;
+        public string? ResultValue { get; set; }
+        public string? ResultUnit { get; set; }
+        public string? ReferenceRange { get; set; }
+        public string? AbnormalFlag { get; set; }
+        public string? ResultNotes { get; set; }
+        public string? ResultAttachmentUrl { get; set; }
+        public DateTimeOffset? ResultedAt { get; set; }
+        public Guid? ResultedByUserId { get; set; }
+        public DateTimeOffset? VerifiedAt { get; set; }
+        public Guid? VerifiedByUserId { get; set; }
     }
 }

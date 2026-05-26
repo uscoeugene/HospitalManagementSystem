@@ -24,6 +24,84 @@ namespace HMS.UI.Controllers
             return View(vm);
         }
 
+        [HttpGet]
+        [HMS.UI.Security.HasPermission("PROFILE.MANAGE")]
+        public IActionResult Security()
+        {
+            return View();
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        [HMS.UI.Security.HasPermission("PROFILE.MANAGE")]
+        public async Task<IActionResult> ChangePassword([FromForm] string currentPassword, [FromForm] string newPassword, [FromForm] string confirmPassword)
+        {
+            if (string.IsNullOrWhiteSpace(currentPassword) || string.IsNullOrWhiteSpace(newPassword))
+            {
+                TempData["Error"] = "Current and new password are required";
+                return RedirectToAction("Security");
+            }
+
+            if (newPassword != confirmPassword)
+            {
+                TempData["Error"] = "New passwords do not match";
+                return RedirectToAction("Security");
+            }
+
+            try
+            {
+                await _api.PostAsync<object>("/auth/change-password", new { CurrentPassword = currentPassword, NewPassword = newPassword });
+                TempData["Success"] = "Password changed";
+            }
+            catch (Exception ex)
+            {
+                TempData["Error"] = ex.Message;
+            }
+
+            return RedirectToAction("Security");
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        [HMS.UI.Security.HasPermission("PROFILE.MANAGE")]
+        public async Task<IActionResult> UploadAvatar()
+        {
+            var file = Request.Form.Files.FirstOrDefault();
+            if (file == null)
+            {
+                TempData["Error"] = "File required";
+                return RedirectToAction("Me");
+            }
+
+            try
+            {
+                var resp = await _api.PostFileAsync("/api/profile/me/photo", file);
+                if (!resp.IsSuccessStatusCode)
+                {
+                    var body = await resp.Content.ReadAsStringAsync();
+                    TempData["Error"] = "Upload failed: " + body;
+                    return RedirectToAction("Me");
+                }
+
+                var json = await resp.Content.ReadAsStringAsync();
+                try
+                {
+                    using var jd = System.Text.Json.JsonDocument.Parse(json);
+                    if (jd.RootElement.TryGetProperty("url", out var u))
+                    {
+                        TempData["Success"] = "Avatar uploaded";
+                    }
+                }
+                catch { }
+            }
+            catch (Exception ex)
+            {
+                TempData["Error"] = ex.Message;
+            }
+
+            return RedirectToAction("Me");
+        }
+
         [HttpPost]
         [ValidateAntiForgeryToken]
         [HMS.UI.Security.HasPermission("PROFILE.MANAGE")]

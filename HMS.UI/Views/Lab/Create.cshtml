@@ -1,0 +1,97 @@
+@model HMS.UI.Models.Lab.LabTestViewModel
+@{
+    Layout = "~/Pages/_Layout.cshtml";
+    ViewData["Title"] = "Create Lab Test";
+}
+
+<div class="container py-4">
+
+    <!-- Page Header -->
+    <div class="d-flex align-items-center justify-content-between mb-4">
+        <div>
+            <h3 class="mb-0">
+                <i class="bi bi-clipboard2-plus me-2 text-primary"></i>
+                Create Lab Test
+            </h3>
+            <small class="text-muted">Add a new laboratory test to the system</small>
+        </div>
+    </div>
+
+    <!-- Card -->
+    <div class="card shadow-sm border-0">
+        <div class="card-body p-4">
+
+            <form method="post">
+                @Html.AntiForgeryToken()
+
+                <div class="row g-3">
+
+                    <!-- Code -->
+                    <div class="col-md-6">
+                        <label class="form-label">
+                            <i class="bi bi-upc-scan me-1"></i> Code
+                        </label>
+                        <div class="input-group">
+                            <span class="input-group-text">
+                                <i class="bi bi-hash"></i>
+                            </span>
+                            <input asp-for="Code" class="form-control" placeholder="e.g. LAB-001" />
+                        </div>
+                    </div>
+
+                    <!-- Name -->
+                    <div class="col-md-6">
+                        <label class="form-label">
+                            <i class="bi bi-type me-1"></i> Name
+                        </label>
+                        <div class="input-group">
+                            <span class="input-group-text">
+                                <i class="bi bi-flask"></i>
+                            </span>
+                            <input asp-for="Name" class="form-control" placeholder="e.g. Full Blood Count" />
+                        </div>
+                    </div>
+
+                    <!-- Price -->
+                    <div class="col-md-6">
+                        <label class="form-label">
+                            <i class="bi bi-cash-coin me-1"></i> Price
+                        </label>
+                        <div class="input-group">
+                            <span class="input-group-text">
+                                <i class="bi bi-currency-dollar"></i>
+                            </span>
+                            <input asp-for="Price" class="form-control" placeholder="0.00" />
+                        </div>
+                    </div>
+
+                    <!-- Currency -->
+                    <div class="col-md-6">
+                        <label class="form-label">
+                            <i class="bi bi-coin me-1"></i> Currency
+                        </label>
+                        <div class="input-group">
+                            <span class="input-group-text">
+                                <i class="bi bi-globe"></i>
+                            </span>
+                            <input asp-for="Currency" class="form-control" placeholder="e.g. NGN, USD" />
+                        </div>
+                    </div>
+
+                </div>
+
+                <!-- Actions -->
+                <div class="d-flex justify-content-end gap-2 mt-4 pt-3 border-top">
+                    <a href="javascript:history.back()" class="btn btn-light">
+                        <i class="bi bi-x-circle me-1"></i> Cancel
+                    </a>
+
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-check2-circle me-1"></i> Create Lab Test
+                    </button>
+                </div>
+
+            </form>
+        </div>
+    </div>
+</div>

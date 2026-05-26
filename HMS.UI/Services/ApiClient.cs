@@ -9,15 +9,76 @@ public class ApiClient
 {
     private readonly IHttpClientFactory _factory;
     private readonly IHttpContextAccessor _ctx;
+    private readonly ILogger<ApiClient> _logger;
     // lightweight in-memory debug info (development only)
     private ApiClientDebugInfo? _lastDebug;
     // global last debug across requests (dev-only helper)
     private static ApiClientDebugInfo? _globalLastDebug;
 
-    public ApiClient(IHttpClientFactory factory, IHttpContextAccessor ctx)
+    public ApiClient(IHttpClientFactory factory, IHttpContextAccessor ctx, ILogger<ApiClient> logger)
     {
         _factory = factory;
         _ctx = ctx;
+        _logger = logger;
+    }
+
+    /// <summary>
+    /// Convert a potentially-relative URL returned by the API into an absolute URL that the browser can load.
+    /// If the provided url is already absolute (starts with http) it is returned unchanged.
+    /// Falls back to using the configured HttpClient BaseAddress; if that's not available the current request's scheme/host is used.
+    /// </summary>
+    public string? MakeAbsoluteUrl(string? url)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(url)) return null;
+            var trimmed = url.Trim();
+            if (trimmed.StartsWith("http://", StringComparison.OrdinalIgnoreCase) || trimmed.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+                return trimmed;
+
+            // Try client BaseAddress
+            try
+            {
+                var client = _factory.CreateClient("HmsApi");
+                var baseAddr = client.BaseAddress?.ToString()?.TrimEnd('/');
+                if (!string.IsNullOrWhiteSpace(baseAddr))
+                {
+                    if (trimmed.StartsWith("/")) return baseAddr + trimmed;
+                    return baseAddr + "/" + trimmed;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "Failed to build absolute URL from API base address");
+            }
+
+            // Fallback to incoming request scheme/host
+            try
+            {
+                var ctx = _ctx.HttpContext;
+                if (ctx != null)
+                {
+                    var scheme = ctx.Request.Scheme ?? "https";
+                    var host = ctx.Request.Host.Value ?? ctx.Request.Host.Host;
+                    if (!string.IsNullOrWhiteSpace(host))
+                    {
+                        if (trimmed.StartsWith("/")) return scheme + "://" + host + trimmed;
+                        return scheme + "://" + host + "/" + trimmed;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "Failed to build absolute URL from current request host");
+            }
+
+            return trimmed;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to normalize URL {Url}", url);
+            return url;
+        }
     }
 
     public async Task<HttpResponseMessage> PutRawAsync(string path, object payload)
@@ -35,12 +96,73 @@ public class ApiClient
                 if (!req.Headers.Contains("X-Forwarded-Host")) req.Headers.TryAddWithoutValidation("X-Forwarded-Host", incomingHost);
             }
         }
-        catch { }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Failed to propagate tenant host headers for PUT {Path}", path);
+        }
 
         await CaptureDebugRequestAsync(req, payload);
         var res = await client.SendAsync(req);
         await CaptureDebugResponseAsync(res);
         return res;
+    }
+
+    // Upload a single file with optional additional form fields and headers
+    public async Task<HttpResponseMessage> PostFileAsync(string path, IFormFile file, System.Collections.Generic.IDictionary<string, string>? formFields = null, System.Collections.Generic.IDictionary<string, string>? headers = null)
+    {
+        var client = CreateClient();
+        var req = new HttpRequestMessage(HttpMethod.Post, path);
+
+        try
+        {
+            var incomingHost = GetIncomingHostWithoutPort();
+            if (!string.IsNullOrWhiteSpace(incomingHost))
+            {
+                req.Headers.Host = incomingHost;
+                if (!req.Headers.Contains("X-Forwarded-Host")) req.Headers.TryAddWithoutValidation("X-Forwarded-Host", incomingHost);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Failed to propagate tenant host headers for file upload {Path}", path);
+        }
+
+        if (headers != null)
+        {
+            foreach (var kv in headers)
+            {
+                if (!string.IsNullOrWhiteSpace(kv.Key) && !string.IsNullOrWhiteSpace(kv.Value))
+                    req.Headers.TryAddWithoutValidation(kv.Key, kv.Value);
+            }
+        }
+
+        var content = new MultipartFormDataContent();
+        try
+        {
+            var stream = file.OpenReadStream();
+            var fileContent = new StreamContent(stream);
+            fileContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(file.ContentType ?? "application/octet-stream");
+            content.Add(fileContent, "file", file.FileName);
+
+            if (formFields != null)
+            {
+                foreach (var f in formFields)
+                {
+                    content.Add(new StringContent(f.Value ?? string.Empty), f.Key);
+                }
+            }
+
+            req.Content = content;
+            await CaptureDebugRequestAsync(req, null);
+            var res = await client.SendAsync(req);
+            await CaptureDebugResponseAsync(res);
+            return res;
+        }
+        catch
+        {
+            content.Dispose();
+            throw;
+        }
     }
 
     // Overload allowing custom headers for PUT requests (used to propagate tenant header)
@@ -61,7 +183,10 @@ public class ApiClient
                 if (!req.Headers.Contains("X-Forwarded-Host")) req.Headers.TryAddWithoutValidation("X-Forwarded-Host", incomingHost);
             }
         }
-        catch { }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Failed to propagate tenant host headers for PUT {Path}", path);
+        }
 
         if (headers != null)
         {
@@ -91,7 +216,10 @@ public class ApiClient
                 if (!req.Headers.Contains("X-Forwarded-Host")) req.Headers.TryAddWithoutValidation("X-Forwarded-Host", incomingHost);
             }
         }
-        catch { }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Failed to propagate tenant host headers for DELETE {Path}", path);
+        }
 
         await CaptureDebugRequestAsync(req, null);
         var res = await client.SendAsync(req);
@@ -115,7 +243,10 @@ public class ApiClient
                 if (!req.Headers.Contains("X-Forwarded-Host")) req.Headers.TryAddWithoutValidation("X-Forwarded-Host", incomingHost);
             }
         }
-        catch { }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Failed to propagate tenant host headers for GET {Path}", path);
+        }
 
         await CaptureDebugRequestAsync(req, null);
 
@@ -177,7 +308,10 @@ public class ApiClient
                 if (!req.Headers.Contains("X-Forwarded-Host")) req.Headers.TryAddWithoutValidation("X-Forwarded-Host", incomingHost);
             }
         }
-        catch { }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Failed to propagate tenant host headers for PUT {Path}", path);
+        }
 
         await CaptureDebugRequestAsync(req, payload);
         var res = await client.SendAsync(req);
@@ -219,7 +353,10 @@ public class ApiClient
                 }
             }
         }
-        catch { }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Failed to propagate tenant id header from current request");
+        }
 
         return client;
     }
@@ -230,8 +367,9 @@ public class ApiClient
         {
             return _ctx.HttpContext?.Request?.Cookies["HmsAuth"] ?? string.Empty;
         }
-        catch
+        catch (Exception ex)
         {
+            _logger.LogDebug(ex, "Failed to read auth token cookie");
             return string.Empty;
         }
     }
@@ -250,7 +388,11 @@ public class ApiClient
             var idx = raw.IndexOf(':');
             return idx > 0 ? raw.Substring(0, idx) : raw;
         }
-        catch { return null; }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Failed to read incoming host from current request");
+            return null;
+        }
     }
 
     private async Task CaptureDebugRequestAsync(HttpRequestMessage req, object? payload)
@@ -289,9 +431,12 @@ public class ApiClient
                 RequestHeaders = headers,
                 RequestBody = body
             };
-            try { _globalLastDebug = _lastDebug; } catch { }
+            _globalLastDebug = _lastDebug;
         }
-        catch { }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Failed to capture API request debug info");
+        }
     }
 
     private async Task CaptureDebugResponseAsync(HttpResponseMessage res)
@@ -309,9 +454,12 @@ public class ApiClient
             _lastDebug.ResponseStatus = (int)res.StatusCode;
             _lastDebug.ResponseHeaders = headers;
             _lastDebug.ResponseBody = body;
-            try { _globalLastDebug = _lastDebug; } catch { }
+            _globalLastDebug = _lastDebug;
         }
-        catch { }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Failed to capture API response debug info");
+        }
     }
 
     public class ApiClientDebugInfo
@@ -341,7 +489,10 @@ public class ApiClient
                 if (!req.Headers.Contains("X-Forwarded-Host")) req.Headers.TryAddWithoutValidation("X-Forwarded-Host", incomingHost);
             }
         }
-        catch { }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Failed to propagate tenant host headers for POST {Path}", path);
+        }
 
         await CaptureDebugRequestAsync(req, payload);
         var res = await client.SendAsync(req);
@@ -377,7 +528,10 @@ public class ApiClient
                     }
                 }
             }
-            catch { }
+            catch (System.Text.Json.JsonException ex)
+            {
+                _logger.LogDebug(ex, "Failed to parse unsuccessful API response body as JSON");
+            }
 
             var friendly = ExtractErrorMessage(raw);
             throw new Exception($"API Error: {res.StatusCode} - {friendly}");
@@ -413,7 +567,10 @@ public class ApiClient
                 }
             }
         }
-        catch { }
+        catch (System.Text.Json.JsonException ex)
+        {
+            _logger.LogDebug(ex, "API response was not in the standard envelope shape; falling back to direct deserialization");
+        }
 
         // fallback: deserialize directly to T
         return System.Text.Json.JsonSerializer.Deserialize<T>(raw, new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
@@ -435,7 +592,10 @@ public class ApiClient
                 if (!req.Headers.Contains("X-Forwarded-Host")) req.Headers.TryAddWithoutValidation("X-Forwarded-Host", incomingHost);
             }
         }
-        catch { }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Failed to propagate tenant host headers for POST {Path}", path);
+        }
 
         await CaptureDebugRequestAsync(req, payload);
         var res = await client.SendAsync(req);
@@ -461,7 +621,10 @@ public class ApiClient
                 if (!req.Headers.Contains("X-Forwarded-Host")) req.Headers.TryAddWithoutValidation("X-Forwarded-Host", incomingHost);
             }
         }
-        catch { }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Failed to propagate tenant host headers for POST {Path}", path);
+        }
 
         if (headers != null)
         {
@@ -589,7 +752,10 @@ public class ApiClient
                             if (!client.DefaultRequestHeaders.Contains("X-Forwarded-Host")) client.DefaultRequestHeaders.TryAddWithoutValidation("X-Forwarded-Host", incomingHost);
                         }
                     }
-                    catch { }
+                    catch (Exception ex)
+                    {
+                        _logger.LogDebug(ex, "Failed to propagate tenant host headers for tenant-name lookup");
+                    }
 
                     // Also add X-Tenant-Id header so tenant endpoint can be resolved without relying on host
                     if (!client.DefaultRequestHeaders.Contains("X-Tenant-Id"))
@@ -610,12 +776,15 @@ public class ApiClient
                                 httpContext.Response.Cookies.Append("HmsTenantName", n.GetString() ?? string.Empty, cookieOptions);
                             }
                         }
-                        catch { }
+                            catch (System.Text.Json.JsonException ex)
+                            {
+                                _logger.LogWarning(ex, "Failed to parse tenant details response while setting tenant name cookie");
+                            }
                     }
                 }
-                catch
+                catch (Exception ex)
                 {
-                    // ignore tenant lookup errors
+                    _logger.LogWarning(ex, "Failed to resolve tenant name cookie after login for tenant {TenantId}", tenantId);
                 }
             }
                 // If we still don't have a tenant name but we had a tenant id, set a short-lived flag cookie
@@ -633,9 +802,15 @@ public class ApiClient
                     {
                         httpContext.Response.Cookies.Delete("HmsTenantNameResolveFailed");
                     }
-                    catch { }
+                    catch (Exception ex)
+                    {
+                        _logger.LogDebug(ex, "Failed to clear tenant name resolution marker cookie");
+                    }
                 }
         }
-        catch { }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to process auth response cookies");
+        }
     }
 }

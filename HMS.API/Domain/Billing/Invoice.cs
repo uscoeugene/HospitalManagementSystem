@@ -26,7 +26,13 @@ namespace HMS.API.Domain.Billing
 
         public decimal AmountPaid { get; set; }
 
-        public string Currency { get; set; } = "USD";
+        public string Currency { get; set; } = "NGN";
+
+        // Allow charging this invoice on credit (debtor entries can be created)
+        public bool AllowOnCredit { get; set; } = false;
+
+        // Optional human-readable reason why this invoice was allowed on credit
+        public string? CreditReason { get; set; }
 
         public ICollection<InvoiceItem> Items { get; set; } = new List<InvoiceItem>();
 

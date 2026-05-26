@@ -80,7 +80,11 @@ namespace HMS.API.Infrastructure.Outbox
                                 doc = JsonDocument.Parse(message.Content);
                                 payload = JsonSerializer.Deserialize<object>(message.Content);
                             }
-                            catch { payload = message.Content; }
+                            catch (JsonException ex)
+                            {
+                                _logger.LogWarning(ex, "Outbox message {Id} content is not valid JSON; publishing raw content", message.Id);
+                                payload = message.Content;
+                            }
 
                             // attempt publish with retries
                             try
@@ -108,10 +112,16 @@ namespace HMS.API.Infrastructure.Outbox
                                                 }
                                             }
                                         }
-                                        catch { }
+                                        catch (JsonException ex)
+                                        {
+                                            _logger.LogWarning(ex, "Failed to parse tenant id from outbox message {Id} for push notification", message.Id);
+                                        }
                                     }
                                 }
-                                catch { }
+                                catch (Exception ex)
+                                {
+                                    _logger.LogWarning(ex, "Push notification failed for outbox message {Id}", message.Id);
+                                }
 
                                 // notify in-process listeners
                                 if (notifier != null)

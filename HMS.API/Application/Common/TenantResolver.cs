@@ -18,16 +18,16 @@ namespace HMS.API.Application.Common
         private readonly MemoryCacheEntryOptions _opts;
         private readonly ILogger<TenantResolver> _logger;
 
-        public TenantResolver(IAppSettingsService app, IDeploymentModeResolver mode, IMemoryCache cache, IConfiguration cfg, AuthDbContext db)
+        public TenantResolver(IAppSettingsService app, IDeploymentModeResolver mode, IMemoryCache cache, IConfiguration cfg, AuthDbContext db, ILogger<TenantResolver> logger)
         {
             _app = app;
             _mode = mode;
             _cache = cache;
             _cfg = cfg;
             _db = db;
+            _logger = logger;
             var ttl = cfg.GetValue<int?>("TenantCacheTtlSeconds") ?? 300;
             _opts = new MemoryCacheEntryOptions { AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(ttl) };
-            _logger = LoggerFactory.Create(b => { }).CreateLogger<TenantResolver>();
         }
 
         public async Task<Guid?> ResolveTenantIdAsync()
@@ -93,7 +93,10 @@ namespace HMS.API.Application.Common
                     }
                 }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to resolve tenant from host {Host}", host);
+            }
 
             _cache.Set(key, null as Guid?, _opts);
             return null;

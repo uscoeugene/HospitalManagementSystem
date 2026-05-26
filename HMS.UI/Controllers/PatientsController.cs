@@ -5,6 +5,8 @@ using Microsoft.AspNetCore.Mvc;
 using HMS.UI.Services;
 using System.Text.Json;
 using HMS.UI.Models;
+using HMS.UI.Models.Lab;
+using HMS.UI.Models.Lab;
 using System.Net.Http.Json;
 using HMS.UI.Security;
 
@@ -75,6 +77,33 @@ namespace HMS.UI.Controllers
                     }).ToArray(),
                 Consultations = consultations ?? Array.Empty<HMS.UI.Models.ConsultationViewModel>()
                 };
+
+                // load invoices for this visit so UI can display them in invoices tab
+                try
+                {
+                    var invoicePage = await _api.GetAsync<PagedResult<HMS.UI.Models.Billing.InvoiceViewModel>>($"/billing?visitId={v.Id}&page=1&pageSize=50");
+                    vm.Invoices = invoicePage?.Items ?? Array.Empty<HMS.UI.Models.Billing.InvoiceViewModel>();
+                }
+                catch { vm.Invoices = Array.Empty<HMS.UI.Models.Billing.InvoiceViewModel>(); }
+
+                try
+                {
+                    var labPage = await _api.GetAsync<PagedResult<HMS.UI.Models.Lab.LabRequestViewModel>>($"/lab/requests?visitId={v.Id}&page=1&pageSize=50");
+                    var items = labPage?.Items ?? Array.Empty<HMS.UI.Models.Lab.LabRequestViewModel>();
+
+                    // Enhance display metadata where possible
+                    foreach (var lr in items)
+                    {
+                        lr.ItemsCount = lr.Items != null ? lr.Items.Count() : 0;
+                        lr.ResultsStatus = lr.Items != null && lr.Items.Any(i => !string.Equals(i.ResultStatus, "PENDING", StringComparison.OrdinalIgnoreCase)) ? "Has Results" : "Pending";
+                        // use invoice summary returned by API when available
+                        lr.InvoiceStatus = lr.InvoiceSummary != null ? lr.InvoiceSummary.Status : (lr.Items?.Any(i => i.ChargeInvoiceItemId.HasValue) == true ? "CHARGED" : "UNPAID");
+                        lr.PatientName = vm.Patient != null ? (vm.Patient.FirstName + " " + vm.Patient.LastName).Trim() : lr.PatientName;
+                    }
+
+                    vm.LabRequests = items;
+                }
+                catch { vm.LabRequests = Array.Empty<HMS.UI.Models.Lab.LabRequestViewModel>(); }
 
                 return View(vm);
             }

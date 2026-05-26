@@ -12,6 +12,8 @@ namespace HMS.API.Application.Lab
 
         Task<LabRequestDto> CreateRequestAsync(CreateLabRequest request);
         Task<LabRequestDto?> GetRequestAsync(Guid id);
-        Task<PagedResult<LabRequestDto>> ListRequestsAsync(Guid? patientId = null, string? status = null, int page = 1, int pageSize = 20);
+        Task<PagedResult<LabRequestDto>> ListRequestsAsync(Guid? patientId = null, Guid? visitId = null, string? status = null, int page = 1, int pageSize = 20);
+        Task<LabRequestDto> UpdateResultAsync(Guid requestId, Guid itemId, UpdateLabResultRequest request);
+        Task<LabRequestDto> AttachResultFileAsync(Guid requestId, Guid itemId, string attachmentUrl);
     }
 }

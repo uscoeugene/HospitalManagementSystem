@@ -12,6 +12,75 @@
             <div class="mb-3 mb-md-0">
                 <partial name="_PatientHeader" model="Model.Patient" />
             </div>
+
+@* hidden antiforgery token to clone into modal forms *@
+<div id="af-token" style="display:none">@Html.AntiForgeryToken()</div>
+
+@* Invoice modal (populated by JS) *@
+<div class="modal fade" id="invoiceModal" tabindex="-1" aria-labelledby="invoiceModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="invoiceModalLabel">Invoice</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body" id="invoiceModalBody">
+        <div class="text-center text-muted">Loading...</div>
+      </div>
+      <div class="modal-footer" id="invoiceModalFooter">
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function(){
+    // If server set TempData["ShowInvoiceId"], render modal for that invoice
+    var showId = '@(TempData["ShowInvoiceId"] ?? "")';
+    if(showId){
+        try{
+            var id = showId;
+            fetch('/billing/' + id)
+            .then(function(res){ if(!res.ok) throw new Error('Failed to load invoice'); return res.json(); })
+            .then(function(inv){
+                var body = document.getElementById('invoiceModalBody');
+                var footer = document.getElementById('invoiceModalFooter');
+                body.innerHTML = '';
+                var html = '';
+                html += '<div><strong>Invoice:</strong> ' + (inv.invoiceNumber || '') + '</div>';
+                html += '<div class="mb-2"><strong>Status:</strong> ' + (inv.status || '') + '</div>';
+                html += '<div class="mb-2"><strong>Total:</strong> ' + (inv.totalAmount || 0) + ' ' + (inv.currency||'') + '</div>';
+                html += '<div class="mb-2"><strong>Paid:</strong> ' + (inv.amountPaid || 0) + '</div>';
+                html += '<h6 class="mt-3">Items</h6>';
+                html += '<table class="table"><thead><tr><th>Description</th><th>Unit</th><th>Qty</th><th>Line</th></tr></thead><tbody>';
+                (inv.items||[]).forEach(function(it){ html += '<tr><td>'+ (it.description||'') +'</td><td>'+ (it.unitPrice||'') +'</td><td>'+ (it.quantity||'') +'</td><td>'+ (it.lineTotal||'') +'</td></tr>'; });
+                html += '</tbody></table>';
+                body.innerHTML = html;
+
+                // If unpaid, show payment form in footer
+                footer.innerHTML = '';
+                if((inv.status||'').toUpperCase() !== 'PAID'){
+                    var form = document.createElement('form');
+                    form.method = 'post';
+                    form.action = '/Billing/Pay?id=' + encodeURIComponent(inv.id);
+                    // clone antiforgery token
+                    var af = document.getElementById('af-token');
+                    if(af) form.appendChild(af.firstElementChild.cloneNode(true));
+                    form.innerHTML += '<div class="row g-2 align-items-center"><div class="col"><input name="amount" class="form-control" placeholder="Amount" value="'+((inv.totalAmount||0)-(inv.amountPaid||0))+'" /></div><div class="col"><input name="externalReference" class="form-control" placeholder="External reference (optional)" /></div><div class="col-auto"><button class="btn btn-primary">Pay</button></div></div>';
+                    footer.appendChild(form);
+                } else {
+                    footer.innerHTML = '<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>';
+                }
+
+                var modalEl = document.getElementById('invoiceModal');
+                var modal = new bootstrap.Modal(modalEl);
+                modal.show();
+            })
+            .catch(function(err){ console.warn(err); toastr.error('Could not load invoice details'); });
+        }catch(e){ console.warn(e); }
+    }
+});
+</script>
             <div class="text-md-end mb-3 mb-md-0">
                 <div class="small text-muted-custom">Visit Type: @Model.Visit?.VisitType</div>
                 <div class="small text-muted-custom">@Model.Visit?.VisitAt.ToString("yyyy-MM-dd HH:mm")</div>
@@ -20,6 +89,13 @@
                 <a asp-action="VisitEdit" asp-route-id="@Model.Visit?.Id" class="btn btn-primary-custom btn-sm me-2">
                     <i class="bi bi-pencil"></i> Edit
                 </a>
+                        @* Request Lab button only when patient present *@
+                        @if(Model.Patient != null)
+                        {
+                            <a asp-controller="Lab" asp-action="Request" asp-route-patientId="@Model.Patient?.Id" asp-route-visitId="@Model.Visit?.Id" class="btn btn-outline-info btn-sm me-2">
+                                <i class="bi bi-flask me-1"></i> Request Lab
+                            </a>
+                        }
                 <a asp-action="Visits" asp-route-id="@Model.Visit?.PatientId" class="btn btn-light btn-sm">
                     <i class="bi bi-arrow-left"></i> Back
                 </a>
@@ -39,6 +115,7 @@
                 <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-dx">Diagnosis</a></li>
                 <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-cons">Consultations</a></li>
                 <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-inv">Invoices</a></li>
+                <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-lab">Lab Requests</a></li>
             </ul>
 
             <div class="tab-content">
@@ -51,6 +128,39 @@
                             <i class="bi bi-plus-lg"></i> Add Vitals
                         </a>
                     </div>
+
+                <!-- Lab Requests Tab -->
+                <div id="tab-lab" class="tab-pane fade">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h6 class="mb-0">Lab Requests</h6>
+                        @if (Model.Patient != null)
+                        {
+                            <a asp-controller="Lab" asp-action="Request" asp-route-patientId="@Model.Patient.Id" asp-route-visitId="@Model.Visit?.Id" class="btn btn-sm btn-outline-primary">New Request</a>
+                        }
+                    </div>
+
+                    @if (Model.LabRequests == null || Model.LabRequests.Length == 0)
+                    {
+                        <div class="text-muted-custom">No lab requests for this visit.</div>
+                    }
+                    else
+                    {
+                        <div class="list-group">
+                            @foreach(var lr in Model.LabRequests)
+                            {
+                                <div class="list-group-item d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <div class="fw-semibold">@(lr.CreatedAt.HasValue ? lr.CreatedAt.Value.ToLocalTime().ToString("yyyy-MM-dd HH:mm") : lr.Id.ToString()) - @(lr.PatientName ?? "")</div>
+                                        <div class="small text-muted">Status: @lr.Status • Invoice: @(lr.InvoiceStatus ?? "-") • Items: @lr.ItemsCount • Results: @(lr.ResultsStatus ?? "-")</div>
+                                    </div>
+                                    <div>
+                                        <a asp-controller="Lab" asp-action="Details" asp-route-id="@lr.Id" class="btn btn-sm btn-outline-secondary me-2">View</a>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
 
                     @if (Model.RecentVitals == null || Model.RecentVitals.Length == 0)
                     {
@@ -141,8 +251,32 @@
 
                 <!-- Invoices Tab -->
                 <div id="tab-inv" class="tab-pane fade">
-                  
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h6 class="mb-0">Invoices</h6>
+                    </div>
+
+                    @if (Model.Invoices == null || Model.Invoices.Length == 0)
+                    {
                         <div class="text-muted-custom">No invoices recorded for this visit.</div>
+                    }
+                    else
+                    {
+                        <div class="list-group">
+                            @foreach(var inv in Model.Invoices)
+                            {
+                                <div class="list-group-item d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <div class="fw-semibold">@inv.InvoiceNumber</div>
+                                        <div class="small text-muted">Total: @inv.TotalAmount @inv.Currency • Paid: @inv.AmountPaid</div>
+                                    </div>
+                                    <div>
+                                        <a href="/Billing/Details?id=@inv.Id" class="btn btn-sm btn-outline-secondary me-2">View</a>
+                                        <a href="/Billing/Details?id=@inv.Id" class="btn btn-sm btn-primary">Pay</a>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    }
                  
                 </div>
 

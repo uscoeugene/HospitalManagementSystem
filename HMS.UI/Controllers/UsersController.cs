@@ -43,22 +43,34 @@ namespace HMS.UI.Controllers
             }
         }
 
-        public async Task<IActionResult> Index()
+        public async Task<IActionResult> Index(int page = 1, int pageSize = 50, string? search = null)
         {
             try
             {
-                var raw = await _api.GetAsync<System.Text.Json.JsonElement>("/auth/users");
-                var list = new System.Collections.Generic.List<HMS.UI.Models.Users.UserListItemViewModel>();
+                // call API with paging params (API already supports tenancy-aware listing)
+                var q = $"/auth/users?page={page}&pageSize={pageSize}" + (string.IsNullOrWhiteSpace(search) ? string.Empty : "&search=" + System.Uri.EscapeDataString(search));
+                var raw = await _api.GetAsync<System.Text.Json.JsonElement>(q);
+
+                var vm = new HMS.UI.Models.Users.UserListViewModel { Page = page, PageSize = pageSize, Search = search };
 
                 if (raw.ValueKind == System.Text.Json.JsonValueKind.Object)
                 {
-                    // maybe wrapped as { total, page, items: [...] }
+                    if (raw.TryGetProperty("total", out var totalP) && totalP.ValueKind == System.Text.Json.JsonValueKind.Number) vm.TotalCount = totalP.GetInt32();
                     if (raw.TryGetProperty("items", out var items) && items.ValueKind == System.Text.Json.JsonValueKind.Array)
                     {
                         foreach (var it in items.EnumerateArray())
                         {
                             var u = MapUserFromJsonElement(it);
-                            if (u != null) list.Add(u);
+                            if (u != null)
+                            {
+                                // try include photoUrl/lastLogin if present
+                                if (it.TryGetProperty("photoUrl", out var pu) && pu.ValueKind == System.Text.Json.JsonValueKind.String) u.PhotoUrl = _api.MakeAbsoluteUrl(pu.GetString());
+                                if (it.TryGetProperty("lastLogin", out var ll) && (ll.ValueKind == System.Text.Json.JsonValueKind.String || ll.ValueKind == System.Text.Json.JsonValueKind.Number))
+                                {
+                                    try { u.LastLogin = DateTimeOffset.Parse(ll.GetString()); } catch { }
+                                }
+                                vm.Items.Add(u);
+                            }
                         }
                     }
                 }
@@ -67,16 +79,184 @@ namespace HMS.UI.Controllers
                     foreach (var it in raw.EnumerateArray())
                     {
                         var u = MapUserFromJsonElement(it);
-                        if (u != null) list.Add(u);
+                        if (u != null)
+                        {
+                            if (it.TryGetProperty("photoUrl", out var pu) && pu.ValueKind == System.Text.Json.JsonValueKind.String) u.PhotoUrl = _api.MakeAbsoluteUrl(pu.GetString());
+                            vm.Items.Add(u);
+                        }
                     }
                 }
 
-                return View(list);
+                return View(vm);
             }
             catch (Exception ex)
             {
                 TempData["Error"] = ex.Message;
-                return View(new System.Collections.Generic.List<HMS.UI.Models.Users.UserListItemViewModel>());
+                return View(new HMS.UI.Models.Users.UserListViewModel());
+            }
+        }
+
+        public async Task<IActionResult> Details(Guid id)
+        {
+            try
+            {
+                var raw = await _api.GetAsync<System.Text.Json.JsonElement>($"/auth/users/{id}");
+                var u = MapUserFromJsonElement(raw);
+                if (u == null) u = new HMS.UI.Models.Users.UserListItemViewModel { Id = id };
+
+                // fetch profile to get photo and full name
+                try
+                {
+                    var profile = await _api.GetAsync<HMS.UI.Models.Profile.UserProfileViewModel>($"/api/Profile/{u.Id}");
+                    if (profile != null)
+                    {
+                        u.PhotoUrl = string.IsNullOrWhiteSpace(profile.PhotoUrl) ? u.PhotoUrl : _api.MakeAbsoluteUrl(profile.PhotoUrl);
+                        u.FullName = string.Join(' ', new[] { profile.FirstName, profile.OtherNames, profile.LastName }.Where(s => !string.IsNullOrWhiteSpace(s)));
+                    }
+                }
+                catch { }
+
+                // fetch tenant name if available
+                try
+                {
+                    if (u.TenantId.HasValue)
+                    {
+                        var t = await _api.GetAsync<System.Text.Json.JsonElement>($"/tenants/{u.TenantId.Value}");
+                        if (t.ValueKind == System.Text.Json.JsonValueKind.Object && t.TryGetProperty("name", out var n) && n.ValueKind == System.Text.Json.JsonValueKind.String)
+                        {
+                            u.TenantName = n.GetString();
+                        }
+                    }
+                }
+                catch { }
+
+                // fetch roles server-side (returns role ids or names depending on API)
+                try
+                {
+                    var roleIdsOrNames = await _api.GetAsync<System.Text.Json.JsonElement>($"/auth/users/{id}/roles");
+                    if (roleIdsOrNames.ValueKind == System.Text.Json.JsonValueKind.Array)
+                    {
+                        var list = new System.Collections.Generic.List<string>();
+                        var roleIds = new System.Collections.Generic.List<Guid>();
+                        foreach (var r in roleIdsOrNames.EnumerateArray())
+                        {
+                            if (r.ValueKind == System.Text.Json.JsonValueKind.String)
+                            {
+                                var sval = r.GetString() ?? string.Empty;
+                                // try parse as guid
+                                if (Guid.TryParse(sval, out var rg)) roleIds.Add(rg);
+                                else list.Add(sval);
+                            }
+                            else if (r.ValueKind == System.Text.Json.JsonValueKind.Object && r.TryGetProperty("name", out var rn) && rn.ValueKind == System.Text.Json.JsonValueKind.String)
+                            {
+                                list.Add(rn.GetString() ?? string.Empty);
+                            }
+                        }
+
+                        // If we have role ids, fetch role names from /roles and map
+                        if (roleIds.Any())
+                        {
+                            try
+                            {
+                                var allRoles = await _api.GetAsync<HMS.UI.Models.Users.RoleViewModel[]>("/roles");
+                                if (allRoles != null)
+                                {
+                                    foreach (var rid in roleIds)
+                                    {
+                                        var r = allRoles.FirstOrDefault(x => x.Id == rid);
+                                        if (r != null) list.Add(r.Name);
+                                        else list.Add(rid.ToString());
+                                    }
+                                }
+                                else
+                                {
+                                    foreach (var rid in roleIds) list.Add(rid.ToString());
+                                }
+                            }
+                            catch
+                            {
+                                foreach (var rid in roleIds) list.Add(rid.ToString());
+                            }
+                        }
+
+                        u.Roles = list.ToArray();
+                    }
+                    else if (roleIdsOrNames.ValueKind == System.Text.Json.JsonValueKind.Array)
+                    {
+                        // fallback
+                    }
+                }
+                catch { }
+
+                // fetch recent activity/audit server-side
+                try
+                {
+                    var audits = await _api.GetAsync<System.Text.Json.JsonElement>($"/auth/audits?userId={id}&pageSize=20");
+                    var activities = new System.Collections.Generic.List<HMS.UI.Models.Users.AuditEntryViewModel>();
+                    if (audits.ValueKind == System.Text.Json.JsonValueKind.Array)
+                    {
+                        foreach (var a in audits.EnumerateArray())
+                        {
+                            try
+                            {
+                                var act = new HMS.UI.Models.Users.AuditEntryViewModel();
+                                if (a.TryGetProperty("performedAt", out var pa) && pa.ValueKind == System.Text.Json.JsonValueKind.String) act.PerformedAt = DateTimeOffset.Parse(pa.GetString());
+                                else if (a.TryGetProperty("PerformedAt", out var pa2) && pa2.ValueKind == System.Text.Json.JsonValueKind.String) act.PerformedAt = DateTimeOffset.Parse(pa2.GetString());
+                                if (a.TryGetProperty("action", out var ac) && ac.ValueKind == System.Text.Json.JsonValueKind.String) act.Action = ac.GetString() ?? string.Empty;
+                                else if (a.TryGetProperty("Action", out var ac2) && ac2.ValueKind == System.Text.Json.JsonValueKind.String) act.Action = ac2.GetString() ?? string.Empty;
+                                if (a.TryGetProperty("details", out var d) && d.ValueKind == System.Text.Json.JsonValueKind.String) act.Details = d.GetString();
+                                activities.Add(act);
+                            }
+                            catch { }
+                        }
+                    }
+                    u.Activity = activities.ToArray();
+                }
+                catch { }
+
+                return View(u);
+            }
+            catch (Exception ex)
+            {
+                TempData["Error"] = ex.Message;
+                return RedirectToAction("Index");
+            }
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> AdminAction(Guid id, string action, string? newPassword = null)
+        {
+            try
+            {
+                if (string.Equals(action, "lock", StringComparison.OrdinalIgnoreCase))
+                {
+                    await _api.PostAsync<object>($"/auth/users/{id}/lock", new { });
+                    TempData["Success"] = "User locked";
+                }
+                else if (string.Equals(action, "unlock", StringComparison.OrdinalIgnoreCase))
+                {
+                    await _api.PostAsync<object>($"/auth/users/{id}/unlock", new { });
+                    TempData["Success"] = "User unlocked";
+                }
+                else if (string.Equals(action, "reset", StringComparison.OrdinalIgnoreCase))
+                {
+                    // Use provided newPassword if supplied (from admin modal) otherwise generate one
+                    var temp = newPassword;
+                    if (string.IsNullOrWhiteSpace(temp))
+                    {
+                        temp = "TempPass123!"; // fallback
+                    }
+                    await _api.PostAsync<object>($"/auth/users/{id}/reset-password", new { NewPasswordPlain = temp });
+                    TempData["Success"] = "Password reset";
+                }
+
+                return RedirectToAction("Edit", new { id = id });
+            }
+            catch (Exception ex)
+            {
+                TempData["Error"] = ex.Message;
+                return RedirectToAction("Edit", new { id = id });
             }
         }
 
@@ -137,11 +317,54 @@ namespace HMS.UI.Controllers
                 // fetch assigned role ids
                 var assigned = await _api.GetAsync<Guid[]>($"/auth/users/{id}/roles");
 
-                ViewBag.User = user;
-                ViewBag.Roles = roles.ToArray();
-                ViewBag.Assigned = assigned ?? Array.Empty<Guid>();
+                // build strongly-typed view model for the view
+                var vm = new HMS.UI.Models.Users.UserEditViewModel();
+                vm.Id = user?.Id ?? id;
+                vm.Username = user?.Username ?? string.Empty;
+                vm.Email = user?.Email;
+                vm.Roles = roles.ToArray();
+                vm.AssignedRoleIds = assigned ?? Array.Empty<Guid>();
 
-                return View();
+                // populate auxiliary display names
+                try
+                {
+                    if (user != null)
+                    {
+                        // full name from profile
+                        var prof = await _api.GetAsync<HMS.UI.Models.Profile.UserProfileViewModel>($"/api/Profile/{user.Id}");
+                        if (prof != null)
+                        {
+                            vm.FirstName = prof.FirstName;
+                            vm.LastName = prof.LastName;
+                            if (!string.IsNullOrWhiteSpace(prof.PhotoUrl)) vm.PhotoUrl = _api.MakeAbsoluteUrl(prof.PhotoUrl);
+                        }
+
+                        if (user.TenantId.HasValue)
+                        {
+                            var t = await _api.GetAsync<System.Text.Json.JsonElement>($"/tenants/{user.TenantId.Value}");
+                            if (t.ValueKind == System.Text.Json.JsonValueKind.Object && t.TryGetProperty("name", out var n) && n.ValueKind == System.Text.Json.JsonValueKind.String)
+                            {
+                                vm.TenantName = n.GetString();
+                            }
+                        }
+                    }
+                }
+                catch { }
+
+                // Also fetch assigned role names for display
+                try
+                {
+                    var assignedNames = new System.Collections.Generic.List<string>();
+                    foreach (var rid in assigned ?? Array.Empty<Guid>())
+                    {
+                        var rObj = roles.FirstOrDefault(r => r.Id == rid);
+                        if (rObj != null) assignedNames.Add(rObj.Name);
+                    }
+                    ViewBag.AssignedNames = assignedNames.ToArray();
+                }
+                catch { }
+
+                return View(vm);
             }
             catch (Exception ex)
             {
@@ -152,26 +375,100 @@ namespace HMS.UI.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Edit(Guid id, Guid[] roles)
+        public async Task<IActionResult> Edit(Guid id, Guid[] roles, Microsoft.AspNetCore.Http.IFormFile? photo, [FromForm] string? firstName = null, [FromForm] string? lastName = null, [FromForm] string? email = null, [FromForm] string? newPassword = null)
         {
-            // assign roles: simplistic approach - remove all then add provided
             try
             {
+                // Roles: remove those not present and add new ones
                 var existing = await _api.GetAsync<Guid[]>($"/auth/users/{id}/roles");
                 var toRemove = existing?.Except(roles) ?? Array.Empty<Guid>();
                 var toAdd = roles.Except(existing ?? Array.Empty<Guid>());
 
                 foreach (var r in toRemove)
                 {
-                    await _api.DeleteRawAsync($"/auth/users/{id}/roles/{r}");
+                    try { await _api.DeleteRawAsync($"/auth/users/{id}/roles/{r}"); } catch { }
                 }
 
                 foreach (var r in toAdd)
                 {
-                    await _api.PostRawAsync($"/auth/users/{id}/roles/{r}", null);
+                    try { await _api.PostRawAsync($"/auth/users/{id}/roles/{r}", null); } catch { }
                 }
 
-                TempData["Success"] = "Roles updated";
+                // Password reset if provided
+                if (!string.IsNullOrWhiteSpace(newPassword))
+                {
+                    try
+                    {
+                        await _api.PostAsync<object>($"/auth/users/{id}/reset-password", new { NewPasswordPlain = newPassword });
+                        TempData["Success"] = "Password reset";
+                    }
+                    catch (Exception ex)
+                    {
+                        TempData["Error"] = "Password reset failed: " + ex.Message;
+                        return RedirectToAction("Edit", new { id = id });
+                    }
+                }
+
+                // Profile update
+                try
+                {
+                    var profilePayload = new System.Collections.Generic.Dictionary<string, object?>();
+                    if (!string.IsNullOrWhiteSpace(firstName)) profilePayload["FirstName"] = firstName;
+                    if (!string.IsNullOrWhiteSpace(lastName)) profilePayload["LastName"] = lastName;
+                    if (!string.IsNullOrWhiteSpace(email)) profilePayload["Email"] = email;
+
+                    if (photo != null && photo.Length > 0)
+                    {
+                        // Upload photo to API (admin endpoint)
+                        try
+                        {
+                            var resp = await _api.PostFileAsync($"/api/profile/{id}/photo", photo);
+                            if (resp.IsSuccessStatusCode)
+                            {
+                                var body = await resp.Content.ReadAsStringAsync();
+                                try
+                                {
+                                    using var jd = System.Text.Json.JsonDocument.Parse(body);
+                                    if (jd.RootElement.TryGetProperty("url", out var u))
+                                    {
+                                        var rel = u.GetString();
+                                        if (!string.IsNullOrWhiteSpace(rel)) profilePayload["PhotoUrl"] = rel;
+                                    }
+                                }
+                                catch { }
+                            }
+                            else
+                            {
+                                var b = await resp.Content.ReadAsStringAsync();
+                                TempData["Error"] = "Photo upload failed: " + b;
+                                return RedirectToAction("Edit", new { id = id });
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            TempData["Error"] = "Photo upload failed: " + ex.Message;
+                            return RedirectToAction("Edit", new { id = id });
+                        }
+                    }
+
+                    if (profilePayload.Any())
+                    {
+                        var raw = await _api.PutRawAsync($"/api/profile/{id}", profilePayload);
+                        if (!raw.IsSuccessStatusCode)
+                        {
+                            var b = await raw.Content.ReadAsStringAsync();
+                            TempData["Error"] = "Profile update failed: " + b;
+                            return RedirectToAction("Edit", new { id = id });
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    TempData["Error"] = "Profile update failed: " + ex.Message;
+                    return RedirectToAction("Edit", new { id = id });
+                }
+
+                TempData["Success"] = (TempData["Success"] as string) ?? "User updated";
                 return RedirectToAction("Index");
             }
             catch (Exception ex)

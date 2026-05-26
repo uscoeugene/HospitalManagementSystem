@@ -1,0 +1,58 @@
+@model HMS.UI.Models.PagedResult<HMS.UI.Models.Lab.LabRequestViewModel>
+@{
+    Layout = "~/Pages/_Layout.cshtml";
+    ViewData["Title"] = "Lab Requests";
+}
+
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h3 class="mb-0">Lab Requests</h3>
+            <small class="text-muted">List of lab requests</small>
+        </div>
+        <a asp-action="Request" asp-controller="Lab" class="btn btn-primary">New Request</a>
+    </div>
+
+    @if(Model.Items == null || Model.Items.Length == 0)
+    {
+        <div class="text-muted">No lab requests found</div>
+    }
+    else
+    {
+        <div class="list-group">
+            @foreach(var r in Model.Items)
+            {
+                <div class="list-group-item d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="fw-semibold">@( (r.CreatedAt.HasValue ? r.CreatedAt.Value.ToLocalTime().ToString("yyyy-MM-dd HH:mm") : r.Id.ToString())) - @(r.PatientName ?? "")</div>
+
+                        <div class="small text-muted">
+                            @if (!string.IsNullOrWhiteSpace(r.RequestNumber))
+                            {
+                                <span>[@r.RequestNumber]</span>
+                    
+                                <br />
+                            }
+                            Status: @r.Status • Items: @r.ItemsCount • Results: @(r.ResultsStatus ?? "-")
+                            @if(r.InvoiceSummary != null)
+                            {
+                                <span class="badge bg-@((r.InvoiceSummary.Status ?? "").ToUpperInvariant() == "PAID" ? "success" : "warning") ms-2">Invoice: @r.InvoiceSummary.InvoiceNumber (@r.InvoiceSummary.Status)</span>
+                            }
+                            else if(!string.IsNullOrWhiteSpace(r.InvoiceStatus))
+                            {
+                                <span class="badge bg-secondary ms-2">Invoice: @r.InvoiceStatus</span>
+                            }
+                        </div>
+                    </div>
+                    <div>
+                        @if(r.InvoiceSummary != null && !string.Equals(r.InvoiceSummary.Status, "PAID", StringComparison.OrdinalIgnoreCase))
+                        {
+                            <a href="/Billing/Details?id=@r.InvoiceSummary.Id" class="btn btn-sm btn-outline-primary me-2">Pay</a>
+                        }
+                        <a asp-action="Details" asp-route-id="@r.Id" class="btn btn-sm btn-outline-secondary">View</a>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</div>

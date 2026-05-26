@@ -1,0 +1,51 @@
+@{
+    Layout = "~/Pages/_Layout.cshtml";
+    ViewData["Title"] = "Security";
+}
+
+<div class="container py-4">
+    <h3>Security Settings</h3>
+
+    @if (TempData["Success"] != null)
+    {
+        <div class="alert alert-success">@TempData["Success"]</div>
+    }
+    @if (TempData["Error"] != null)
+    {
+        <div class="alert alert-danger">@TempData["Error"]</div>
+    }
+
+    <div class="card mb-4">
+        <div class="card-body">
+            <form asp-action="ChangePassword" method="post" id="changePasswordForm">
+                @Html.AntiForgeryToken()
+                <div class="mb-3">
+                    <label class="form-label">Current password</label>
+                    <input name="currentPassword" type="password" class="form-control" required minlength="6" />
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">New password</label>
+                    <input name="newPassword" type="password" class="form-control" required minlength="8" />
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Confirm new password</label>
+                    <input name="confirmPassword" type="password" class="form-control" required minlength="8" />
+                </div>
+                <button class="btn btn-primary">Change Password</button>
+            </form>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-body">
+            <form asp-action="UploadAvatar" method="post" enctype="multipart/form-data">
+                @Html.AntiForgeryToken()
+                <div class="mb-3">
+                    <label class="form-label">Upload avatar</label>
+                    <input name="file" type="file" class="form-control" accept="image/*" />
+                </div>
+                <button class="btn btn-secondary">Upload</button>
+            </form>
+        </div>
+    </div>
+</div>

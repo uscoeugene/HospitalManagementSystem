@@ -36,5 +36,7 @@ namespace HMS.API.Application.Billing
         public Guid? VisitId { get; set; }
         public CreateInvoiceItemRequest[] Items { get; set; } = Array.Empty<CreateInvoiceItemRequest>();
         public string Currency { get; set; } = "USD";
+        public bool AllowOnCredit { get; set; } = false;
+        public string? CreditReason { get; set; }
     }
 }

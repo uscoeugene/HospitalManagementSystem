@@ -16,11 +16,17 @@ namespace HMS.API.Controllers
     {
         private readonly IAuthService _authService;
         private readonly AuthDbContext _authDb;
+        private readonly HMS.API.Application.Common.ICurrentUserService _currentUser;
+        private readonly HMS.API.Application.Auth.IPasswordHasher _hasher;
+        private readonly Microsoft.Extensions.Logging.ILogger<AuthController> _logger;
 
-        public AuthController(IAuthService authService, AuthDbContext authDb)
+        public AuthController(IAuthService authService, AuthDbContext authDb, HMS.API.Application.Common.ICurrentUserService currentUser, HMS.API.Application.Auth.IPasswordHasher hasher, Microsoft.Extensions.Logging.ILogger<AuthController> logger)
         {
             _authService = authService;
             _authDb = authDb;
+            _currentUser = currentUser;
+            _hasher = hasher;
+            _logger = logger;
         }
 
         [HttpPost("login")]
@@ -45,7 +51,10 @@ namespace HMS.API.Controllers
                     var t = await _authDb.Tenants.AsNoTracking().SingleOrDefaultAsync(x => x.Code == tenantCode);
                     if (t != null) headerTenant = t.Id;
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to resolve tenant by code {TenantCode} during login", tenantCode);
+                }
             }
 
             var previous = HMS.API.Application.Common.CurrentTenantAccessor.CurrentTenantId;
@@ -53,8 +62,7 @@ namespace HMS.API.Controllers
             var effectiveTenant = resolvedByMiddleware ?? request.TenantId ?? headerTenant;
             if (request.TenantId.HasValue && resolvedByMiddleware.HasValue)
             {
-                // log warning - client-supplied tenantId is ignored
-                try { Console.WriteLine("Warning: client-supplied tenantId will be ignored because middleware resolved tenant."); } catch { }
+                _logger.LogWarning("Client-supplied tenantId was ignored because middleware resolved tenant {TenantId}", resolvedByMiddleware.Value);
             }
 
             HMS.API.Application.Common.CurrentTenantAccessor.CurrentTenantId = effectiveTenant;
@@ -80,7 +88,10 @@ namespace HMS.API.Controllers
                         Response.Cookies.Append("HmsTenantId", resp.TenantId.Value.ToString(), tnOptions);
                     }
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to set auth tenant cookies for user login");
+                }
                 return Ok(resp);
             }
             catch (UnauthorizedAccessException uex)
@@ -136,6 +147,36 @@ namespace HMS.API.Controllers
             return NoContent();
         }
 
+        // POST /auth/change-password
+        [HttpPost("change-password")]
+        public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordRequest req)
+        {
+            var uid = _currentUser.UserId;
+            if (uid == null) return Unauthorized(new { error = "Unauthorized" });
+
+            var user = await _authDb.Users.SingleOrDefaultAsync(u => u.Id == uid.Value);
+            if (user == null) return NotFound(new { error = "User not found" });
+
+            // verify current
+            if (!_hasher.Verify(user.PasswordHash, req.CurrentPassword))
+            {
+                return BadRequest(new { error = "Current password is incorrect" });
+            }
+
+            user.PasswordHash = _hasher.Hash(req.NewPassword);
+            user.IsLocked = false;
+            user.LockedUntil = null;
+            await _authDb.SaveChangesAsync();
+
+            return NoContent();
+        }
+
+        public class ChangePasswordRequest
+        {
+            public string CurrentPassword { get; set; } = string.Empty;
+            public string NewPassword { get; set; } = string.Empty;
+        }
+
         // Clear cookie and redirect to login - useful for UI logout without providing refresh token
         [HttpGet("logout-cookie")]
         public IActionResult LogoutCookie()
@@ -143,5 +184,7 @@ namespace HMS.API.Controllers
             Response.Cookies.Delete("HmsAuth");
             return Redirect("/Account/Login");
         }
+
+
     }
 }

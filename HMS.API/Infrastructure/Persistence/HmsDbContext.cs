@@ -295,8 +295,16 @@ namespace HMS.API.Infrastructure.Persistence
                 b.HasKey(i => i.Id);
                 b.Property(i => i.Price).HasColumnType("decimal(18,2)");
                 b.Property(i => i.Currency).HasMaxLength(3);
+                b.Property(i => i.ResultStatus).HasConversion<string>().HasMaxLength(50);
+                b.Property(i => i.ResultValue).HasMaxLength(2000);
+                b.Property(i => i.ResultUnit).HasMaxLength(100);
+                b.Property(i => i.ReferenceRange).HasMaxLength(500);
+                b.Property(i => i.AbnormalFlag).HasMaxLength(50);
+                b.Property(i => i.ResultNotes).HasMaxLength(4000);
+                b.Property(i => i.ResultAttachmentUrl).HasMaxLength(1000);
                 b.HasOne(i => i.LabTest).WithMany().HasForeignKey(i => i.LabTestId);
                 b.HasIndex(i => i.LabTestId);
+                b.HasIndex(i => i.ResultStatus);
             });
 
             // Pharmacy mappings

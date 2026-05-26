@@ -139,7 +139,7 @@ if (bgJobsEnabled)
 }
 else
 {
-    // Log a warning at startup that background jobs are disabled (can't log here — will at runtime)
+    // Log a warning at startup that background jobs are disabled (can't log here â€” will at runtime)
 }
 
 // Authentication - JWT
@@ -206,7 +206,7 @@ builder.Services.AddAuthorization(options =>
 });
 
 // Middleware
-// Do NOT register TenantMiddleware in DI — use app.UseMiddleware<TenantMiddleware>() at runtime. Registering middleware that requires RequestDelegate causes design-time service resolution errors for EF tools.
+// Do NOT register TenantMiddleware in DI â€” use app.UseMiddleware<TenantMiddleware>() at runtime. Registering middleware that requires RequestDelegate causes design-time service resolution errors for EF tools.
 
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
@@ -337,6 +337,7 @@ app.UseSwaggerUI(c =>
 });
 
 //app.UseHttpsRedirection();
+app.UseStaticFiles();
 
 // tenant middleware must run early to set query filter context
 

@@ -44,7 +44,10 @@ namespace HMS.API.Application.Billing
                 if (!visitExists) throw new InvalidOperationException("Visit not found");
             }
 
-            using var tx = await _db.Database.BeginTransactionAsync();
+            var ownsTransaction = _db.Database.CurrentTransaction == null;
+            Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction? tx = ownsTransaction
+                ? await _db.Database.BeginTransactionAsync()
+                : null;
             try
             {
                 var invoice = new Invoice
@@ -55,7 +58,9 @@ namespace HMS.API.Application.Billing
                     Status = InvoiceStatus.UNPAID,
                     TotalAmount = 0m,
                     AmountPaid = 0m,
-                    Currency = request.Items.FirstOrDefault()?.SourceType == "" ? "USD" : "USD" // placeholder
+                    Currency = request.Items.FirstOrDefault()?.SourceType == "" ? "NGN" : "NGN", // placeholder
+                    AllowOnCredit = request.AllowOnCredit,
+                    CreditReason = request.CreditReason
                 };
 
                 foreach (var item in request.Items)
@@ -80,7 +85,10 @@ namespace HMS.API.Application.Billing
                 _db.BillingAudits.Add(new BillingAudit { UserId = userId, Action = "CreateInvoice", Details = $"Invoice {invoice.InvoiceNumber} created" });
                 await _db.SaveChangesAsync();
 
-                await tx.CommitAsync();
+                if (ownsTransaction)
+                {
+                    await tx!.CommitAsync();
+                }
 
                 // publish event using outbox
                 var outbox = new OutboxMessage
@@ -96,7 +104,10 @@ namespace HMS.API.Application.Billing
             }
             catch
             {
-                await tx.RollbackAsync();
+                if (ownsTransaction && tx != null)
+                {
+                    await tx.RollbackAsync();
+                }
                 throw;
             }
         }
@@ -117,8 +128,10 @@ namespace HMS.API.Application.Billing
                 Status = inv.Status.ToString(),
                 TotalAmount = inv.TotalAmount,
                 AmountPaid = inv.AmountPaid,
-                Currency = inv.Currency,
-                Items = inv.Items.Select(i => new InvoiceItemDto { Id = i.Id, Description = i.Description, UnitPrice = i.UnitPrice, Quantity = i.Quantity, LineTotal = i.LineTotal }).ToArray(),
+                    Currency = inv.Currency,
+                    AllowOnCredit = inv.AllowOnCredit,
+                    CreditReason = inv.CreditReason,
+                Items = inv.Items.Select(i => new InvoiceItemDto { Id = i.Id, Description = i.Description, UnitPrice = i.UnitPrice, Quantity = i.Quantity, LineTotal = i.LineTotal, SourceId = i.SourceId, SourceType = i.SourceType }).ToArray(),
                 Payments = inv.Payments.Select(p => new InvoicePaymentDto { Id = p.Id, InvoiceId = p.InvoiceId, Amount = p.Amount, PaidAt = p.PaidAt, ExternalReference = p.ExternalReference }).ToArray(),
                 Debts = debts.ToArray()
             };
@@ -134,7 +147,10 @@ namespace HMS.API.Application.Billing
         // Reconcile payments against debts before applying to invoice balance
         public async Task<InvoiceDto> ApplyPaymentAsync(Guid invoiceId, ApplyPaymentRequest request)
         {
-            using var tx = await _db.Database.BeginTransactionAsync();
+            var ownsTransaction = _db.Database.CurrentTransaction == null;
+            Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction? tx = ownsTransaction
+                ? await _db.Database.BeginTransactionAsync()
+                : null;
             try
             {
                 var inv = await _db.Invoices.Include(i => i.Items).Include(i => i.Payments).SingleOrDefaultAsync(i => i.Id == invoiceId);
@@ -192,7 +208,10 @@ namespace HMS.API.Application.Billing
                 }
 
                 await _db.SaveChangesAsync();
-                await tx.CommitAsync();
+                if (ownsTransaction)
+                {
+                    await tx!.CommitAsync();
+                }
 
                 if (prevStatus.ToString() != inv.Status.ToString())
                 {
@@ -210,7 +229,10 @@ namespace HMS.API.Application.Billing
             }
             catch
             {
-                await tx.RollbackAsync();
+                if (ownsTransaction && tx != null)
+                {
+                    await tx.RollbackAsync();
+                }
                 throw;
             }
         }
@@ -235,7 +257,7 @@ namespace HMS.API.Application.Billing
                 TotalAmount = inv.TotalAmount,
                 AmountPaid = inv.AmountPaid,
                 Currency = inv.Currency,
-                Items = inv.Items.Select(i => new InvoiceItemDto { Id = i.Id, Description = i.Description, UnitPrice = i.UnitPrice, Quantity = i.Quantity, LineTotal = i.LineTotal }).ToArray(),
+                Items = inv.Items.Select(i => new InvoiceItemDto { Id = i.Id, Description = i.Description, UnitPrice = i.UnitPrice, Quantity = i.Quantity, LineTotal = i.LineTotal, SourceId = i.SourceId, SourceType = i.SourceType }).ToArray(),
                 Payments = inv.Payments.Select(p => new InvoicePaymentDto { Id = p.Id, InvoiceId = p.InvoiceId, Amount = p.Amount, PaidAt = p.PaidAt, ExternalReference = p.ExternalReference }).ToArray(),
                 Debts = new DebtDto[] { }
             }).ToArray();
@@ -260,6 +282,8 @@ namespace HMS.API.Application.Billing
 
         public async Task<InvoiceDto> CreateInvoiceFromLabRequestAsync(CreateInvoiceFromLabRequest request)
         {
+            if (request == null) throw new ArgumentNullException(nameof(request));
+            var items = request.Items ?? Array.Empty<CreateInvoiceItemRequest>();
             // validate patient
             var patientExists = await _db.Patients.AnyAsync(p => p.Id == request.PatientId && !p.IsDeleted);
             if (!patientExists) throw new InvalidOperationException("Patient not found");
@@ -270,7 +294,10 @@ namespace HMS.API.Application.Billing
                 if (!visitExists) throw new InvalidOperationException("Visit not found");
             }
 
-            using var tx = await _db.Database.BeginTransactionAsync();
+            var ownsTransaction = _db.Database.CurrentTransaction == null;
+            Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction? tx = ownsTransaction
+                ? await _db.Database.BeginTransactionAsync()
+                : null;
             try
             {
                 var invoice = new Invoice
@@ -281,10 +308,12 @@ namespace HMS.API.Application.Billing
                     Status = InvoiceStatus.UNPAID,
                     TotalAmount = 0m,
                     AmountPaid = 0m,
-                    Currency = request.Currency
+                    Currency = request.Currency,
+                    AllowOnCredit = request.AllowOnCredit,
+                    CreditReason = request.CreditReason
                 };
 
-                foreach (var item in request.Items)
+                foreach (var item in items)
                 {
                     var ii = new InvoiceItem
                     {
@@ -302,11 +331,14 @@ namespace HMS.API.Application.Billing
                 await _db.SaveChangesAsync();
 
                 // audit
-                var userId = _currentUserService.UserId ?? Guid.Empty;
+                var userId = _currentUserService?.UserId ?? Guid.Empty;
                 _db.BillingAudits.Add(new BillingAudit { UserId = userId, Action = "CreateInvoiceFromLab", Details = $"Invoice {invoice.InvoiceNumber} created from lab request" });
                 await _db.SaveChangesAsync();
 
-                await tx.CommitAsync();
+                if (ownsTransaction)
+                {
+                    await tx!.CommitAsync();
+                }
 
                 // write outbox event for invoice created/charged
                 var outbox = new OutboxMessage
@@ -322,7 +354,10 @@ namespace HMS.API.Application.Billing
             }
             catch
             {
-                await tx.RollbackAsync();
+                if (ownsTransaction && tx != null)
+                {
+                    await tx.RollbackAsync();
+                }
                 throw;
             }
         }
@@ -368,7 +403,11 @@ namespace HMS.API.Application.Billing
 
         public async Task PayDebtAsync(Guid debtId, decimal amount, string? externalReference = null)
         {
-            using var tx = await _db.Database.BeginTransactionAsync();
+            Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction? tx = null;
+            if (_db.Database.CurrentTransaction == null)
+            {
+                tx = await _db.Database.BeginTransactionAsync();
+            }
             try
             {
                 var debt = await _db.DebtorEntries.SingleOrDefaultAsync(d => d.Id == debtId && !d.IsDeleted);
@@ -421,7 +460,7 @@ namespace HMS.API.Application.Billing
                 else if (invoice.AmountPaid > 0) invoice.Status = InvoiceStatus.PARTIAL;
 
                 await _db.SaveChangesAsync();
-                await tx.CommitAsync();
+                if (tx != null) await tx.CommitAsync();
 
                 // publish outbox
                 try
@@ -433,7 +472,7 @@ namespace HMS.API.Application.Billing
             }
             catch
             {
-                await tx.RollbackAsync();
+                if (tx != null) await tx.RollbackAsync();
                 throw;
             }
         }

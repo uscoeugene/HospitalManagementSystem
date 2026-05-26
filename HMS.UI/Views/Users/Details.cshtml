@@ -1,0 +1,87 @@
+@model HMS.UI.Models.Users.UserListItemViewModel
+@{
+    Layout = "~/Pages/_Layout.cshtml";
+    ViewData["Title"] = "User Details";
+}
+
+<div class="container py-4">
+    <div class="d-flex align-items-center gap-3 mb-3">
+        @if (!string.IsNullOrWhiteSpace(Model?.PhotoUrl))
+        {
+            <img src="@Model.PhotoUrl" class="rounded-circle" style="width:96px;height:96px;object-fit:cover;" />
+        }
+        else
+        {
+            <div class="avatar-sm">@((Model?.Username ?? "").FirstOrDefault().ToString().ToUpper())</div>
+        }
+
+        <div>
+            <h4 class="mb-0">@(string.IsNullOrWhiteSpace(Model?.FullName) ? Model.Username : Model.FullName)</h4>
+            <div class="text-muted">@Model.Email</div>
+            <div class="text-muted small">Hospital: @(Model.TenantName ?? "-")</div>
+            <div class="text-muted small">Last login: @(Model.LastLogin?.ToString() ?? "Unknown")</div>
+        </div>
+    </div>
+
+    <div class="card mb-3">
+        <div class="card-body">
+            <h5>Roles</h5>
+            <div>
+                @if (Model.Roles != null && Model.Roles.Length > 0)
+                {
+                    foreach(var r in Model.Roles)
+                    {
+                        <span class="badge bg-secondary me-1">@r</span>
+                    }
+                }
+                else
+                {
+                    <div class="text-muted">No roles assigned</div>
+                }
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-body">
+            <h5>Recent Activity</h5>
+            <div>
+                @if (Model.Activity != null && Model.Activity.Length > 0)
+                {
+                    <ul class="small">
+                    @foreach(var a in Model.Activity)
+                    {
+                        <li>@a.PerformedAt - @a.Action - @a.Details</li>
+                    }
+                    </ul>
+                }
+                else
+                {
+                    <div class="text-muted">No recent activity</div>
+                }
+            </div>
+        </div>
+    </div>
+
+    <a class="btn btn-light mt-3" href="/Users">Back to list</a>
+</div>
+
+@section Scripts {
+    <script>
+        (function(){
+            const id = '@Model?.Id';
+            if(!id) return;
+            fetch(`/auth/users/${id}/roles`).then(r=>r.json()).then(js=>{
+                var el = document.getElementById('rolesList');
+                if(!Array.isArray(js)) { el.textContent = 'No roles'; return; }
+                el.innerHTML = js.map(x=>'<span class="badge bg-secondary me-1">'+x+'</span>').join('');
+            }).catch(e=>{document.getElementById('rolesList').textContent='Error loading roles';});
+
+            fetch(`/auth/audits?userId=${id}`).then(r=>r.json()).then(js=>{
+                var el = document.getElementById('activityList');
+                if(!Array.isArray(js) || !js.length) { el.textContent = 'No recent activity'; return; }
+                el.innerHTML = '<ul class="small">'+js.slice(0,10).map(a=>' <li>'+ (a.performedAt||a.PerformedAt)+' - '+a.action+' - '+(a.details||'') +'</li>').join('')+'</ul>';
+            }).catch(e=>{document.getElementById('activityList').textContent='Error loading activity';});
+        })();
+    </script>
+}

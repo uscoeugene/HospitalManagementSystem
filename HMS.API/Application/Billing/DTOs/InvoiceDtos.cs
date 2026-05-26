@@ -45,6 +45,8 @@ namespace HMS.API.Application.Billing.DTOs
         public decimal TotalAmount { get; set; }
         public decimal AmountPaid { get; set; }
         public string Currency { get; set; } = "USD";
+        public bool AllowOnCredit { get; set; }
+        public string? CreditReason { get; set; }
         public IEnumerable<InvoiceItemDto> Items { get; set; } = Array.Empty<InvoiceItemDto>();
         public IEnumerable<InvoicePaymentDto> Payments { get; set; } = Array.Empty<InvoicePaymentDto>();
         public IEnumerable<DebtDto> Debts { get; set; } = Array.Empty<DebtDto>();

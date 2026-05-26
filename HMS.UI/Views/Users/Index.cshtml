@@ -1,4 +1,4 @@
-@model System.Collections.Generic.List<HMS.UI.Models.Users.UserListItemViewModel>
+@model HMS.UI.Models.Users.UserListViewModel
 @{
     Layout = "~/Pages/_Layout.cshtml";
     ViewData["Title"] = "Users";
@@ -10,21 +10,42 @@
         <a href="/Users/Create" class="btn btn-primary">New User</a>
     </div>
 
+    <form method="get" class="mb-3 d-flex gap-2">
+        <input type="text" name="search" value="@Model.Search" placeholder="Search users..." class="form-control" />
+        <button class="btn btn-secondary">Search</button>
+    </form>
+
     <table class="table">
         <thead>
-            <tr><th>Id</th><th>Username</th><th>Email</th><th>Tenant</th><th></th></tr>
+            <tr><th></th><th>Username</th><th>Email</th><th>Tenant</th><th></th></tr>
         </thead>
         <tbody>
-            @foreach(var u in Model)
+            @foreach(var u in Model.Items)
             {
                 <tr>
-                    <td>@u.Id</td>
-                    <td>@u.Username</td>
+                    <td>
+                        @if(!string.IsNullOrWhiteSpace(u.PhotoUrl)) { <img src="@u.PhotoUrl" style="width:32px;height:32px;object-fit:cover" class="rounded-circle" /> } else { <div class="avatar-sm">@((u.Username??"").FirstOrDefault().ToString().ToUpper())</div> }
+                    </td>
+                    <td>@(string.IsNullOrWhiteSpace(u.FullName) ? u.Username : u.FullName)</td>
                     <td>@u.Email</td>
-                    <td>@u.TenantId</td>
-                    <td><a class="btn btn-sm btn-outline-secondary" href="/Users/Edit?id=@u.Id">Edit</a></td>
+                    <td>@(u.TenantName ?? "-")</td>
+                    <td>
+                        <a class="btn btn-sm btn-outline-secondary" href="/Users/Edit?id=@u.Id">Edit</a>
+                        <a class="btn btn-sm btn-outline-info" href="/Users/Details?id=@u.Id">Details</a>
+                    </td>
                 </tr>
             }
         </tbody>
     </table>
+
+    <div class="d-flex justify-content-between align-items-center">
+        <div>Showing @Model.Items.Count of @Model.TotalCount</div>
+        <div>
+            @if(Model.Page > 1)
+            {
+                <a class="btn btn-sm btn-outline-primary" href="?page=@(Model.Page-1)&pageSize=@Model.PageSize&search=@Model.Search">Previous</a>
+            }
+            <a class="btn btn-sm btn-outline-primary" href="?page=@(Model.Page+1)&pageSize=@Model.PageSize&search=@Model.Search">Next</a>
+        </div>
+    </div>
 </div>

@@ -1,3 +1,4 @@
+using HMS.UI.Models.Lab;
 using System;
 using System.ComponentModel.DataAnnotations;
 
@@ -37,6 +38,8 @@ namespace HMS.UI.Models
         public PatientDetailsViewModel? Patient { get; set; }
         public VitalSignListItem[] RecentVitals { get; set; } = Array.Empty<VitalSignListItem>();
         public ConsultationViewModel[] Consultations { get; set; } = Array.Empty<ConsultationViewModel>();
+        public HMS.UI.Models.Billing.InvoiceViewModel[] Invoices { get; set; } = Array.Empty<HMS.UI.Models.Billing.InvoiceViewModel>();
+        public LabRequestViewModel[] LabRequests { get; set; } = Array.Empty<LabRequestViewModel>();
     }
 
     public class EnterVitalsPageViewModel

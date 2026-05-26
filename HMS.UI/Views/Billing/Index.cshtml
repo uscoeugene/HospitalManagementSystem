@@ -1,0 +1,76 @@
+@model HMS.UI.Models.PagedResult<HMS.UI.Models.Billing.InvoiceViewModel>
+@{
+    Layout = "~/Pages/_Layout.cshtml";
+    ViewData["Title"] = "Billing";
+}
+
+<div class="container py-4">
+    <h3>Invoices</h3>
+
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Invoice#</th>
+                <th>Patient</th>
+                <th>Visit</th>
+                <th>Total</th>
+                <th>Paid</th>
+                <th>Status</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var i in Model.Items)
+            {
+                <tr>
+                    <td>@(i.InvoiceNumber ?? "-")</td>
+                    <td>@(i.PatientId == Guid.Empty ? "-" : i.PatientId.ToString())</td>
+                    <td>@(i.VisitId?.ToString() ?? "-")</td>
+                    <td>@i.TotalAmount @i.Currency</td>
+                    <td>@i.AmountPaid</td>
+                    <td>
+                        <span class="badge bg-@(
+                            i.Status == "PAID" ? "success" : i.Status == "PARTIAL" ? "warning" : "secondary")">
+                            @i.Status
+                        </span>
+                    </td>
+                    <td>
+                        <a class="btn btn-sm btn-primary" href="@Url.Action("Details", "Billing", new { id = i.Id })">View</a>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+
+    @* Paging *@
+    @{ 
+        var total = Model.TotalCount;
+        var page = Model.Page <= 0 ? 1 : Model.Page;
+        var pageSize = Model.PageSize <= 0 ? 20 : Model.PageSize;
+        var totalPages = (int)Math.Ceiling(total / (double)pageSize);
+        var currentQuery = Context.Request.Query;
+    }
+
+    @if (totalPages > 1)
+    {
+        <nav aria-label="Invoices pagination">
+            <ul class="pagination">
+                <li class="page-item @(page <= 1 ? "disabled" : "")">
+                    <a class="page-link" href="@Url.Action("Index", "Billing", new { page = page - 1, pageSize = pageSize, patientId = currentQuery["patientId"].ToString(), visitId = currentQuery["visitId"].ToString() })">Previous</a>
+                </li>
+
+                @for (var p = 1; p <= totalPages; p++)
+                {
+                    <li class="page-item @(p == page ? "active" : "")">
+                        <a class="page-link" href="@Url.Action("Index", "Billing", new { page = p, pageSize = pageSize, patientId = currentQuery["patientId"].ToString(), visitId = currentQuery["visitId"].ToString() })">@p</a>
+                    </li>
+                }
+
+                <li class="page-item @(page >= totalPages ? "disabled" : "")">
+                    <a class="page-link" href="@Url.Action("Index", "Billing", new { page = page + 1, pageSize = pageSize, patientId = currentQuery["patientId"].ToString(), visitId = currentQuery["visitId"].ToString() })">Next</a>
+                </li>
+            </ul>
+        </nav>
+    }
+
+</div>

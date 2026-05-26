@@ -1,0 +1,250 @@
+@model HMS.UI.Models.Lab.LabRequestCreateViewModel
+@{
+    Layout = "~/Pages/_Layout.cshtml";
+    ViewData["Title"] = "Request Lab Tests";
+}
+
+<div class="container py-4">
+
+    <!-- Page Header -->
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-4">
+        <div>
+            <h3 class="mb-0">
+                <i class="bi bi-clipboard2-pulse me-2 text-primary"></i>
+                Request Lab Tests
+            </h3>
+            <small class="text-muted">
+                Create a new laboratory request for the patient
+            </small>
+        </div>
+    </div>
+
+    <!-- Error Alert -->
+    @if (!string.IsNullOrWhiteSpace((string)TempData["Error"]))
+    {
+        <div class="alert alert-danger alert-dismissible fade show shadow-sm">
+            <i class="bi bi-exclamation-triangle-fill me-2"></i>
+            @TempData["Error"]
+
+            <button type="button"
+                    class="btn-close"
+                    data-bs-dismiss="alert">
+            </button>
+        </div>
+    }
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-body p-4">
+
+            @* Show patient header or alert if missing *@
+            @if (Model.Patient == null)
+            {
+                <div class="alert alert-warning">
+                    <i class="bi bi-exclamation-circle me-2"></i>
+                    Patient context missing. Please open this page from a patient or visit record (e.g. Visit Details) to create a lab request.
+                    <a href="/Patients" class="btn btn-sm btn-link ms-2">Pick a patient</a>
+                </div>
+            }
+            else
+            {
+                <partial name="~/Views/Patients/_PatientHeader.cshtml"
+                         model="Model.Patient" />
+            }
+
+            </div>
+            </div>
+
+    <!-- Main Card -->
+    <div class="card border-0 shadow-sm">
+        <div class="card-body p-4">
+
+         
+            <form method="post" asp-controller="Lab" asp-action="Request" asp-route-patientId="@Model.PatientId" asp-route-visitId="@(Model.VisitId?.ToString())">
+
+                @Html.AntiForgeryToken()
+
+                <input type="hidden" name="PatientId" value="@Model.PatientId" />
+                <input type="hidden" name="VisitId" value="@(Model.VisitId?.ToString() ?? "")" />
+
+                <!-- Lab Tests Section -->
+                <div class="mb-4">
+
+                    <div class="d-flex align-items-center mb-3">
+                        <div class="bg-primary bg-opacity-10 text-primary rounded-circle p-2 me-2">
+                            <i class="bi bi-flask"></i>
+                        </div>
+
+                        <div>
+                            <h5 class="mb-0">Available Tests</h5>
+                            <small class="text-muted">
+                                Select one or more laboratory tests
+                            </small>
+                        </div>
+                    </div>
+
+                    <div class="row g-3">
+
+                        @foreach (var t in Model.AvailableTests)
+                        {
+                            <div class="col-md-6 col-lg-4">
+
+                                <label for="test_@t.Id"
+                                       class="card border h-100 shadow-sm test-card">
+
+                                    <div class="card-body">
+
+                                        <div class="form-check">
+
+                                            <input class="form-check-input"
+                                                   type="checkbox"
+                                                   name="SelectedTestIds[]"
+                                                   value="@t.Id"
+                                                   id="test_@t.Id" />
+
+                                            <div class="ms-2">
+
+                                                <div class="fw-semibold text-dark">
+                                                    @t.Name
+                                                </div>
+
+                                                <small class="text-muted">
+                                                    Code: @t.Code
+                                                </small>
+
+                                                <div class="mt-2">
+                                                    <span class="badge bg-success-subtle text-success border">
+                                                        @t.Price @t.Currency
+                                                    </span>
+                                                </div>
+
+                                            </div>
+
+                                        </div>
+
+                                    </div>
+
+                                </label>
+
+                            </div>
+                        }
+
+                    </div>
+
+                </div>
+
+                <!-- Billing Options -->
+                <div class="card bg-light border-0 mb-4">
+                    <div class="card-body">
+
+                        <div class="d-flex align-items-center mb-3">
+                            <div class="bg-warning bg-opacity-10 text-warning rounded-circle p-2 me-2">
+                                <i class="bi bi-credit-card"></i>
+                            </div>
+
+                            <div>
+                                <h5 class="mb-0">Billing Options</h5>
+                                <small class="text-muted">
+                                    Configure payment preferences
+                                </small>
+                            </div>
+                        </div>
+
+                        <!-- Credit Toggle -->
+                        <div class="form-check form-switch mb-3">
+
+                            @* ensure model binder receives false when unchecked *@
+                            <input type="hidden" name="AllowOnCredit" value="false" />
+
+                            <input class="form-check-input"
+                                   type="checkbox"
+                                   name="AllowOnCredit"
+                                   id="allowCredit"
+                                   value="true" />
+
+                            <label class="form-check-label fw-semibold"
+                                   for="allowCredit">
+                                Allow charge on credit
+                            </label>
+
+                            <div class="text-muted small mt-1">
+                                Requires appropriate permission
+                            </div>
+
+                        </div>
+
+                        <!-- Credit Reason -->
+                        <div>
+
+                            <label class="form-label">
+                                <i class="bi bi-chat-left-text me-1"></i>
+                                Credit Reason
+                            </label>
+
+                            <textarea name="CreditReason"
+                                      class="form-control"
+                                      rows="3"
+                                      placeholder="Provide reason for allowing credit (optional)"></textarea>
+
+                        </div>
+
+                    </div>
+                </div>
+
+                <!-- Footer Actions -->
+                <div class="d-flex justify-content-end gap-2 border-top pt-4">
+
+                    <a href="javascript:history.back()"
+                       class="btn btn-light">
+
+                        <i class="bi bi-arrow-left me-1"></i>
+                        Cancel
+
+                    </a>
+
+                    <button type="submit"
+                            id="createRequestBtn"
+                            class="btn btn-primary px-4">
+
+                        <i class="bi bi-check2-circle me-1"></i>
+                        Create Request
+
+                    </button>
+
+                </div>
+
+            </form>
+
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    var form = document.querySelector('form');
+    if (!form) return;
+
+    form.addEventListener('submit', function (e) {
+        // simple client-side validation: ensure at least one test selected
+        var selected = Array.from(document.querySelectorAll('input[name="SelectedTestIds"]:checked')).map(function (el) { return el.value; });
+        if (!selected.length) { e.preventDefault(); toastr.error('Select at least one test'); return false; }
+        // show spinner / toast while posting
+        toastr.info('Creating lab request...');
+        return true; // allow normal POST to server-side action
+    });
+});
+</script>
+
+<style>
+    .test-card {
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+
+        .test-card:hover {
+            border-color: #0d6efd !important;
+            transform: translateY(-2px);
+        }
+
+        .test-card input:checked ~ div .fw-semibold {
+            color: #0d6efd;
+        }
+</style>

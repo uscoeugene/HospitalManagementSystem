@@ -1,0 +1,67 @@
+@model HMS.UI.Models.Billing.InvoiceViewModel
+@{
+    Layout = "~/Pages/_Layout.cshtml";
+    ViewData["Title"] = "Invoice Details";
+}
+
+<div class="container py-4">
+    <h3>Invoice @Model.InvoiceNumber</h3>
+    <div class="mb-3">
+        <strong>Status:</strong> @Model.Status
+    </div>
+    <div class="mb-3">
+        <strong>Total:</strong> @Model.TotalAmount @Model.Currency
+    </div>
+    <div class="mb-3">
+        <strong>Paid:</strong> @Model.AmountPaid
+    </div>
+
+    <h5>Items</h5>
+    <table class="table">
+        <thead><tr><th>Description</th><th>Unit</th><th>Qty</th><th>Line</th></tr></thead>
+        <tbody>
+            @foreach(var it in Model.Items)
+            {
+                <tr>
+                    <td>@it.Description</td>
+                    <td>@it.UnitPrice</td>
+                    <td>@it.Quantity</td>
+                    <td>@it.LineTotal</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+
+    <h5>Payments</h5>
+    <table class="table">
+        <thead><tr><th>Amount</th><th>PaidAt</th><th>ExternalRef</th></tr></thead>
+        <tbody>
+            @foreach(var p in Model.Payments)
+            {
+                <tr>
+                    <td>@p.Amount</td>
+                    <td>@p.PaidAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</td>
+                    <td>@p.ExternalReference</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+
+    <div class="mt-4">
+        <form method="post" asp-action="Pay" asp-route-id="@Model.Id">
+            @Html.AntiForgeryToken()
+            <div class="row g-2 align-items-center">
+                <div class="col-auto">
+                    <input name="amount" class="form-control" placeholder="Amount" />
+                </div>
+                <div class="col-auto">
+                    <input name="externalReference" class="form-control" placeholder="External reference (optional)" />
+                </div>
+                <div class="col-auto">
+                    <button class="btn btn-primary">Pay</button>
+                </div>
+            </div>
+        </form>
+    </div>
+
+</div>

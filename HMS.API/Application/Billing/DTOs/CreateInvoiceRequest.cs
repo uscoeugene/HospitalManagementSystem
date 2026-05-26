@@ -13,6 +13,10 @@ namespace HMS.API.Application.Billing.DTOs
 
         [Required]
         public List<CreateInvoiceItemRequest> Items { get; set; } = new();
+
+        // Allow charging this invoice on credit
+        public bool AllowOnCredit { get; set; } = false;
+        public string? CreditReason { get; set; }
     }
 
     public class CreateInvoiceItemRequest

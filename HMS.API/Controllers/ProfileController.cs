@@ -1,10 +1,13 @@
 using System;
+using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 using HMS.API.Application.Profile;
 using Microsoft.EntityFrameworkCore;
 using HMS.API.Application.Profile.DTOs;
 using HMS.API.Application.Common;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc;
 
 namespace HMS.API.Controllers
@@ -16,12 +19,14 @@ namespace HMS.API.Controllers
         private readonly IProfileService _profiles;
         private readonly ICurrentUserService _currentUser;
         private readonly IAuthorizationService _authorization;
+        private readonly IWebHostEnvironment _env;
 
-        public ProfileController(IProfileService profiles, ICurrentUserService currentUser, IAuthorizationService authorization)
+        public ProfileController(IProfileService profiles, ICurrentUserService currentUser, IAuthorizationService authorization, IWebHostEnvironment env)
         {
             _profiles = profiles;
             _currentUser = currentUser;
             _authorization = authorization;
+            _env = env;
         }
 
         // GET /api/profile/providers
@@ -109,6 +114,76 @@ namespace HMS.API.Controllers
             var updatedOther = await _profiles.UpdateForUserAsync(userId, req, me);
             if (updatedOther == null) return NotFound();
             return Ok(updatedOther);
+        }
+
+        // POST /api/profile/me/photo
+        [HttpPost("me/photo")]
+        public async Task<IActionResult> UploadMyPhoto()
+        {
+            var uid = _currentUser.UserId;
+            if (uid == null) return Unauthorized();
+
+            var file = Request.Form.Files.FirstOrDefault();
+            if (file == null || file.Length == 0) return BadRequest(new { error = "File required" });
+
+            // validate basic file content-type
+            var allowed = new[] { "image/png", "image/jpeg", "image/jpg", "image/gif" };
+            if (!allowed.Contains(file.ContentType?.ToLower())) return BadRequest(new { error = "Unsupported file type" });
+
+            var uploads = Path.Combine(_env.WebRootPath ?? "wwwroot", "uploads", "profiles");
+            if (!Directory.Exists(uploads)) Directory.CreateDirectory(uploads);
+
+            var ext = Path.GetExtension(file.FileName);
+            var filename = $"{uid.Value.ToString()}_{Guid.NewGuid().ToString("N")}{ext}";
+            var path = Path.Combine(uploads, filename);
+
+            using (var fs = System.IO.File.Create(path))
+            {
+                await file.CopyToAsync(fs);
+            }
+
+            // store relative url
+            var rel = $"/uploads/profiles/{filename}";
+
+            // update profile photo url
+            var upd = new UpdateUserProfileRequest { PhotoUrl = rel };
+            await _profiles.UpdateForUserAsync(uid.Value, upd, uid);
+
+            return Ok(new { url = rel });
+        }
+
+        // POST /api/profile/{userId}/photo  (admin)
+        [HttpPost("{userId:guid}/photo")]
+        public async Task<IActionResult> UploadPhotoForUser(Guid userId)
+        {
+            // require manage permission
+            var authResult = await _authorization.AuthorizeAsync(User, "PROFILE.MANAGE");
+            if (!authResult.Succeeded) return Forbid();
+
+            var file = Request.Form.Files.FirstOrDefault();
+            if (file == null || file.Length == 0) return BadRequest(new { error = "File required" });
+
+            var allowed = new[] { "image/png", "image/jpeg", "image/jpg", "image/gif" };
+            if (!allowed.Contains(file.ContentType?.ToLower())) return BadRequest(new { error = "Unsupported file type" });
+
+            var uploads = Path.Combine(_env.WebRootPath ?? "wwwroot", "uploads", "profiles");
+            if (!Directory.Exists(uploads)) Directory.CreateDirectory(uploads);
+
+            var ext = Path.GetExtension(file.FileName);
+            var filename = $"{userId.ToString()}_{Guid.NewGuid().ToString("N")}{ext}";
+            var path = Path.Combine(uploads, filename);
+
+            using (var fs = System.IO.File.Create(path))
+            {
+                await file.CopyToAsync(fs);
+            }
+
+            var rel = $"/uploads/profiles/{filename}";
+
+            var upd = new UpdateUserProfileRequest { PhotoUrl = rel };
+            await _profiles.UpdateForUserAsync(userId, upd, _currentUser.UserId);
+
+            return Ok(new { url = rel });
         }
     }
 }

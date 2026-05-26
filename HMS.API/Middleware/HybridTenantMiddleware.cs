@@ -54,7 +54,11 @@ namespace HMS.API.Middleware
                         host = host.Trim();
                     }
                 }
-                catch { host = context.Request.Host.Host; }
+                catch (Exception ex)
+                {
+                    logger?.LogWarning(ex, "Failed to normalize request host for tenant resolution");
+                    host = context.Request.Host.Host;
+                }
                 var platformList = platformDomains?.GetSection("PlatformDomains").Get<string[]>() ?? Array.Empty<string>();
                 var isPlatformDomain = Array.Exists(platformList, d => string.Equals(d, host, StringComparison.OrdinalIgnoreCase));
 
@@ -79,7 +83,10 @@ namespace HMS.API.Middleware
                             tid = parsedHdr;
                         }
                     }
-                    catch { }
+                    catch (Exception ex)
+                    {
+                        logger?.LogWarning(ex, "Failed to parse X-Tenant-Id header for tenant resolution");
+                    }
 
                     // Development debug header override
                     var env = context.RequestServices.GetService(typeof(Microsoft.Extensions.Hosting.IHostEnvironment)) as Microsoft.Extensions.Hosting.IHostEnvironment;
@@ -120,9 +127,15 @@ namespace HMS.API.Middleware
                                     }
                                 }
                             }
-                            catch { }
+                            catch (Exception ex)
+                            {
+                                logger?.LogWarning(ex, "Failed to lookup tenant name while setting tenant cookies for {TenantId}", tid.Value);
+                            }
                         }
-                        catch { }
+                        catch (Exception ex)
+                        {
+                            logger?.LogWarning(ex, "Failed to set tenant cookies for {TenantId}", tid.Value);
+                        }
                     }
                     else
                     {
@@ -158,14 +171,19 @@ namespace HMS.API.Middleware
                                     logger?.LogWarning("OnPrem mode: tenant could not be resolved from AppSettings or host");
                                 }
                             }
-                            catch { logger?.LogWarning("OnPrem mode: host-based fallback failed"); }
+                            catch (Exception ex)
+                            {
+                                logger?.LogWarning(ex, "OnPrem mode: host-based tenant fallback failed for host {Host}", host);
+                            }
                         }
                     }
                 }
             }
-            catch
+            catch (Exception ex)
             {
                 // never break pipeline; leave TenantId absent if resolution fails
+                var logger = context.RequestServices.GetService(typeof(Microsoft.Extensions.Logging.ILogger<HybridTenantMiddleware>)) as Microsoft.Extensions.Logging.ILogger<HybridTenantMiddleware>;
+                logger?.LogError(ex, "Hybrid tenant resolution failed; continuing without tenant context");
             }
 
             try

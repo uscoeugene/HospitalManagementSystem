@@ -21,7 +21,14 @@
     <div class="profile-header">
 
         <div class="profile-avatar">
-            @initials
+            @if (!string.IsNullOrWhiteSpace(Model.PhotoUrl))
+            {
+                <img src="@Model.PhotoUrl" alt="Avatar" class="rounded-circle" style="width:96px;height:96px;object-fit:cover;" />
+            }
+            else
+            {
+                <div class="avatar-placeholder">@initials</div>
+            }
         </div>
 
         <div>
