@@ -7,7 +7,10 @@ namespace HMS.API.Application.Pharmacy.DTOs
 
     public class CreatePrescriptionItem
     {
-        public Guid InventoryItemId { get; set; }
+        public Guid? InventoryItemId { get; set; }
+        public string MedicationName { get; set; } = string.Empty;
+        public string? Dosage { get; set; }
+        public string? Frequency { get; set; }
         public int Quantity { get; set; }
     }
 
@@ -21,13 +24,21 @@ namespace HMS.API.Application.Pharmacy.DTOs
     public class PrescriptionItemDto
     {
         public Guid Id { get; set; }
-        public Guid InventoryItemId { get; set; }
-        public string Name { get; set; } = string.Empty;
+        public Guid? InventoryItemId { get; set; }
+        public string MedicationName { get; set; } = string.Empty;
+        public string? InventoryItemName { get; set; }
+        public string? Dosage { get; set; }
+        public string? Frequency { get; set; }
         public int Quantity { get; set; }
         public int DispensedQuantity { get; set; }
         public decimal Price { get; set; }
-        public string Currency { get; set; } = "USD";
+        public string Currency { get; set; } = "NGN";
         public string? Notes { get; set; }
+        public string Status { get; set; } = string.Empty;
+        public string? ShortageReason { get; set; }
+        public bool IsSubstituted { get; set; }
+        public string? SubstituteMedicationName { get; set; }
+        public int? AvailableStock { get; set; }
     }
 
     public class PrescriptionDto
@@ -42,6 +53,8 @@ namespace HMS.API.Application.Pharmacy.DTOs
     public class DispenseRequest
     {
         public Guid PrescriptionItemId { get; set; }
+        public Guid? InventoryItemId { get; set; }
+        public string? DispensedMedicationName { get; set; }
         public int Quantity { get; set; }
 
         // If true, attempt to dispense even if linked invoice is unpaid or partial.
@@ -50,6 +63,7 @@ namespace HMS.API.Application.Pharmacy.DTOs
 
         // Optional reason or note for allowing credit (e.g., emergency, management order)
         public string? CreditReason { get; set; }
+        public string? Note { get; set; }
     }
 
     public class DispenseDto
@@ -62,5 +76,13 @@ namespace HMS.API.Application.Pharmacy.DTOs
         public int Quantity { get; set; }
         public bool IsOnCredit { get; set; }
         public string? CreditReason { get; set; }
+    }
+
+    public class ReconcilePrescriptionItemRequest
+    {
+        public Guid? InventoryItemId { get; set; }
+        public string? SubstituteMedicationName { get; set; }
+        public string? Status { get; set; }
+        public string? Note { get; set; }
     }
 }

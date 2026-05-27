@@ -44,7 +44,7 @@ namespace HMS.API.Application.Billing.DTOs
         public string Status { get; set; } = string.Empty;
         public decimal TotalAmount { get; set; }
         public decimal AmountPaid { get; set; }
-        public string Currency { get; set; } = "USD";
+        public string Currency { get; set; } = "NGN";
         public bool AllowOnCredit { get; set; }
         public string? CreditReason { get; set; }
         public DateTimeOffset CreatedAt { get; set; }

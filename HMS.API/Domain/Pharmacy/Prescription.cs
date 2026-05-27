@@ -7,9 +7,21 @@ namespace HMS.API.Domain.Pharmacy
     public enum PrescriptionStatus
     {
         ORDERED,
-        CHARGED,
+        IN_PHARMACY,
         DISPENSED,
         CANCELLED
+    }
+
+    public enum PrescriptionItemStatus
+    {
+        PENDING,
+        READY,
+        OUT_OF_STOCK,
+        ORDER_STOCK,
+        UNAVAILABLE,
+        PARTIALLY_DISPENSED,
+        DISPENSED,
+        SUBSTITUTED
     }
 
     public class Prescription : BaseEntity
@@ -24,13 +36,20 @@ namespace HMS.API.Domain.Pharmacy
     {
         public Guid PrescriptionId { get; set; }
         public Prescription Prescription { get; set; } = null!;
-        public Guid InventoryItemId { get; set; }
-        public InventoryItem InventoryItem { get; set; } = null!;
+        public Guid? InventoryItemId { get; set; }
+        public InventoryItem? InventoryItem { get; set; }
+        public string MedicationName { get; set; } = string.Empty;
+        public string? Dosage { get; set; }
+        public string? Frequency { get; set; }
         public int Quantity { get; set; }
         public decimal Price { get; set; }
-        public string Currency { get; set; } = "USD";
+        public string Currency { get; set; } = "NGN";
         public Guid? ChargeInvoiceItemId { get; set; }
         public int DispensedQuantity { get; set; } = 0;
         public string? Notes { get; set; }
+        public PrescriptionItemStatus FulfillmentStatus { get; set; } = PrescriptionItemStatus.PENDING;
+        public string? ShortageReason { get; set; }
+        public bool IsSubstituted { get; set; }
+        public string? SubstituteMedicationName { get; set; }
     }
 }

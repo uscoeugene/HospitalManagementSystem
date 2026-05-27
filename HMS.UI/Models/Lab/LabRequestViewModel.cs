@@ -9,7 +9,7 @@ namespace HMS.UI.Models.Lab
         public Guid LabTestId { get; set; }
         public LabTestViewModel? LabTest { get; set; }
         public decimal Price { get; set; }
-        public string Currency { get; set; } = "USD";
+        public string Currency { get; set; } = "NGN";
         public Guid? ChargeInvoiceItemId { get; set; }
         public string ResultStatus { get; set; } = "PENDING";
         public string? ResultValue { get; set; }

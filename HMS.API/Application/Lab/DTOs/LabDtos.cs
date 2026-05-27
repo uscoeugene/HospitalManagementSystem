@@ -10,7 +10,7 @@ namespace HMS.API.Application.Lab.DTOs
         public string Name { get; set; } = string.Empty;
         public string Description { get; set; } = string.Empty;
         public decimal Price { get; set; }
-        public string Currency { get; set; } = "USD";
+        public string Currency { get; set; } = "NGN";
     }
 
     public class CreateLabRequestItem
@@ -35,7 +35,7 @@ namespace HMS.API.Application.Lab.DTOs
         public Guid LabTestId { get; set; }
         public LabTestDto LabTest { get; set; } = new();
         public decimal Price { get; set; }
-        public string Currency { get; set; } = "USD";
+        public string Currency { get; set; } = "NGN";
         public Guid? ChargeInvoiceItemId { get; set; }
         public string ResultStatus { get; set; } = "PENDING";
         public string? ResultValue { get; set; }
@@ -85,6 +85,6 @@ namespace HMS.API.Application.Lab.DTOs
         public string Status { get; set; } = string.Empty;
         public decimal TotalAmount { get; set; }
         public decimal AmountPaid { get; set; }
-        public string Currency { get; set; } = "USD";
+        public string Currency { get; set; } = "NGN";
     }
 }

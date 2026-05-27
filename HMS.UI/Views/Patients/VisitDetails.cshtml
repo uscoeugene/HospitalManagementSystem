@@ -114,6 +114,7 @@ document.addEventListener('DOMContentLoaded', function(){
                 <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#tab-vitals">Vitals</a></li>
                 <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-dx">Diagnosis</a></li>
                 <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-cons">Consultations</a></li>
+                <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-rx">Prescriptions</a></li>
                 <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-inv">Invoices</a></li>
                 <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-lab">Lab Requests</a></li>
             </ul>
@@ -250,6 +251,48 @@ document.addEventListener('DOMContentLoaded', function(){
                 </div>
 
                 <!-- Invoices Tab -->
+                <div id="tab-rx" class="tab-pane fade">
+                    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-3">
+                        <h6 class="mb-2 mb-md-0 page-title">Prescriptions</h6>
+                        @if (Model.Patient != null && Model.Visit != null)
+                        {
+                            <a asp-controller="Pharmacy"
+                               asp-action="CreatePrescription"
+                               asp-route-patientId="@Model.Patient.Id"
+                               asp-route-visitId="@Model.Visit.Id"
+                               asp-route-returnUrl="@Url.Action("VisitDetails", "Patients", new { id = Model.Visit.Id })"
+                               class="btn btn-primary-custom btn-sm">
+                                <i class="bi bi-plus-lg"></i> Add Prescription
+                            </a>
+                        }
+                    </div>
+
+                    @if (Model.Prescriptions == null || Model.Prescriptions.Length == 0)
+                    {
+                        <div class="text-muted-custom">No prescriptions recorded for this visit.</div>
+                    }
+                    else
+                    {
+                        <div class="list-group">
+                            @foreach (var prescription in Model.Prescriptions)
+                            {
+                                <div class="list-group-item d-flex justify-content-between align-items-start">
+                                    <div>
+                                        <div class="fw-semibold">@prescription.Status</div>
+                                        <div class="small text-muted">@(prescription.Items?.Length ?? 0) medication item(s)</div>
+                                        <div class="small text-muted">
+                                            @string.Join(", ", (prescription.Items ?? Array.Empty<HMS.UI.Models.Pharmacy.PrescriptionItemViewModel>()).Take(3).Select(item => item.MedicationName))
+                                        </div>
+                                    </div>
+                                    <div class="ms-3">
+                                        <a asp-controller="Pharmacy" asp-action="PrescriptionDetails" asp-route-id="@prescription.Id" class="btn btn-sm btn-outline-secondary">View</a>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+
                 <div id="tab-inv" class="tab-pane fade">
                     <div class="d-flex justify-content-between align-items-center mb-3">
                         <h6 class="mb-0">Invoices</h6>

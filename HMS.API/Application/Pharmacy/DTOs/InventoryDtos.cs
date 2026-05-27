@@ -9,7 +9,7 @@ namespace HMS.API.Application.Pharmacy.DTOs
         public string Name { get; set; } = string.Empty;
         public string? Description { get; set; }
         public decimal UnitPrice { get; set; }
-        public string Currency { get; set; } = "USD";
+        public string Currency { get; set; } = "NGN";
         public int Stock { get; set; }
         public int ReservedStock { get; set; }
         public string Category { get; set; } = "general";
@@ -22,7 +22,7 @@ namespace HMS.API.Application.Pharmacy.DTOs
         public string Name { get; set; } = string.Empty;
         public string? Description { get; set; }
         public decimal UnitPrice { get; set; }
-        public string Currency { get; set; } = "USD";
+        public string Currency { get; set; } = "NGN";
         public int Stock { get; set; }
         public Guid? CategoryId { get; set; }
         public string? Category { get; set; }

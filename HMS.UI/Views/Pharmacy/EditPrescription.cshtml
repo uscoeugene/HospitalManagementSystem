@@ -2,80 +2,97 @@
 @{
     Layout = "~/Pages/_Layout.cshtml";
     ViewData["Title"] = "Edit Prescription";
+    var rows = (Model.Prescription.Items ?? Array.Empty<HMS.UI.Models.Pharmacy.PrescriptionItemViewModel>())
+        .Select(item => new HMS.UI.Models.Pharmacy.CreatePrescriptionItemViewModel
+        {
+            InventoryItemId = item.InventoryItemId,
+            MedicationName = item.MedicationName,
+            Dosage = item.Dosage,
+            Frequency = item.Frequency,
+            Quantity = item.Quantity
+        })
+        .ToList();
+    while (rows.Count < 6)
+    {
+        rows.Add(new HMS.UI.Models.Pharmacy.CreatePrescriptionItemViewModel { Quantity = 1 });
+    }
 }
 
-<div class="container py-4">
-    <h3>Edit Prescription @Model.Prescription.Id</h3>
-
-    @if (TempData["Error"] != null)
-    {
-        <div class="alert alert-danger">@TempData["Error"]</div>
-    }
-
-    <form method="post" asp-action="UpdatePrescription" asp-controller="Pharmacy">
-        @Html.AntiForgeryToken()
-        <input type="hidden" name="id" value="@Model.Prescription.Id" />
-        <div class="row g-3">
-            <div class="col-md-6">
-                <label class="form-label">Patient Id</label>
-                <input name="patientId" value="@Model.Prescription.PatientId" class="form-control" />
-            </div>
-            <div class="col-md-6">
-                <label class="form-label">Visit Id (optional)</label>
-                <input name="visitId" value="@Model.Prescription.VisitId" class="form-control" />
-            </div>
+<div class="container-fluid py-4">
+    <div class="d-flex flex-column flex-lg-row align-items-lg-center justify-content-between gap-3 mb-4">
+        <div>
+            <h3 class="mb-1">Edit Prescription</h3>
+            <p class="text-muted mb-0">Update the core prescription details and the medication list sent to pharmacy.</p>
         </div>
-        <div class="mt-3 text-end">
-            <button class="btn btn-primary">Save</button>
-            <a class="btn btn-light" href="/Pharmacy/PrescriptionDetails?id=@Model.Prescription.Id">Cancel</a>
+        <div class="d-flex gap-2">
+            <a class="btn btn-outline-secondary" asp-action="PrescriptionDetails" asp-route-id="@Model.Prescription.Id">View Details</a>
+            <span class="badge rounded-pill text-bg-light align-self-center">@Model.Prescription.Status</span>
         </div>
-    </form>
+    </div>
 
-    <hr />
+    <partial name="~/Views/Shared/_StatusAlerts.cshtml" />
 
-    <h5>Items</h5>
-    <form method="post" asp-action="UpdatePrescriptionItems" asp-controller="Pharmacy">
-        @Html.AntiForgeryToken()
-        <input type="hidden" name="id" value="@Model.Prescription.Id" />
-        <table class="table">
-            <thead><tr><th>Inventory Item</th><th class="text-end">Quantity</th></tr></thead>
-            <tbody>
-                @for (int i = 0; i < Model.Prescription.Items.Length; i++)
-                {
-                    <tr>
-                        <td>
-                            <select name="inventoryItemIds" class="form-select">
-                                <option value="">-- select --</option>
-                                @{
-                                    foreach(var it in Model.AvailableInventoryItems)
-                                    {
-                                        if (it.Id == Model.Prescription.Items[i].InventoryItemId)
-                                        {
-                                            <text><option value="@it.Id" selected="selected">@it.Name (@it.Code)</option></text>
-                                        }
-                                        else
-                                        {
-                                            <text><option value="@it.Id">@it.Name (@it.Code)</option></text>
-                                        }
-                                    }
-                                }
-                            </select>
-                        </td>
-                        <td>
-                            <input type="number" name="quantities" value="@Model.Prescription.Items[i].Quantity" class="form-control text-end" style="width:120px;" />
-                        </td>
-                    </tr>
-                }
-            </tbody>
-        </table>
-
-        <div class="form-check mb-3">
-            <input class="form-check-input" type="checkbox" value="true" name="allowIfDispensed" id="allowIfDispensed">
-            <label class="form-check-label" for="allowIfDispensed">Allow update if already dispensed</label>
+    <div class="row g-4">
+        <div class="col-12">
+            <form method="post" asp-action="UpdatePrescription" asp-controller="Pharmacy" class="card border-0 shadow-sm">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="id" value="@Model.Prescription.Id" />
+                <div class="card-body">
+                    <h5 class="card-title mb-3">Prescription Header</h5>
+                    <div class="row g-3">
+                        <div class="col-lg-6">
+                            <label class="form-label">Patient Id</label>
+                            <input name="patientId" value="@Model.Prescription.PatientId" class="form-control" />
+                        </div>
+                        <div class="col-lg-6">
+                            <label class="form-label">Visit Id</label>
+                            <input name="visitId" value="@Model.Prescription.VisitId" class="form-control" />
+                        </div>
+                    </div>
+                </div>
+                <div class="card-footer bg-white d-flex justify-content-end">
+                    <button class="btn btn-primary">Save Header</button>
+                </div>
+            </form>
         </div>
 
-        <div class="text-end">
-            <button class="btn btn-primary">Update Items</button>
+        <div class="col-12">
+            <form method="post" asp-action="UpdatePrescriptionItems" asp-controller="Pharmacy" class="card border-0 shadow-sm">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="id" value="@Model.Prescription.Id" />
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h5 class="card-title mb-0">Prescription Items</h5>
+                        <button type="button" class="btn btn-outline-primary btn-sm" data-add-prescription-item>
+                            <i class="bi bi-plus-lg"></i> Add Item
+                        </button>
+                    </div>
+
+                    <div class="row g-3" data-prescription-items-container>
+                        @for (var i = 0; i < rows.Count; i++)
+                        {
+                            <div class="col-12 col-xl-6" data-prescription-item-row>
+                                <partial name="_PrescriptionItemEditorRow" model="new HMS.UI.Models.Pharmacy.PrescriptionItemEditorRowViewModel { Index = i, Item = rows[i], AvailableInventoryItems = Model.AvailableInventoryItems }" />
+                            </div>
+                        }
+                    </div>
+
+                    <div class="form-check mt-4">
+                        <input class="form-check-input" type="checkbox" value="true" name="allowIfDispensed" id="allowIfDispensed">
+                        <label class="form-check-label" for="allowIfDispensed">Allow update even if dispensing has started</label>
+                    </div>
+                </div>
+                <div class="card-footer bg-white d-flex justify-content-between align-items-center">
+                    <span class="text-muted small">Blank rows are ignored when the prescription is updated.</span>
+                    <button class="btn btn-primary">Update Items</button>
+                </div>
+            </form>
         </div>
-    </form>
+    </div>
 </div>
+
+<script type="application/json" id="prescription-inventory-data">@Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.AvailableInventoryItems.Select(i => new { id = i.Id, name = i.Name, code = i.Code })))</script>
+
+@section Scripts {
+    <script src="/js/prescription-form.js"></script>
+}

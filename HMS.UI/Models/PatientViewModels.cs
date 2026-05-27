@@ -1,4 +1,5 @@
 using HMS.UI.Models.Lab;
+using HMS.UI.Models.Pharmacy;
 using System;
 using System.ComponentModel.DataAnnotations;
 
@@ -40,6 +41,7 @@ namespace HMS.UI.Models
         public ConsultationViewModel[] Consultations { get; set; } = Array.Empty<ConsultationViewModel>();
         public HMS.UI.Models.Billing.InvoiceViewModel[] Invoices { get; set; } = Array.Empty<HMS.UI.Models.Billing.InvoiceViewModel>();
         public LabRequestViewModel[] LabRequests { get; set; } = Array.Empty<LabRequestViewModel>();
+        public PrescriptionViewModel[] Prescriptions { get; set; } = Array.Empty<PrescriptionViewModel>();
     }
 
     public class EnterVitalsPageViewModel

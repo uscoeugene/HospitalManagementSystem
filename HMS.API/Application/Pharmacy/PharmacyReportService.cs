@@ -37,11 +37,14 @@ namespace HMS.API.Application.Pharmacy
         public async Task<IEnumerable<InventoryRevenueDto>> GetRevenuePerInventoryAsync(int monthsBack = 6)
         {
             var since = DateTimeOffset.UtcNow.AddMonths(-monthsBack);
-            // Aggregate revenue from prescription items referencing inventory items
-            var q = _db.PrescriptionItems.AsNoTracking().Where(pi => pi.CreatedAt >= since && !pi.IsDeleted).Include(pi => pi.InventoryItem);
+            // Aggregate revenue only for dispensed items that were linked back to inventory.
+            var q = _db.PrescriptionItems
+                .AsNoTracking()
+                .Where(pi => pi.CreatedAt >= since && !pi.IsDeleted && pi.InventoryItemId.HasValue && pi.InventoryItem != null)
+                .Include(pi => pi.InventoryItem);
 
             var data = await q.GroupBy(pi => new { pi.InventoryItemId, pi.InventoryItem!.Name })
-                              .Select(g => new InventoryRevenueDto { InventoryItemId = g.Key.InventoryItemId, InventoryItemName = g.Key.Name, Revenue = g.Sum(pi => pi.Price * pi.Quantity) })
+                              .Select(g => new InventoryRevenueDto { InventoryItemId = g.Key.InventoryItemId!.Value, InventoryItemName = g.Key.Name, Revenue = g.Sum(pi => pi.Price * pi.DispensedQuantity) })
                               .OrderByDescending(r => r.Revenue)
                               .ToListAsync();
             return data;

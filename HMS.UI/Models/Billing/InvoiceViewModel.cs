@@ -32,7 +32,7 @@ namespace HMS.UI.Models.Billing
         public string Status { get; set; } = string.Empty;
         public decimal TotalAmount { get; set; }
         public decimal AmountPaid { get; set; }
-        public string Currency { get; set; } = "USD";
+        public string Currency { get; set; } = "NGN";
         // UI-friendly fields
         public string? PatientName { get; set; }
         public DateTimeOffset? VisitAt { get; set; }

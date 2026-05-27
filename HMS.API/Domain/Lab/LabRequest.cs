@@ -45,7 +45,7 @@ namespace HMS.API.Domain.Lab
         public LabTest LabTest { get; set; } = null!;
 
         public decimal Price { get; set; }
-        public string Currency { get; set; } = "USD";
+        public string Currency { get; set; } = "NGN";
 
         public Guid? ChargeInvoiceItemId { get; set; } // reference to billing invoice item if created
 

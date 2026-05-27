@@ -160,7 +160,7 @@ namespace HMS.API.Application.Lab
                     PatientId = lr.PatientId,
                     VisitId = lr.VisitId,
                     Items = billingItems.ToArray(),
-                    Currency = "USD",
+                    Currency = "NGN",
                     AllowOnCredit = request.AllowOnCredit,
                     CreditReason = request.CreditReason
                 };

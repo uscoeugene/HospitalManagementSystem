@@ -4,32 +4,64 @@
     ViewData["Title"] = "Prescriptions";
 }
 
-<div class="container py-4">
-    <h3>Prescriptions</h3>
-
-    <div class="mb-3 text-end">
+<div class="container-fluid py-4">
+    <div class="d-flex flex-column flex-lg-row align-items-lg-center justify-content-between gap-3 mb-4">
+        <div>
+            <h3 class="mb-1">Prescriptions</h3>
+            <p class="text-muted mb-0">Consultation prescriptions flow into pharmacy for reconciliation, dispensing, stock updates, and billing.</p>
+        </div>
         <a class="btn btn-success" asp-action="CreatePrescription">New Prescription</a>
     </div>
 
-    <table class="table table-hover">
-        <thead><tr><th>Id</th><th>Patient</th><th>Status</th><th class="text-end">Items</th><th></th></tr></thead>
-        <tbody>
-            @if(Model.Items != null && Model.Items.Length > 0)
-            {
-                foreach(var p in Model.Items)
-                {
-                    <tr>
-                        <td>@p.Id</td>
-                        <td>@p.PatientId</td>
-                        <td>@p.Status</td>
-                        <td class="text-end">@p.Items.Length</td>
-                        <td class="text-end"><a class="btn btn-sm btn-outline-primary" href="@Url.Action("PrescriptionDetails", "Pharmacy", new { id = p.Id })">View</a></td>
-                    </tr>
-                }
-            }
-            else
-            {
-                <tr><td colspan="5" class="text-center text-muted">No prescriptions</td></tr>
-            }
-        </tbody></table>
+    <partial name="~/Views/Shared/_StatusAlerts.cshtml" />
+
+    <div class="card border-0 shadow-sm">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Prescription</th>
+                            <th>Patient</th>
+                            <th>Status</th>
+                            <th>Medication Summary</th>
+                            <th class="text-end">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (Model.Items != null && Model.Items.Length > 0)
+                        {
+                            foreach (var p in Model.Items)
+                            {
+                                var medicationSummary = string.Join(", ", p.Items.Take(2).Select(item => item.MedicationName));
+                                if (p.Items.Length > 2)
+                                {
+                                    medicationSummary += $" +{p.Items.Length - 2} more";
+                                }
+
+                                <tr>
+                                    <td class="text-break">@p.Id</td>
+                                    <td class="text-break">@p.PatientId</td>
+                                    <td><span class="badge text-bg-light">@p.Status</span></td>
+                                    <td>
+                                        <div class="fw-semibold">@p.Items.Length item(s)</div>
+                                        <div class="text-muted small">@(string.IsNullOrWhiteSpace(medicationSummary) ? "No items recorded" : medicationSummary)</div>
+                                    </td>
+                                    <td class="text-end">
+                                        <a class="btn btn-sm btn-outline-primary" asp-action="PrescriptionDetails" asp-route-id="@p.Id">Open</a>
+                                    </td>
+                                </tr>
+                            }
+                        }
+                        else
+                        {
+                            <tr>
+                                <td colspan="5" class="text-center text-muted py-5">No prescriptions found.</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
 </div>

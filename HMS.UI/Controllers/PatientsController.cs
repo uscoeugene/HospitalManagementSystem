@@ -9,6 +9,7 @@ using HMS.UI.Models.Lab;
 using HMS.UI.Models.Lab;
 using System.Net.Http.Json;
 using HMS.UI.Security;
+using HMS.UI.Models.Profile;
 
 namespace HMS.UI.Controllers
 {
@@ -104,6 +105,16 @@ namespace HMS.UI.Controllers
                     vm.LabRequests = items;
                 }
                 catch { vm.LabRequests = Array.Empty<HMS.UI.Models.Lab.LabRequestViewModel>(); }
+
+                try
+                {
+                    var prescriptionPage = await _api.GetAsync<PagedResult<HMS.UI.Models.Pharmacy.PrescriptionViewModel>>($"/pharmacy/prescriptions?visitId={v.Id}&page=1&pageSize=100");
+                    vm.Prescriptions = prescriptionPage?.Items ?? Array.Empty<HMS.UI.Models.Pharmacy.PrescriptionViewModel>();
+                }
+                catch
+                {
+                    vm.Prescriptions = Array.Empty<HMS.UI.Models.Pharmacy.PrescriptionViewModel>();
+                }
 
                 return View(vm);
             }
@@ -264,14 +275,7 @@ namespace HMS.UI.Controllers
                 var visit = await _api.GetAsync<HMS.UI.Models.VisitViewModel>($"/patients/visits/{visitId}");
                 if (visit == null) return NotFound();
                 var vm = new HMS.UI.Models.CreateConsultationViewModel { PatientId = visit.PatientId, VisitId = visit.Id, ConsultationAt = DateTimeOffset.UtcNow };
-                try
-                {
-                    var providers = await _api.GetAsync<HMS.UI.Models.Profile.ProviderViewModel[]>($"/api/profile/providers");
-                    ViewBag.Providers = providers ?? Array.Empty<HMS.UI.Models.Profile.ProviderViewModel>();
-                }
-                catch { ViewBag.Providers = Array.Empty<HMS.UI.Models.Profile.ProviderViewModel>(); }
-                // Fetch patient summary for header
-                try { ViewBag.Patient = await _api.GetAsync<HMS.UI.Models.PatientDetailsViewModel>($"/patients/{vm.PatientId}"); } catch { ViewBag.Patient = null; }
+                await PopulateConsultationViewDataAsync(vm);
                 return View(vm);
             }
             catch
@@ -285,7 +289,12 @@ namespace HMS.UI.Controllers
         [HasPermission("patients.manage")]
         public async Task<IActionResult> CreateConsultation(HMS.UI.Models.CreateConsultationViewModel vm)
         {
-            if (!ModelState.IsValid) return View(vm);
+            await ApplyCurrentDoctorDefaultsAsync(vm);
+            if (!ModelState.IsValid)
+            {
+                await PopulateConsultationViewDataAsync(vm);
+                return View(vm);
+            }
             try
             {
                 var payload = new { PatientId = vm.PatientId, VisitId = vm.VisitId, DoctorId = vm.DoctorId, ConsultationAt = vm.ConsultationAt, Notes = vm.Notes, ChiefComplaint = vm.ChiefComplaint };
@@ -296,12 +305,71 @@ namespace HMS.UI.Controllers
                     return RedirectToAction("VisitDetails", new { id = vm.VisitId });
                 }
                 TempData["Error"] = "Failed to create consultation";
+                await PopulateConsultationViewDataAsync(vm);
                 return View(vm);
             }
             catch (Exception ex)
             {
                 TempData["Error"] = ex.Message;
+                await PopulateConsultationViewDataAsync(vm);
                 return View(vm);
+            }
+        }
+
+        private async Task PopulateConsultationViewDataAsync(HMS.UI.Models.CreateConsultationViewModel vm)
+        {
+            ProviderViewModel[] providers;
+            try
+            {
+                providers = await _api.GetAsync<ProviderViewModel[]>("/api/profile/providers") ?? Array.Empty<ProviderViewModel>();
+            }
+            catch
+            {
+                providers = Array.Empty<ProviderViewModel>();
+            }
+
+            ViewBag.Providers = providers;
+
+            try
+            {
+                ViewBag.Patient = await _api.GetAsync<HMS.UI.Models.PatientDetailsViewModel>($"/patients/{vm.PatientId}");
+            }
+            catch
+            {
+                ViewBag.Patient = null;
+            }
+
+            var currentUserId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            if (Guid.TryParse(currentUserId, out var parsedUserId))
+            {
+                var me = providers.FirstOrDefault(p => p.UserId == parsedUserId);
+                ViewBag.CurrentDoctor = me;
+                ViewBag.LockDoctorSelection = me?.IsDoctor == true;
+                if (me?.IsDoctor == true && !vm.DoctorId.HasValue)
+                {
+                    vm.DoctorId = me.UserId;
+                }
+            }
+            else
+            {
+                ViewBag.CurrentDoctor = null;
+                ViewBag.LockDoctorSelection = false;
+            }
+        }
+
+        private async Task ApplyCurrentDoctorDefaultsAsync(HMS.UI.Models.CreateConsultationViewModel vm)
+        {
+            var currentUserId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            if (!Guid.TryParse(currentUserId, out var parsedUserId))
+            {
+                return;
+            }
+
+            var providers = await _api.GetAsync<ProviderViewModel[]>("/api/profile/providers") ?? Array.Empty<ProviderViewModel>();
+            var me = providers.FirstOrDefault(p => p.UserId == parsedUserId);
+            if (me?.IsDoctor == true)
+            {
+                vm.DoctorId = me.UserId;
             }
         }
 

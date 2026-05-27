@@ -11,11 +11,12 @@ namespace HMS.API.Application.Pharmacy
 
         Task<PrescriptionDto> CreatePrescriptionAsync(CreatePrescriptionRequest req);
         Task<PrescriptionDto?> GetPrescriptionAsync(Guid id);
-        Task<PagedResult<PrescriptionDto>> ListPrescriptionsAsync(Guid? patientId = null, string? status = null, int page = 1, int pageSize = 20);
+        Task<PagedResult<PrescriptionDto>> ListPrescriptionsAsync(Guid? patientId = null, Guid? visitId = null, string? status = null, int page = 1, int pageSize = 20);
 
         Task<DispenseDto> DispenseAsync(DispenseRequest req);
 
         Task AddNoteAsync(Guid prescriptionId, Guid itemId, string note);
+        Task ReconcilePrescriptionItemAsync(Guid prescriptionId, Guid itemId, ReconcilePrescriptionItemRequest request);
 
         Task CleanupExpiredReservationsAsync();
 

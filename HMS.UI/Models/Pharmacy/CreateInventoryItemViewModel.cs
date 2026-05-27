@@ -11,7 +11,7 @@ namespace HMS.UI.Models.Pharmacy
         public string Name { get; set; } = string.Empty;
         public string? Description { get; set; }
         public decimal UnitPrice { get; set; }
-        public string Currency { get; set; } = "USD";
+        public string Currency { get; set; } = "NGN";
         public int Stock { get; set; }
         public string? Category { get; set; }
         public string? Unit { get; set; }

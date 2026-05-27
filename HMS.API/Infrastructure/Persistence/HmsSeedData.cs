@@ -27,8 +27,8 @@ namespace HMS.API.Infrastructure.Persistence
                 await hdb.SaveChangesAsync();
 
                 // lab tests
-                var t1 = new HMS.API.Domain.Lab.LabTest { Code = "CBC", Name = "Complete Blood Count", Price = 12.5m, Currency = "USD" };
-                var t2 = new HMS.API.Domain.Lab.LabTest { Code = "LFT", Name = "Liver Function Test", Price = 25m, Currency = "USD" };
+                var t1 = new HMS.API.Domain.Lab.LabTest { Code = "CBC", Name = "Complete Blood Count", Price = 12.5m, Currency = "NGN" };
+                var t2 = new HMS.API.Domain.Lab.LabTest { Code = "LFT", Name = "Liver Function Test", Price = 25m, Currency = "NGN" };
                 hdb.LabTests.AddRange(t1, t2);
                 await hdb.SaveChangesAsync();
 

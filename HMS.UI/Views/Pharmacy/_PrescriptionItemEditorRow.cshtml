@@ -1,0 +1,56 @@
+@model HMS.UI.Models.Pharmacy.PrescriptionItemEditorRowViewModel
+
+<div class="card border-0 shadow-sm h-100">
+    <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h6 class="mb-0">Medication Item @(Model.Index + 1)</h6>
+            <div class="d-flex gap-2 align-items-center">
+                <span class="badge text-bg-light">Optional stock link</span>
+                <button type="button" class="btn btn-outline-danger btn-sm" data-remove-prescription-item>
+                    <i class="bi bi-trash"></i>
+                </button>
+            </div>
+        </div>
+
+        <div class="row g-3">
+            <div class="col-md-6">
+                <label class="form-label">Linked inventory item</label>
+                <select name="Items[@Model.Index].InventoryItemId" class="form-select" data-inventory-select>
+                    <option value="">Other (Not in Inventory)</option>
+                    @foreach (var inventoryItem in Model.AvailableInventoryItems)
+                    {
+                        if (inventoryItem.Id == Model.Item.InventoryItemId)
+                        {
+                            <option value="@inventoryItem.Id" selected="selected">@inventoryItem.Name (@inventoryItem.Code)</option>
+                        }
+                        else
+                        {
+                            <option value="@inventoryItem.Id">@inventoryItem.Name (@inventoryItem.Code)</option>
+                        }
+                    }
+                </select>
+            </div>
+            <div class="col-md-6">
+                <label class="form-label">Medication name</label>
+                <input name="Items[@Model.Index].MedicationName"
+                       value="@Model.Item.MedicationName"
+                       class="form-control"
+                       data-medication-name
+                       placeholder="e.g. Augmentin 625mg"
+                       readonly="@(Model.Item.InventoryItemId.HasValue ? "readonly" : null)" />
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Dosage</label>
+                <input name="Items[@Model.Index].Dosage" value="@Model.Item.Dosage" class="form-control" placeholder="1 tab" />
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Frequency</label>
+                <input name="Items[@Model.Index].Frequency" value="@Model.Item.Frequency" class="form-control" placeholder="BID x 5 days" />
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Quantity</label>
+                <input name="Items[@Model.Index].Quantity" value="@(Model.Item.Quantity > 0 ? Model.Item.Quantity : 1)" type="number" min="0" class="form-control" />
+            </div>
+        </div>
+    </div>
+</div>

@@ -7,7 +7,7 @@ namespace HMS.API.Application.Payments.DTOs
         public Guid InvoiceId { get; set; }
         public Guid PatientId { get; set; }
         public decimal Amount { get; set; }
-        public string Currency { get; set; } = "USD";
+        public string Currency { get; set; } = "NGN";
         public string? ExternalReference { get; set; }
     }
 
@@ -17,7 +17,7 @@ namespace HMS.API.Application.Payments.DTOs
         public Guid InvoiceId { get; set; }
         public Guid PatientId { get; set; }
         public decimal Amount { get; set; }
-        public string Currency { get; set; } = "USD";
+        public string Currency { get; set; } = "NGN";
         public string Status { get; set; } = string.Empty;
         public string? ExternalReference { get; set; }
     }

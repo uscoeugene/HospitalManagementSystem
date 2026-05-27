@@ -46,9 +46,9 @@ namespace HMS.API.Controllers
 
         [HttpGet("prescriptions")]
         [HasPermission("pharmacy.view")]
-        public async Task<ActionResult> ListPrescriptions([FromQuery] Guid? patientId, [FromQuery] string? status, [FromQuery] int page = 1, [FromQuery] int pageSize = 20)
+        public async Task<ActionResult> ListPrescriptions([FromQuery] Guid? patientId, [FromQuery] Guid? visitId, [FromQuery] string? status, [FromQuery] int page = 1, [FromQuery] int pageSize = 20)
         {
-            var res = await _pharmacy.ListPrescriptionsAsync(patientId, status, page, pageSize);
+            var res = await _pharmacy.ListPrescriptionsAsync(patientId, visitId, status, page, pageSize);
             return Ok(res);
         }
 
@@ -74,6 +74,21 @@ namespace HMS.API.Controllers
             try
             {
                 await _pharmacy.AddNoteAsync(prescriptionId, itemId, note);
+                return NoContent();
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new { error = ex.Message });
+            }
+        }
+
+        [HttpPut("prescriptions/{prescriptionId}/items/{itemId}/reconcile")]
+        [HasPermission("pharmacy.dispense")]
+        public async Task<ActionResult> ReconcileItem(Guid prescriptionId, Guid itemId, [FromBody] ReconcilePrescriptionItemRequest request)
+        {
+            try
+            {
+                await _pharmacy.ReconcilePrescriptionItemAsync(prescriptionId, itemId, request);
                 return NoContent();
             }
             catch (InvalidOperationException ex)

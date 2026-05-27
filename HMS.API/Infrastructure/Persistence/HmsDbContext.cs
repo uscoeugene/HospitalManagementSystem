@@ -348,15 +348,23 @@ namespace HMS.API.Infrastructure.Persistence
             modelBuilder.Entity<HMS.API.Domain.Pharmacy.PrescriptionItem>(b =>
             {
                 b.HasKey(i => i.Id);
+                b.Property(i => i.MedicationName).IsRequired().HasMaxLength(200);
+                b.Property(i => i.Dosage).HasMaxLength(200);
+                b.Property(i => i.Frequency).HasMaxLength(200);
                 b.Property(i => i.Price).HasColumnType("decimal(18,2)");
                 b.Property(i => i.Currency).HasMaxLength(3);
-                b.HasOne(i => i.InventoryItem).WithMany().HasForeignKey(i => i.InventoryItemId);
+                b.Property(i => i.ShortageReason).HasMaxLength(1000);
+                b.Property(i => i.SubstituteMedicationName).HasMaxLength(200);
+                b.Property(i => i.FulfillmentStatus).HasConversion<string>().HasMaxLength(50);
+                b.HasOne(i => i.InventoryItem).WithMany().HasForeignKey(i => i.InventoryItemId).OnDelete(Microsoft.EntityFrameworkCore.DeleteBehavior.SetNull);
                 b.HasIndex(i => i.InventoryItemId);
             });
 
             modelBuilder.Entity<HMS.API.Domain.Pharmacy.DispenseLog>(b =>
             {
                 b.HasKey(d => d.Id);
+                b.Property(d => d.MedicationName).IsRequired().HasMaxLength(200);
+                b.Property(d => d.Notes).HasMaxLength(1000);
                 b.Property(d => d.DispensedAt).IsRequired();
                 b.HasIndex(d => d.DispensedAt);
             });

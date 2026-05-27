@@ -16,7 +16,7 @@ namespace HMS.API.Domain.Payments
         public Guid PatientId { get; set; }
 
         public decimal Amount { get; set; }
-        public string Currency { get; set; } = "USD";
+        public string Currency { get; set; } = "NGN";
 
         public PaymentStatus Status { get; set; } = PaymentStatus.PENDING;
 

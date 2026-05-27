@@ -7,7 +7,7 @@ namespace HMS.API.Domain.ValueObjects
         public decimal Amount { get; }
         public string Currency { get; }
 
-        public Money(decimal amount, string currency = "USD")
+        public Money(decimal amount, string currency = "NGN")
         {
             if (amount < 0) throw new ArgumentOutOfRangeException(nameof(amount), "Amount cannot be negative");
             if (string.IsNullOrWhiteSpace(currency)) throw new ArgumentException("Currency must be provided", nameof(currency));
@@ -45,6 +45,6 @@ namespace HMS.API.Domain.ValueObjects
 
         public override string ToString() => $"{Currency} {Amount:N2}";
 
-        public static Money Zero(string currency = "USD") => new Money(0m, currency);
+        public static Money Zero(string currency = "NGN") => new Money(0m, currency);
     }
 }
