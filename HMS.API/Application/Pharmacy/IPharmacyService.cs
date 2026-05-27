@@ -7,8 +7,7 @@ namespace HMS.API.Application.Pharmacy
 {
     public interface IPharmacyService
     {
-        Task<DrugDto[]> ListDrugsAsync();
-        Task<DrugDto> CreateDrugAsync(DrugDto dto);
+        // Drug management removed - use InventoryService for medications
 
         Task<PrescriptionDto> CreatePrescriptionAsync(CreatePrescriptionRequest req);
         Task<PrescriptionDto?> GetPrescriptionAsync(Guid id);
@@ -19,5 +18,8 @@ namespace HMS.API.Application.Pharmacy
         Task AddNoteAsync(Guid prescriptionId, Guid itemId, string note);
 
         Task CleanupExpiredReservationsAsync();
+
+        Task UpdatePrescriptionAsync(Guid id, Guid patientId, Guid? visitId);
+        Task UpdatePrescriptionItemsAsync(Guid id, List<CreatePrescriptionItem> items, bool allowIfDispensed = false);
     }
 }

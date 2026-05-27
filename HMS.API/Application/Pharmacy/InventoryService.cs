@@ -56,8 +56,17 @@ namespace HMS.API.Application.Pharmacy
             }
             _db.InventoryItems.Add(it);
             await _db.SaveChangesAsync();
-            _db.InventoryAudits.Add(new InventoryAudit { InventoryItemId = it.Id, ChangeType = "Created", Details = JsonSerializer.Serialize(it), PerformedBy = _currentUserService.UserId ?? Guid.Empty });
-            await _db.SaveChangesAsync();
+            // record audit with a lightweight snapshot to avoid serializing EF proxies / navigation cycles
+            var createdDetails = JsonSerializer.Serialize(new { it.Id, it.Code, it.Name, it.Description, it.UnitPrice, it.Currency, it.Stock, it.ReservedStock, Category = it.Category?.Name, it.Unit });
+            try
+            {
+                _db.InventoryAudits.Add(new InventoryAudit { InventoryItemId = it.Id, ChangeType = "Created", Details = createdDetails, PerformedBy = _currentUserService.UserId ?? Guid.Empty });
+                await _db.SaveChangesAsync();
+            }
+            catch
+            {
+                // Audit failure should not break main operation; swallow to avoid 500 on post-create
+            }
             return new InventoryItemDto { Id = it.Id, Code = it.Code, Name = it.Name, Description = it.Description, UnitPrice = it.UnitPrice, Currency = it.Currency, Stock = it.Stock, ReservedStock = it.ReservedStock, Category = it.Category?.Name ?? "General", Unit = it.Unit };
         }
 
@@ -73,7 +82,7 @@ namespace HMS.API.Application.Pharmacy
         {
             var it = await _db.InventoryItems.SingleOrDefaultAsync(i => i.Id == id);
             if (it == null) throw new InvalidOperationException("Inventory item not found");
-            var before = JsonSerializer.Serialize(it);
+            var before = JsonSerializer.Serialize(new { it.Id, it.Code, it.Name, it.Description, it.UnitPrice, it.Currency, it.Stock, it.ReservedStock, Category = it.Category?.Name, it.Unit });
             it.Code = req.Code ?? it.Code;
             it.Name = req.Name ?? it.Name;
             it.Description = req.Description ?? it.Description;
@@ -92,19 +101,34 @@ namespace HMS.API.Application.Pharmacy
                 it.CategoryId = existing.Id;
             }
             await _db.SaveChangesAsync();
-            _db.InventoryAudits.Add(new InventoryAudit { InventoryItemId = it.Id, ChangeType = "Updated", Details = JsonSerializer.Serialize(new { before, after = it }), PerformedBy = _currentUserService.UserId ?? Guid.Empty });
-            await _db.SaveChangesAsync();
+            try
+            {
+                var after = JsonSerializer.Serialize(new { it.Id, it.Code, it.Name, it.Description, it.UnitPrice, it.Currency, it.Stock, it.ReservedStock, Category = it.Category?.Name, it.Unit });
+                _db.InventoryAudits.Add(new InventoryAudit { InventoryItemId = it.Id, ChangeType = "Updated", Details = JsonSerializer.Serialize(new { before, after }), PerformedBy = _currentUserService.UserId ?? Guid.Empty });
+                await _db.SaveChangesAsync();
+            }
+            catch
+            {
+                // swallow audit failures
+            }
         }
 
         public async Task DeleteAsync(Guid id)
         {
             var it = await _db.InventoryItems.SingleOrDefaultAsync(i => i.Id == id);
             if (it == null) throw new InvalidOperationException("Inventory item not found");
-            var details = JsonSerializer.Serialize(it);
+            var details = JsonSerializer.Serialize(new { it.Id, it.Code, it.Name, it.Description, it.UnitPrice, it.Currency, it.Stock, it.ReservedStock, Category = it.Category?.Name, it.Unit });
             it.SoftDelete();
             await _db.SaveChangesAsync();
-            _db.InventoryAudits.Add(new InventoryAudit { InventoryItemId = it.Id, ChangeType = "Deleted", Details = details, PerformedBy = _currentUserService.UserId ?? Guid.Empty });
-            await _db.SaveChangesAsync();
+            try
+            {
+                _db.InventoryAudits.Add(new InventoryAudit { InventoryItemId = it.Id, ChangeType = "Deleted", Details = details, PerformedBy = _currentUserService.UserId ?? Guid.Empty });
+                await _db.SaveChangesAsync();
+            }
+            catch
+            {
+                // swallow audit failures
+            }
         }
 
         public async Task AdjustStockAsync(Guid id, int delta)

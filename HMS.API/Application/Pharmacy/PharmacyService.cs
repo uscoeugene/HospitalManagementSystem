@@ -27,19 +27,7 @@ namespace HMS.API.Application.Pharmacy
             _currentUserService = currentUserService;
         }
 
-        public async Task<DrugDto[]> ListDrugsAsync()
-        {
-            return await _db.Drugs.AsNoTracking().Select(d => new DrugDto { Id = d.Id, Code = d.Code, Name = d.Name, Description = d.Description, Price = d.Price, Currency = d.Currency, Stock = d.Stock }).ToArrayAsync();
-        }
-
-        public async Task<DrugDto> CreateDrugAsync(DrugDto dto)
-        {
-            var d = new Domain.Pharmacy.Drug { Code = dto.Code, Name = dto.Name, Description = dto.Description, Price = dto.Price, Currency = dto.Currency, Stock = dto.Stock };
-            _db.Drugs.Add(d);
-            await _db.SaveChangesAsync();
-            dto.Id = d.Id;
-            return dto;
-        }
+        // Drug management removed - use InventoryService for medication management
 
         public async Task<PrescriptionDto> CreatePrescriptionAsync(CreatePrescriptionRequest req)
         {
@@ -51,24 +39,20 @@ namespace HMS.API.Application.Pharmacy
 
                 foreach (var it in req.Items)
                 {
-                    var drug = await _db.Drugs.FindAsync(it.DrugId);
-                    if (drug == null) throw new InvalidOperationException("Drug not found");
-                    // check available stock (stock - reserved)
-                    var available = drug.Stock - drug.ReservedStock;
+                    var inv = await _db.InventoryItems.FindAsync(it.InventoryItemId);
+                    if (inv == null) throw new InvalidOperationException("Inventory item not found");
+                    var available = inv.Stock - inv.ReservedStock;
                     if (available < it.Quantity) throw new InvalidOperationException("Insufficient available stock to reserve for prescription");
 
-                    // create a prescription item
-                    var pi = new Domain.Pharmacy.PrescriptionItem { Drug = drug, Quantity = it.Quantity, Price = drug.Price, Currency = drug.Currency };
+                    var pi = new Domain.Pharmacy.PrescriptionItem { InventoryItem = inv, InventoryItemId = inv.Id, Quantity = it.Quantity, Price = inv.UnitPrice, Currency = inv.Currency };
                     p.Items.Add(pi);
 
-                    // reserve stock
-                    drug.ReservedStock += it.Quantity;
+                    inv.ReservedStock += it.Quantity;
 
-                    // create a reservation record to expire if not processed
-                    var reservation = new Domain.Pharmacy.Reservation { DrugId = drug.Id, Quantity = it.Quantity, ExpiresAt = DateTimeOffset.UtcNow.AddMinutes(30), PrescriptionItemId = pi.Id };
+                    var reservation = new Domain.Pharmacy.Reservation { InventoryItemId = inv.Id, Quantity = it.Quantity, ExpiresAt = DateTimeOffset.UtcNow.AddMinutes(30), PrescriptionItemId = pi.Id };
                     _db.Reservations.Add(reservation);
 
-                    billingItems.Add(new CreateInvoiceItemRequest { Description = drug.Name, UnitPrice = drug.Price, Quantity = it.Quantity, SourceId = pi.Id, SourceType = "pharmacy" });
+                    billingItems.Add(new CreateInvoiceItemRequest { Description = inv.Name, UnitPrice = inv.UnitPrice, Quantity = it.Quantity, SourceId = pi.Id, SourceType = "pharmacy" });
                 }
 
                 _db.Prescriptions.Add(p);
@@ -95,7 +79,7 @@ namespace HMS.API.Application.Pharmacy
 
                 await tx.CommitAsync();
 
-                return new PrescriptionDto { Id = p.Id, PatientId = p.PatientId, VisitId = p.VisitId, Status = p.Status.ToString(), Items = p.Items.Select(i => new PrescriptionItemDto { Id = i.Id, DrugId = i.DrugId, Name = i.Drug.Name, Quantity = i.Quantity, DispensedQuantity = i.DispensedQuantity, Price = i.Price, Currency = i.Currency }).ToArray() };
+                return new PrescriptionDto { Id = p.Id, PatientId = p.PatientId, VisitId = p.VisitId, Status = p.Status.ToString(), Items = p.Items.Select(i => new PrescriptionItemDto { Id = i.Id, InventoryItemId = i.InventoryItemId, Name = i.InventoryItem!.Name, Quantity = i.Quantity, DispensedQuantity = i.DispensedQuantity, Price = i.Price, Currency = i.Currency }).ToArray() };
             }
             catch
             {
@@ -106,21 +90,21 @@ namespace HMS.API.Application.Pharmacy
 
         public async Task<PrescriptionDto?> GetPrescriptionAsync(Guid id)
         {
-            var p = await _db.Prescriptions.Include(pr => pr.Items).ThenInclude(i => i.Drug).AsNoTracking().SingleOrDefaultAsync(pr => pr.Id == id);
+            var p = await _db.Prescriptions.Include(pr => pr.Items).ThenInclude(i => i.InventoryItem).AsNoTracking().SingleOrDefaultAsync(pr => pr.Id == id);
             if (p == null) return null;
-            return new PrescriptionDto { Id = p.Id, PatientId = p.PatientId, VisitId = p.VisitId, Status = p.Status.ToString(), Items = p.Items.Select(i => new PrescriptionItemDto { Id = i.Id, DrugId = i.DrugId, Name = i.Drug.Name, Quantity = i.Quantity, DispensedQuantity = i.DispensedQuantity, Price = i.Price, Currency = i.Currency }).ToArray() };
+            return new PrescriptionDto { Id = p.Id, PatientId = p.PatientId, VisitId = p.VisitId, Status = p.Status.ToString(), Items = p.Items.Select(i => new PrescriptionItemDto { Id = i.Id, InventoryItemId = i.InventoryItemId, Name = i.InventoryItem!.Name, Quantity = i.Quantity, DispensedQuantity = i.DispensedQuantity, Price = i.Price, Currency = i.Currency }).ToArray() };
         }
 
         public async Task<PagedResult<PrescriptionDto>> ListPrescriptionsAsync(Guid? patientId = null, string? status = null, int page = 1, int pageSize = 20)
         {
-            var q = _db.Prescriptions.AsNoTracking().Include(pr => pr.Items).ThenInclude(i => i.Drug).Where(pr => !pr.IsDeleted);
+            var q = _db.Prescriptions.AsNoTracking().Include(pr => pr.Items).ThenInclude(i => i.InventoryItem).Where(pr => !pr.IsDeleted);
             if (patientId.HasValue) q = q.Where(pr => pr.PatientId == patientId.Value);
             if (!string.IsNullOrWhiteSpace(status) && Enum.TryParse(typeof(Domain.Pharmacy.PrescriptionStatus), status, true, out var st)) q = q.Where(pr => pr.Status == (Domain.Pharmacy.PrescriptionStatus)st);
 
             var total = await q.CountAsync();
             var items = await q.OrderByDescending(pr => pr.CreatedAt).Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
 
-            var dtos = items.Select(pr => new PrescriptionDto { Id = pr.Id, PatientId = pr.PatientId, VisitId = pr.VisitId, Status = pr.Status.ToString(), Items = pr.Items.Select(i => new PrescriptionItemDto { Id = i.Id, DrugId = i.DrugId, Name = i.Drug.Name, Quantity = i.Quantity, DispensedQuantity = i.DispensedQuantity, Price = i.Price, Currency = i.Currency }).ToArray() }).ToArray();
+            var dtos = items.Select(pr => new PrescriptionDto { Id = pr.Id, PatientId = pr.PatientId, VisitId = pr.VisitId, Status = pr.Status.ToString(), Items = pr.Items.Select(i => new PrescriptionItemDto { Id = i.Id, InventoryItemId = i.InventoryItemId, Name = i.InventoryItem!.Name, Quantity = i.Quantity, DispensedQuantity = i.DispensedQuantity, Price = i.Price, Currency = i.Currency }).ToArray() }).ToArray();
 
             return new PagedResult<PrescriptionDto> { Items = dtos, TotalCount = total, Page = page, PageSize = pageSize };
         }
@@ -128,7 +112,7 @@ namespace HMS.API.Application.Pharmacy
         public async Task<DispenseDto> DispenseAsync(DispenseRequest req)
         {
             // Ensure prescription item exists
-            var item = await _db.PrescriptionItems.Include(pi => pi.Prescription).Include(pi => pi.Drug).SingleOrDefaultAsync(pi => pi.Id == req.PrescriptionItemId);
+            var item = await _db.PrescriptionItems.Include(pi => pi.Prescription).Include(pi => pi.InventoryItem).SingleOrDefaultAsync(pi => pi.Id == req.PrescriptionItemId);
             if (item == null) throw new InvalidOperationException("Prescription item not found");
 
             // ensure invoice is PAID for the linked charge if exists
@@ -175,11 +159,12 @@ namespace HMS.API.Application.Pharmacy
             using var tx = await _db.Database.BeginTransactionAsync();
             try
             {
-                if (item.Drug.Stock < req.Quantity) throw new InvalidOperationException("Insufficient stock");
+                if (item.InventoryItem.Stock < req.Quantity) throw new InvalidOperationException("Insufficient stock");
 
-                item.Drug.Stock -= req.Quantity;
+                // adjust inventory stock and reserved via service AdjustStock
+                item.InventoryItem.Stock -= req.Quantity;
                 item.DispensedQuantity += req.Quantity;
-                item.Drug.ReservedStock = Math.Max(0, item.Drug.ReservedStock - req.Quantity);
+                item.InventoryItem.ReservedStock = Math.Max(0, item.InventoryItem.ReservedStock - req.Quantity);
 
                 var log = new Domain.Pharmacy.DispenseLog { PrescriptionId = item.PrescriptionId, PrescriptionItemId = item.Id, DispensedBy = _currentUserService.UserId ?? Guid.Empty, Quantity = req.Quantity };
                 _db.DispenseLogs.Add(log);
@@ -208,6 +193,56 @@ namespace HMS.API.Application.Pharmacy
             }
         }
 
+        // Update prescription header/details
+        public async Task UpdatePrescriptionAsync(Guid id, Guid patientId, Guid? visitId)
+        {
+            var p = await _db.Prescriptions.SingleOrDefaultAsync(pr => pr.Id == id);
+            if (p == null) throw new InvalidOperationException("Prescription not found");
+            if (p.Status == Domain.Pharmacy.PrescriptionStatus.DISPENSED) throw new InvalidOperationException("Cannot edit a fully dispensed prescription");
+            p.PatientId = patientId;
+            p.VisitId = visitId;
+            await _db.SaveChangesAsync();
+        }
+
+        // Replace/update prescription items
+        public async Task UpdatePrescriptionItemsAsync(Guid id, List<CreatePrescriptionItem> items, bool allowIfDispensed = false)
+        {
+            var p = await _db.Prescriptions.Include(pr => pr.Items).ThenInclude(i => i.InventoryItem).SingleOrDefaultAsync(pr => pr.Id == id);
+            if (p == null) throw new InvalidOperationException("Prescription not found");
+            if (p.Status == Domain.Pharmacy.PrescriptionStatus.DISPENSED && !allowIfDispensed) throw new InvalidOperationException("Cannot edit items on a dispensed prescription");
+
+            // release reserved stock for existing items
+            foreach (var existing in p.Items.ToList())
+            {
+                var inv = existing.InventoryItem;
+                if (inv != null)
+                {
+                    inv.ReservedStock = Math.Max(0, inv.ReservedStock - existing.Quantity);
+                }
+                _db.PrescriptionItems.Remove(existing);
+            }
+
+            var billingItems = new List<CreateInvoiceItemRequest>();
+            foreach (var it in items)
+            {
+                var inv = await _db.InventoryItems.FindAsync(it.InventoryItemId);
+                if (inv == null) throw new InvalidOperationException("Inventory item not found");
+                var available = inv.Stock - inv.ReservedStock;
+                if (available < it.Quantity) throw new InvalidOperationException("Insufficient available stock to reserve for prescription");
+
+                var pi = new Domain.Pharmacy.PrescriptionItem { InventoryItem = inv, InventoryItemId = inv.Id, Quantity = it.Quantity, Price = inv.UnitPrice, Currency = inv.Currency };
+                p.Items.Add(pi);
+                inv.ReservedStock += it.Quantity;
+
+                var reservation = new Domain.Pharmacy.Reservation { InventoryItemId = inv.Id, Quantity = it.Quantity, ExpiresAt = DateTimeOffset.UtcNow.AddMinutes(30), PrescriptionItemId = pi.Id };
+                _db.Reservations.Add(reservation);
+
+                billingItems.Add(new CreateInvoiceItemRequest { Description = inv.Name, UnitPrice = inv.UnitPrice, Quantity = it.Quantity, SourceId = pi.Id, SourceType = "pharmacy" });
+            }
+
+            await _db.SaveChangesAsync();
+        }
+
         // Implement AddNoteAsync
         public async Task AddNoteAsync(Guid prescriptionId, Guid itemId, string note)
         {
@@ -225,10 +260,10 @@ namespace HMS.API.Application.Pharmacy
             var expired = await _db.Reservations.Where(r => !r.Processed && r.ExpiresAt <= now).ToListAsync();
             foreach (var r in expired)
             {
-                var drug = await _db.Drugs.FindAsync(r.DrugId);
-                if (drug != null)
+                var inv = await _db.InventoryItems.FindAsync(r.InventoryItemId);
+                if (inv != null)
                 {
-                    drug.ReservedStock = Math.Max(0, drug.ReservedStock - r.Quantity);
+                    inv.ReservedStock = Math.Max(0, inv.ReservedStock - r.Quantity);
                 }
                 r.Processed = true;
             }

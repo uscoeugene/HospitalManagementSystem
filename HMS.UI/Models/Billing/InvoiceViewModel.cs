@@ -33,6 +33,18 @@ namespace HMS.UI.Models.Billing
         public decimal TotalAmount { get; set; }
         public decimal AmountPaid { get; set; }
         public string Currency { get; set; } = "USD";
+        // UI-friendly fields
+        public string? PatientName { get; set; }
+        public DateTimeOffset? VisitAt { get; set; }
+        public string? VisitType { get; set; }
+        public string? Source { get; set; }
+        public decimal Balance { get; set; }
+        public DateTimeOffset CreatedAt { get; set; }
+        public Guid? CreatedBy { get; set; }
+        public DateTimeOffset? UpdatedAt { get; set; }
+        public Guid? UpdatedBy { get; set; }
+        public string? CreatedByName { get; set; }
+        public string? UpdatedByName { get; set; }
         public InvoiceItemViewModel[] Items { get; set; } = Array.Empty<InvoiceItemViewModel>();
         public InvoicePaymentViewModel[] Payments { get; set; } = Array.Empty<InvoicePaymentViewModel>();
     }

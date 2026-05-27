@@ -1,0 +1,79 @@
+@model HMS.UI.Models.Pharmacy.CreatePrescriptionViewModel
+@{
+    Layout = "~/Pages/_Layout.cshtml";
+    ViewData["Title"] = "Create Prescription";
+}
+
+<div class="container py-4">
+    <h3>Create Prescription</h3>
+
+    @if (TempData["Error"] != null)
+    {
+        <div class="alert alert-danger">@TempData["Error"]</div>
+    }
+
+    <form method="post" asp-action="CreatePrescription">
+        @Html.AntiForgeryToken()
+        <div class="row g-3">
+            <div class="col-md-6">
+                <label class="form-label">Patient Id</label>
+                <input asp-for="PatientId" class="form-control" />
+            </div>
+            <div class="col-md-6">
+                <label class="form-label">Visit Id (optional)</label>
+                <input asp-for="VisitId" class="form-control" />
+            </div>
+
+            <div class="col-12">
+                <label class="form-label">Items</label>
+                <table class="table">
+                    <thead><tr><th>Inventory Item</th><th class="text-end">Quantity</th></tr></thead>
+                    <tbody id="itemsBody">
+                        <tr>
+                            <td>
+                                <select name="Items[0].InventoryItemId" class="form-select">
+                                    <option value="">-- select --</option>
+                                    @foreach(var it in Model.AvailableInventoryItems)
+                                    {
+                                        <option value="@it.Id">@it.Name (@it.Code)</option>
+                                    }
+                                </select>
+                            </td>
+                            <td>
+                                <input type="number" name="Items[0].Quantity" value="1" class="form-control text-end" style="width:120px;" />
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+                <button type="button" id="addItem" class="btn btn-sm btn-outline-secondary">Add Item</button>
+            </div>
+        </div>
+
+        <div class="mt-4 text-end">
+            <button class="btn btn-primary">Create</button>
+            <a class="btn btn-light" href="/Pharmacy/Prescriptions">Cancel</a>
+        </div>
+    </form>
+</div>
+
+@section Scripts {
+    <script>
+        let idx = 1;
+        document.getElementById('addItem').addEventListener('click', function () {
+            var tbody = document.getElementById('itemsBody');
+            var tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>
+                    <select name="Items[${idx}].InventoryItemId" class="form-select">
+                        <option value="">-- select --</option>
+                        ${Model.AvailableInventoryItems.map(it => `<option value="${it.id}">${it.name} (${it.code})</option>`).join('')}
+                    </select>
+                </td>
+                <td>
+                    <input type="number" name="Items[${idx}].Quantity" value="1" class="form-control text-end" style="width:120px;" />
+                </td>`;
+            tbody.appendChild(tr);
+            idx++;
+        });
+    </script>
+}

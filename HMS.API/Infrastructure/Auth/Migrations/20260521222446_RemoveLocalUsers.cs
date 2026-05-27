@@ -11,14 +11,10 @@ namespace HMS.API.Infrastructure.Auth.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.DropTable(
-                name: "LocalPermissions");
-
-            migrationBuilder.DropTable(
-                name: "LocalRoles");
-
-            migrationBuilder.DropTable(
-                name: "LocalUsers");
+            // Drop tables if they exist to make migration idempotent across databases
+            migrationBuilder.Sql(@"IF OBJECT_ID(N'dbo.LocalPermissions','U') IS NOT NULL DROP TABLE [dbo].[LocalPermissions];");
+            migrationBuilder.Sql(@"IF OBJECT_ID(N'dbo.LocalRoles','U') IS NOT NULL DROP TABLE [dbo].[LocalRoles];");
+            migrationBuilder.Sql(@"IF OBJECT_ID(N'dbo.LocalUsers','U') IS NOT NULL DROP TABLE [dbo].[LocalUsers];");
         }
 
         /// <inheritdoc />

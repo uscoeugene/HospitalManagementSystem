@@ -50,7 +50,7 @@ namespace HMS.API.Infrastructure.Persistence
         public DbSet<HMS.API.Domain.Lab.LabRequestItem> LabRequestItems { get; set; } = null!;
 
         // Pharmacy
-        public DbSet<HMS.API.Domain.Pharmacy.Drug> Drugs { get; set; } = null!;
+        // Drugs removed - inventory consolidated under InventoryItem
         public DbSet<HMS.API.Domain.Pharmacy.Prescription> Prescriptions { get; set; } = null!;
         public DbSet<HMS.API.Domain.Pharmacy.PrescriptionItem> PrescriptionItems { get; set; } = null!;
         public DbSet<HMS.API.Domain.Pharmacy.DispenseLog> DispenseLogs { get; set; } = null!;
@@ -308,16 +308,7 @@ namespace HMS.API.Infrastructure.Persistence
             });
 
             // Pharmacy mappings
-            modelBuilder.Entity<HMS.API.Domain.Pharmacy.Drug>(b =>
-            {
-                b.HasKey(d => d.Id);
-                b.Property(d => d.Code).IsRequired().HasMaxLength(100);
-                b.Property(d => d.Name).IsRequired().HasMaxLength(200);
-                b.Property(d => d.Price).HasColumnType("decimal(18,2)");
-                b.Property(d => d.Currency).HasMaxLength(3);
-                b.Property(d => d.ReservedStock).HasDefaultValue(0);
-                b.HasIndex(d => d.Code);
-            });
+            // Drug entity removed - inventory management is handled via InventoryItem
 
             modelBuilder.Entity<HMS.API.Domain.Pharmacy.InventoryItem>(b =>
             {
@@ -359,8 +350,8 @@ namespace HMS.API.Infrastructure.Persistence
                 b.HasKey(i => i.Id);
                 b.Property(i => i.Price).HasColumnType("decimal(18,2)");
                 b.Property(i => i.Currency).HasMaxLength(3);
-                b.HasOne(i => i.Drug).WithMany().HasForeignKey(i => i.DrugId);
-                b.HasIndex(i => i.DrugId);
+                b.HasOne(i => i.InventoryItem).WithMany().HasForeignKey(i => i.InventoryItemId);
+                b.HasIndex(i => i.InventoryItemId);
             });
 
             modelBuilder.Entity<HMS.API.Domain.Pharmacy.DispenseLog>(b =>
@@ -378,6 +369,7 @@ namespace HMS.API.Infrastructure.Persistence
                 b.Property(r => r.ExpiresAt).IsRequired();
                 b.Property(r => r.Processed).HasDefaultValue(false);
                 b.Property(r => r.CreatedAt).IsRequired();
+                b.HasIndex(r => r.InventoryItemId);
             });
 
             // Profile mappings

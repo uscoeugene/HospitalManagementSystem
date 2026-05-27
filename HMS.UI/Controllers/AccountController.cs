@@ -3,7 +3,9 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
 using System.Threading.Tasks;
+using HMS.UI.Models.Auth;
 
 namespace HMS.UI.Controllers
 {
@@ -128,7 +130,7 @@ namespace HMS.UI.Controllers
         }
         [HttpPost("login")]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Login( string username, string password, string tenantCode, string? returnUrl = null)
+        public async Task<IActionResult> Login( string username, string password, string? tenantCode, string? returnUrl = null)
         { 
             if (string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(password))
             {
@@ -237,33 +239,75 @@ namespace HMS.UI.Controllers
                     }
 
                     var claims = new System.Collections.Generic.List<System.Security.Claims.Claim>();
+                    string? apiUsername = null;
+                    string? displayName = null;
+                    
                     if (root.TryGetProperty("userId", out var u) && u.ValueKind == System.Text.Json.JsonValueKind.String)
                         claims.Add(new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.NameIdentifier, u.GetString() ?? string.Empty));
 
                     if (root.TryGetProperty("tenant", out var t) && t.ValueKind == System.Text.Json.JsonValueKind.Object && t.TryGetProperty("name", out var tn) && tn.ValueKind == System.Text.Json.JsonValueKind.String)
                         claims.Add(new System.Security.Claims.Claim("tenant_name", tn.GetString() ?? string.Empty));
 
-                    if (root.TryGetProperty("permissions", out var perms) && perms.ValueKind == System.Text.Json.JsonValueKind.Array)
+                    if (root.TryGetProperty("username", out var userNameProp) && userNameProp.ValueKind == System.Text.Json.JsonValueKind.String)
                     {
-                        foreach (var p in perms.EnumerateArray())
+                        apiUsername = userNameProp.GetString();
+                    }
+
+                    if (root.TryGetProperty("displayName", out var displayNameProp) && displayNameProp.ValueKind == System.Text.Json.JsonValueKind.String)
+                    {
+                        displayName = displayNameProp.GetString();
+                    }
+
+                    // permissions property may be camelCase or PascalCase depending on serializer settings; find case-insensitively
+                    System.Text.Json.JsonElement? permsElem = null;
+                    try
+                    {
+                        foreach (var prop in root.EnumerateObject())
+                        {
+                            if (string.Equals(prop.Name, "permissions", StringComparison.OrdinalIgnoreCase))
+                            {
+                                permsElem = prop.Value;
+                                break;
+                            }
+                        }
+                    }
+                    catch { }
+
+                    if (permsElem.HasValue && permsElem.Value.ValueKind == System.Text.Json.JsonValueKind.Array)
+                    {
+                        foreach (var p in permsElem.Value.EnumerateArray())
                         {
                             var pv = p.GetString();
                             if (!string.IsNullOrWhiteSpace(pv)) claims.Add(new System.Security.Claims.Claim("permission", pv));
                         }
                     }
 
-                    // Also include username/name if present for antiforgery and display purposes
-                    if (root.TryGetProperty("username", out var uname) && uname.ValueKind == System.Text.Json.JsonValueKind.String)
+                    // Also include apiUsername/name if present for antiforgery and display purposes
+                    if (!string.IsNullOrWhiteSpace(apiUsername))
                     {
-                        claims.Add(new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.Name, uname.GetString() ?? string.Empty));
+                        claims.Add(new Claim("username", apiUsername));
                     }
 
-                    // Ensure there is a Name claim (some flows expect it). If missing, use userId as name.
-                    if (!claims.Any(c => c.Type == System.Security.Claims.ClaimTypes.Name))
+                    var effectiveDisplayName = string.IsNullOrWhiteSpace(displayName)
+                        ? (string.IsNullOrWhiteSpace(apiUsername) ? null : apiUsername)
+                        : displayName;
+
+                    if (!string.IsNullOrWhiteSpace(effectiveDisplayName))
                     {
-                        if (root.TryGetProperty("userId", out var u2) && u2.ValueKind == System.Text.Json.JsonValueKind.String)
+                        claims.Add(new Claim("display_name", effectiveDisplayName));
+                        claims.Add(new Claim(ClaimTypes.Name, effectiveDisplayName));
+                    }
+
+                    // Ensure there is a Name claim (some flows expect it). If missing, use username then userId.
+                    if (!claims.Any(c => c.Type == ClaimTypes.Name))
+                    {
+                        if (!string.IsNullOrWhiteSpace(apiUsername))
                         {
-                            claims.Add(new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.Name, u2.GetString() ?? string.Empty));
+                            claims.Add(new Claim(ClaimTypes.Name, apiUsername));
+                        }
+                        else if (root.TryGetProperty("userId", out var u2) && u2.ValueKind == System.Text.Json.JsonValueKind.String)
+                        {
+                            claims.Add(new Claim(ClaimTypes.Name, u2.GetString() ?? string.Empty));
                         }
                     }
 
@@ -296,6 +340,114 @@ namespace HMS.UI.Controllers
                 catch { }
                 ModelState.AddModelError(string.Empty, "Login failed. " + ex.Message);
                 return View();
+            }
+        }
+
+        [HttpGet]
+        [AllowAnonymous]
+        public IActionResult ForgotPassword()
+        {
+            return View(new ForgotPasswordViewModel());
+        }
+
+        [HttpPost]
+        [AllowAnonymous]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> ForgotPassword(ForgotPasswordViewModel model)
+        {
+            if (!ModelState.IsValid)
+            {
+                return View(model);
+            }
+
+            try
+            {
+                var resetUrl = $"{Request.Scheme}://{Request.Host}/Account/ResetPassword";
+                var headers = new Dictionary<string, string> { ["X-Reset-Url"] = resetUrl };
+                await _api.PostRawAsync("/auth/forgot-password", new { model.Email }, headers);
+                TempData["Success"] = "If the email exists, a recovery link has been sent.";
+                return RedirectToAction(nameof(Login));
+            }
+            catch (Exception ex)
+            {
+                TempData["Error"] = ex.Message;
+                return View(model);
+            }
+        }
+
+        [HttpGet]
+        [AllowAnonymous]
+        public async Task<IActionResult> ResetPassword(string token)
+        {
+            var vm = new ResetPasswordViewModel { Token = token };
+
+            if (string.IsNullOrWhiteSpace(token))
+            {
+                vm.IsValid = false;
+                TempData["Error"] = "Recovery token is required.";
+                return View(vm);
+            }
+
+            try
+            {
+                var validation = await _api.GetAsync<System.Text.Json.JsonElement>($"/auth/password-reset/validate?token={Uri.EscapeDataString(token)}");
+                if (validation.ValueKind == System.Text.Json.JsonValueKind.Object)
+                {
+                    if (validation.TryGetProperty("valid", out var validProp) &&
+                        (validProp.ValueKind == System.Text.Json.JsonValueKind.True || validProp.ValueKind == System.Text.Json.JsonValueKind.False))
+                    {
+                        vm.IsValid = validProp.GetBoolean();
+                    }
+
+                    if (validation.TryGetProperty("username", out var userProp) && userProp.ValueKind == System.Text.Json.JsonValueKind.String)
+                    {
+                        vm.Username = userProp.GetString();
+                    }
+                }
+
+                if (!vm.IsValid)
+                {
+                    TempData["Error"] = "This recovery link is invalid or has expired.";
+                }
+            }
+            catch
+            {
+                vm.IsValid = false;
+                TempData["Error"] = "This recovery link is invalid or has expired.";
+            }
+
+            return View(vm);
+        }
+
+        [HttpPost]
+        [AllowAnonymous]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> ResetPassword(ResetPasswordViewModel model)
+        {
+            if (!ModelState.IsValid)
+            {
+                model.IsValid = true;
+                return View(model);
+            }
+
+            try
+            {
+                var response = await _api.PostRawAsync("/auth/reset-password", new { model.Token, model.NewPassword });
+                if (!response.IsSuccessStatusCode)
+                {
+                    TempData["Error"] = "Password reset failed.";
+                    model.IsValid = true;
+                    return View(model);
+                }
+
+                TempData["Success"] = "Password reset successful. Sign in with your new password.";
+                return RedirectToAction(nameof(Login));
+            }
+            catch (Exception ex)
+            {
+                TempData["Error"] = ex.Message;
+                model.IsValid = true;
+                return View(model);
             }
         }
     }

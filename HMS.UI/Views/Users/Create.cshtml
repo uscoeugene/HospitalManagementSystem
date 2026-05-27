@@ -1,60 +1,148 @@
+@model HMS.UI.Models.Users.UserEditViewModel
 @{
     Layout = "~/Pages/_Layout.cshtml";
     ViewData["Title"] = "Create User";
+    var roles = ViewBag.Roles as HMS.UI.Models.Users.RoleViewModel[] ?? Array.Empty<HMS.UI.Models.Users.RoleViewModel>();
+    var tenants = ViewBag.Tenants as HMS.UI.Models.TenantItem[] ?? Array.Empty<HMS.UI.Models.TenantItem>();
+    Guid? currentTenantId = ViewBag.CurrentTenantId is Guid tenantId ? tenantId : null;
 }
 
 <div class="container py-4">
-    <h3>Create User</h3>
-    <form method="post">
-        @Html.AntiForgeryToken()
-        <div class="mb-3">
-            <label class="form-label">Username</label>
-            <input name="username" class="form-control" />
-        </div>
-        <div class="mb-3">
-            <label class="form-label">First name</label>
-            <input name="firstName" class="form-control" />
-        </div>
-        <div class="mb-3">
-            <label class="form-label">Last name</label>
-            <input name="lastName" class="form-control" />
-        </div>
-        <div class="mb-3">
-            <label class="form-label">Email</label>
-            <input name="email" class="form-control" />
-        </div>
-        @if(ViewBag.Tenants != null && ((System.Collections.IEnumerable)ViewBag.Tenants).GetEnumerator().MoveNext())
-        {
-            <div class="mb-3">
-                <label class="form-label">Tenant</label>
-                <select name="tenantId" class="form-select">
-                    <option value="">-- Select tenant --</option>
-                    @foreach(var t in (HMS.UI.Models.TenantItem[])ViewBag.Tenants)
-                    {
-                        <option value="@t.Id">@t.Name</option>
-                    }
-                </select>
-            </div>
-        }
-        <div class="mb-3">
-            <label class="form-label">Password</label>
-            <input name="password" type="password" class="form-control" />
-        </div>
-        @if(ViewBag.Roles != null && ((System.Collections.IEnumerable)ViewBag.Roles).GetEnumerator().MoveNext())
-        {
-            <div class="mb-3">
-                <label class="form-label">Roles</label>
-                <div>
-                @foreach(var r in (HMS.UI.Models.Users.RoleViewModel[])ViewBag.Roles)
-                {
-                    <div class="form-check">
-                        <input class="form-check-input" type="checkbox" name="roles" value="@r.Id" id="role_@r.Id" />
-                        <label class="form-check-label" for="role_@r.Id">@r.Name</label>
+    <div class="row justify-content-center">
+        <div class="col-12 col-xl-10">
+            <div class="card shadow-sm border-0">
+                <div class="card-header bg-white border-0 pt-4 pb-0">
+                    <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
+                        <div>
+                            <h3 class="mb-1">Create User</h3>
+                            <p class="text-muted mb-0">Add a staff account and assign roles in one step.</p>
+                        </div>
+                        <a asp-action="Index" class="btn btn-outline-secondary">
+                            <i class="bi bi-arrow-left me-1"></i>Back to users
+                        </a>
                     </div>
-                }
+                </div>
+                <div class="card-body p-4">
+                    <partial name="_StatusAlerts" />
+
+                    <form method="post" class="row g-4">
+                        @Html.AntiForgeryToken()
+
+                        <div class="col-12">
+                            <div class="card border-0 bg-light">
+                                <div class="card-body">
+                                    <h5 class="card-title mb-3">Account Information</h5>
+                                    <div class="row g-3">
+                                        <div class="col-md-6">
+                                            <label asp-for="Username" class="form-label">Username</label>
+                                            <input asp-for="Username" class="form-control" required />
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label asp-for="Email" class="form-label">Email address</label>
+                                            <input asp-for="Email" type="email" class="form-control" required />
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label">Temporary password</label>
+                                            <input name="password" type="password" class="form-control" required minlength="8" />
+                                            <div class="form-text">Use a strong password with at least 8 characters.</div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label">Tenant Scope</label>
+                                            @if (currentTenantId.HasValue)
+                                            {
+                                                <input type="hidden" asp-for="TenantId" value="@currentTenantId" />
+                                                <input class="form-control" value="Current tenant" disabled />
+                                            }
+                                            else
+                                            {
+                                                <select asp-for="TenantId" class="form-select">
+                                                    <option value="">Global user</option>
+                                                    @foreach (var tenant in tenants)
+                                                    {
+                                                        <option value="@tenant.Id">@tenant.Name</option>
+                                                    }
+                                                </select>
+                                            }
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-12">
+                            <div class="card border-0 bg-light">
+                                <div class="card-body">
+                                    <h5 class="card-title mb-3">Profile Information</h5>
+                                    <div class="row g-3">
+                                        <div class="col-md-4">
+                                            <label asp-for="FirstName" class="form-label">First name</label>
+                                            <input asp-for="FirstName" class="form-control" />
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label asp-for="LastName" class="form-label">Last name</label>
+                                            <input asp-for="LastName" class="form-control" />
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label asp-for="OtherNames" class="form-label">Other names</label>
+                                            <input asp-for="OtherNames" class="form-control" />
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label asp-for="PhoneNumber" class="form-label">Phone number</label>
+                                            <input asp-for="PhoneNumber" class="form-control" />
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label asp-for="Department" class="form-label">Department</label>
+                                            <input asp-for="Department" class="form-control" />
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label asp-for="JobTitle" class="form-label">Job title</label>
+                                            <input asp-for="JobTitle" class="form-control" />
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-12">
+                            <div class="card border-0 bg-light">
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-between align-items-center mb-3">
+                                        <div>
+                                            <h5 class="card-title mb-1">Roles</h5>
+                                            <p class="text-muted mb-0">Select one or more roles before saving.</p>
+                                        </div>
+                                        <span class="badge text-bg-primary">@roles.Length available</span>
+                                    </div>
+                                    <div class="row g-3">
+                                        @foreach (var role in roles)
+                                        {
+                                            <div class="col-md-6">
+                                                <label class="card h-100 border-0 shadow-sm">
+                                                    <div class="card-body">
+                                                        <div class="form-check">
+                                                            <input class="form-check-input" type="checkbox" name="AssignedRoleIds" value="@role.Id"
+                                                                   @(Model.AssignedRoleIds.Contains(role.Id) ? "checked" : null) />
+                                                            <span class="fw-semibold ms-2">@role.Name</span>
+                                                        </div>
+                                                        <p class="text-muted small mb-0 mt-2">@role.Description</p>
+                                                    </div>
+                                                </label>
+                                            </div>
+                                        }
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-12 d-flex justify-content-end gap-2">
+                            <a asp-action="Index" class="btn btn-outline-secondary">Cancel</a>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-person-plus-fill me-1"></i>Create user
+                            </button>
+                        </div>
+                    </form>
                 </div>
             </div>
-        }
-        <button class="btn btn-primary">Create</button>
-    </form>
+        </div>
+    </div>
 </div>

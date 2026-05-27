@@ -47,6 +47,18 @@ namespace HMS.API.Application.Billing.DTOs
         public string Currency { get; set; } = "USD";
         public bool AllowOnCredit { get; set; }
         public string? CreditReason { get; set; }
+        public DateTimeOffset CreatedAt { get; set; }
+        public Guid? CreatedBy { get; set; }
+        public DateTimeOffset? UpdatedAt { get; set; }
+        public Guid? UpdatedBy { get; set; }
+        // UI-friendly metadata
+        public string? PatientName { get; set; }
+        public DateTimeOffset? VisitAt { get; set; }
+        public string? VisitType { get; set; }
+        public string? Source { get; set; }
+        public decimal Balance { get; set; }
+        public string? CreatedByName { get; set; }
+        public string? UpdatedByName { get; set; }
         public IEnumerable<InvoiceItemDto> Items { get; set; } = Array.Empty<InvoiceItemDto>();
         public IEnumerable<InvoicePaymentDto> Payments { get; set; } = Array.Empty<InvoicePaymentDto>();
         public IEnumerable<DebtDto> Debts { get; set; } = Array.Empty<DebtDto>();

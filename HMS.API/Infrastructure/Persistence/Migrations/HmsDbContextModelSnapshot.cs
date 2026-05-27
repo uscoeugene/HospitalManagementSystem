@@ -1378,79 +1378,6 @@ namespace HMS.API.Infrastructure.Persistence.Migrations
                     b.ToTable("DispenseLogs");
                 });
 
-            modelBuilder.Entity("HMS.API.Domain.Pharmacy.Drug", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("Code")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<Guid?>("CreatedBy")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("Currency")
-                        .IsRequired()
-                        .HasMaxLength(3)
-                        .HasColumnType("nvarchar(3)");
-
-                    b.Property<DateTimeOffset?>("DeletedAt")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<Guid?>("DeletedBy")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("Description")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("bit");
-
-                    b.Property<bool>("IsSynced")
-                        .HasColumnType("bit");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
-                    b.Property<decimal>("Price")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<int>("ReservedStock")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int")
-                        .HasDefaultValue(0);
-
-                    b.Property<int>("Stock")
-                        .HasColumnType("int");
-
-                    b.Property<long>("SyncVersion")
-                        .HasColumnType("bigint");
-
-                    b.Property<Guid?>("TenantId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTimeOffset?>("UpdatedAt")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<Guid?>("UpdatedBy")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Code");
-
-                    b.ToTable("Drugs");
-                });
-
             modelBuilder.Entity("HMS.API.Domain.Pharmacy.InventoryAudit", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1728,7 +1655,7 @@ namespace HMS.API.Infrastructure.Persistence.Migrations
                     b.Property<int>("DispensedQuantity")
                         .HasColumnType("int");
 
-                    b.Property<Guid>("DrugId")
+                    b.Property<Guid>("InventoryItemId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<bool>("IsDeleted")
@@ -1763,7 +1690,7 @@ namespace HMS.API.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("DrugId");
+                    b.HasIndex("InventoryItemId");
 
                     b.HasIndex("PrescriptionId");
 
@@ -1788,11 +1715,11 @@ namespace HMS.API.Infrastructure.Persistence.Migrations
                     b.Property<Guid?>("DeletedBy")
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<Guid>("DrugId")
-                        .HasColumnType("uniqueidentifier");
-
                     b.Property<DateTimeOffset>("ExpiresAt")
                         .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("InventoryItemId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("bit");
@@ -1824,6 +1751,8 @@ namespace HMS.API.Infrastructure.Persistence.Migrations
                         .HasColumnType("uniqueidentifier");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("InventoryItemId");
 
                     b.ToTable("Reservations");
                 });
@@ -2069,9 +1998,9 @@ namespace HMS.API.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("HMS.API.Domain.Pharmacy.PrescriptionItem", b =>
                 {
-                    b.HasOne("HMS.API.Domain.Pharmacy.Drug", "Drug")
+                    b.HasOne("HMS.API.Domain.Pharmacy.InventoryItem", "InventoryItem")
                         .WithMany()
-                        .HasForeignKey("DrugId")
+                        .HasForeignKey("InventoryItemId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
@@ -2081,7 +2010,7 @@ namespace HMS.API.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.Navigation("Drug");
+                    b.Navigation("InventoryItem");
 
                     b.Navigation("Prescription");
                 });

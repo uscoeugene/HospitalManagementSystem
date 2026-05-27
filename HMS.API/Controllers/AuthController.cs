@@ -4,6 +4,7 @@ using HMS.API.Application.Auth.DTOs;
 using Microsoft.AspNetCore.Mvc;
 using System;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 using HMS.API.Infrastructure.Auth;
 using HMS.API.Domain.Auth;
@@ -119,6 +120,44 @@ namespace HMS.API.Controllers
                 return Ok(resp);
             }
             catch (System.InvalidOperationException ex)
+            {
+                return BadRequest(new { error = ex.Message });
+            }
+        }
+
+        [HttpPost("forgot-password")]
+        [AllowAnonymous]
+        public async Task<IActionResult> ForgotPassword([FromBody] PasswordRecoveryRequest request)
+        {
+            var resetBaseUrl = Request.Headers["X-Reset-Url"].ToString();
+            if (string.IsNullOrWhiteSpace(resetBaseUrl))
+            {
+                var fallbackBase = $"{Request.Scheme}://{Request.Host}/Account/ResetPassword";
+                resetBaseUrl = fallbackBase;
+            }
+
+            await _authService.RequestPasswordRecoveryAsync(request.Email, resetBaseUrl);
+            return Ok(new { message = "If an account exists for that email, a recovery email has been sent." });
+        }
+
+        [HttpGet("password-reset/validate")]
+        [AllowAnonymous]
+        public async Task<ActionResult<PasswordRecoveryTokenStatusDto>> ValidatePasswordResetToken([FromQuery] string token)
+        {
+            var result = await _authService.ValidatePasswordResetTokenAsync(token);
+            return result.Valid ? Ok(result) : BadRequest(result);
+        }
+
+        [HttpPost("reset-password")]
+        [AllowAnonymous]
+        public async Task<IActionResult> ResetPasswordWithToken([FromBody] PasswordRecoveryResetRequest request)
+        {
+            try
+            {
+                await _authService.ResetPasswordWithTokenAsync(request.Token, request.NewPassword);
+                return Ok(new { message = "Password reset successful." });
+            }
+            catch (InvalidOperationException ex)
             {
                 return BadRequest(new { error = ex.Message });
             }

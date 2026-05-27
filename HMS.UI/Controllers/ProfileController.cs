@@ -25,7 +25,7 @@ namespace HMS.UI.Controllers
         }
 
         [HttpGet]
-        [HMS.UI.Security.HasPermission("PROFILE.MANAGE")]
+        [HMS.UI.Security.HasPermission("PROFILE.UPDATE")]
         public IActionResult Security()
         {
             return View();
@@ -33,7 +33,7 @@ namespace HMS.UI.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        [HMS.UI.Security.HasPermission("PROFILE.MANAGE")]
+        [HMS.UI.Security.HasPermission("PROFILE.UPDATE")]
         public async Task<IActionResult> ChangePassword([FromForm] string currentPassword, [FromForm] string newPassword, [FromForm] string confirmPassword)
         {
             if (string.IsNullOrWhiteSpace(currentPassword) || string.IsNullOrWhiteSpace(newPassword))
@@ -63,7 +63,7 @@ namespace HMS.UI.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        [HMS.UI.Security.HasPermission("PROFILE.MANAGE")]
+        [HMS.UI.Security.HasPermission("PROFILE.UPDATE")]
         public async Task<IActionResult> UploadAvatar()
         {
             var file = Request.Form.Files.FirstOrDefault();
@@ -104,7 +104,7 @@ namespace HMS.UI.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        [HMS.UI.Security.HasPermission("PROFILE.MANAGE")]
+        [HMS.UI.Security.HasPermission("PROFILE.UPDATE")]
         public async Task<IActionResult> Me(UserProfileViewModel model)
         {
             if (!ModelState.IsValid) return View(model);

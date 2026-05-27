@@ -1,0 +1,52 @@
+@model HMS.UI.Models.Pharmacy.CreateInventoryItemViewModel
+@{
+    Layout = "~/Pages/_Layout.cshtml";
+    ViewData["Title"] = "Create Inventory Item";
+}
+
+<div class="container py-4">
+    <h3>Create Inventory Item</h3>
+
+    <form method="post" asp-action="CreateInventory">
+        @Html.AntiForgeryToken()
+        <div class="row g-3">
+            <div class="col-md-4">
+                <label class="form-label">Code</label>
+                <input asp-for="Code" class="form-control" />
+            </div>
+            <div class="col-md-8">
+                <label class="form-label">Name</label>
+                <input asp-for="Name" class="form-control" />
+            </div>
+            <div class="col-12">
+                <label class="form-label">Description</label>
+                <textarea asp-for="Description" class="form-control"></textarea>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Unit Price</label>
+                <input asp-for="UnitPrice" class="form-control" />
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Currency</label>
+                <input asp-for="Currency" class="form-control" />
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Stock</label>
+                <input asp-for="Stock" class="form-control" />
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Category</label>
+                <input asp-for="Category" class="form-control" />
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Unit</label>
+                <input asp-for="Unit" class="form-control" />
+            </div>
+        </div>
+
+        <div class="mt-4">
+            <button class="btn btn-primary">Create</button>
+            <a class="btn btn-light" href="/Pharmacy/Inventory">Cancel</a>
+        </div>
+    </form>
+</div>

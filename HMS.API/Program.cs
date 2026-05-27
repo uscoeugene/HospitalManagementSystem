@@ -78,6 +78,7 @@ builder.Services.AddDbContext<HmsDbContext>(options =>
 // Application services
 builder.Services.AddScoped<IPasswordHasher, PasswordHasher>();
 builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<IUserManagementService, UserManagementService>();
 
 // Local auth/token services removed - single source of truth enforced
 

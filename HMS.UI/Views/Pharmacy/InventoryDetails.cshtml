@@ -1,0 +1,50 @@
+@model HMS.UI.Models.Pharmacy.InventoryItemViewModel
+@{
+    Layout = "~/Pages/_Layout.cshtml";
+    ViewData["Title"] = "Inventory Item";
+}
+
+<div class="container py-4">
+    <h3>@Model.Name (@Model.Code)</h3>
+
+    @if(TempData["Error"] != null)
+    {
+        <div class="alert alert-danger">@TempData["Error"]</div>
+    }
+
+    <div class="mb-3">
+        <strong>Category:</strong> @(Model.Category ?? "-")
+    </div>
+    <div class="mb-3">
+        <strong>Price:</strong> @Model.UnitPrice @Model.Currency
+    </div>
+    <div class="mb-3">
+        <strong>Stock:</strong> @Model.Stock
+    </div>
+    <div class="mb-3">
+        <strong>Reserved:</strong> @Model.ReservedStock
+    </div>
+
+    <div class="d-flex gap-2">
+        <a class="btn btn-primary" href="/Pharmacy/Inventory">Back</a>
+        <form method="post" asp-action="DeleteInventory" asp-route-id="@Model.Id">
+            @Html.AntiForgeryToken()
+            <button class="btn btn-danger">Delete</button>
+        </form>
+    </div>
+
+    <hr />
+
+    <h5>Adjust Stock</h5>
+    <form method="post" asp-action="AdjustStock" asp-route-id="@Model.Id">
+        @Html.AntiForgeryToken()
+        <div class="row g-2 align-items-center">
+            <div class="col-auto">
+                <input type="number" name="delta" class="form-control" placeholder="Delta (positive to add, negative to remove)" />
+            </div>
+            <div class="col-auto">
+                <button class="btn btn-secondary">Apply</button>
+            </div>
+        </div>
+    </form>
+</div>

@@ -1,0 +1,45 @@
+@model HMS.UI.Models.Pharmacy.PrescriptionViewModel
+@{
+    Layout = "~/Pages/_Layout.cshtml";
+    ViewData["Title"] = "Prescription";
+}
+
+<div class="container py-4">
+    <h3>Prescription @Model.Id</h3>
+
+    <div class="mb-3">Status: <strong>@Model.Status</strong></div>
+
+    <table class="table">
+        <thead><tr><th>Inventory Item</th><th class="text-end">Qty</th><th class="text-end">Dispensed</th><th></th></tr></thead>
+        <tbody>
+            @foreach(var it in Model.Items)
+            {
+                <tr>
+                    <td>@it.Name</td>
+                    <td class="text-end">@it.Quantity</td>
+                    <td class="text-end">@it.DispensedQuantity</td>
+                    <td class="text-end">
+                        <form method="post" asp-action="Dispense">
+                            @Html.AntiForgeryToken()
+                            <input type="hidden" name="prescriptionId" value="@Model.Id" />
+                            <input type="hidden" name="itemId" value="@it.Id" />
+                            <div class="input-group input-group-sm">
+                                <input type="number" name="quantity" value="1" class="form-control" style="width:80px;" />
+                                <button class="btn btn-sm btn-primary">Dispense</button>
+                            </div>
+                        </form>
+
+                        <form method="post" asp-action="AddPrescriptionNote" class="mt-2">
+                            @Html.AntiForgeryToken()
+                            <input type="hidden" name="prescriptionId" value="@Model.Id" />
+                            <input type="hidden" name="itemId" value="@it.Id" />
+                            <div class="input-group input-group-sm">
+                                <input type="text" name="note" class="form-control" placeholder="Note" />
+                                <button class="btn btn-sm btn-secondary">Add Note</button>
+                            </div>
+                        </form>
+                    </td>
+                </tr>
+            }
+        </tbody></table>
+</div>

@@ -32,11 +32,11 @@ namespace HMS.API.Controllers.Reports
             return Ok(res);
         }
 
-        [HttpGet("revenue-per-drug")]
+        [HttpGet("revenue-per-inventory")]
         [HasPermission("SERVICE.REPORT.VIEW")]
-        public async Task<ActionResult> RevenuePerDrug([FromQuery] int monthsBack = 6)
+        public async Task<ActionResult> RevenuePerInventory([FromQuery] int monthsBack = 6)
         {
-            var res = await _reports.GetRevenuePerDrugAsync(monthsBack);
+            var res = await _reports.GetRevenuePerInventoryAsync(monthsBack);
             return Ok(res);
         }
     }

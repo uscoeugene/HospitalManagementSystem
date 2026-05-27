@@ -1,0 +1,40 @@
+@model HMS.UI.Models.Reports.LabTurnaroundPageViewModel
+@{
+    Layout = "~/Pages/_Layout.cshtml";
+    ViewData["Title"] = "Lab - Turnaround Times";
+}
+
+<div class="container py-4">
+    <h3>Lab Requests - Turnaround Times (last @Model.Recent)</h3>
+
+    @if(TempData["Error"] != null)
+    {
+        <div class="alert alert-danger">@TempData["Error"]</div>
+    }
+
+    <div class="mb-3">
+        <strong>Average hours:</strong> @Model.AverageHours:F2
+        &nbsp;&nbsp; <strong>Min:</strong> @Model.MinHours:F2
+        &nbsp;&nbsp; <strong>Max:</strong> @Model.MaxHours:F2
+    </div>
+
+    <table class="table table-sm">
+        <thead><tr><th>Request Id</th><th class="text-end">Hours</th></tr></thead>
+        <tbody>
+            @if(Model.Items != null && Model.Items.Length > 0)
+            {
+                foreach(var it in Model.Items)
+                {
+                    <tr>
+                        <td>@it.LabRequestId</td>
+                        <td class="text-end">@it.TurnaroundHours:F2</td>
+                    </tr>
+                }
+            }
+            else
+            {
+                <tr><td colspan="2" class="text-center text-muted">No data</td></tr>
+            }
+        </tbody>
+    </table>
+</div>

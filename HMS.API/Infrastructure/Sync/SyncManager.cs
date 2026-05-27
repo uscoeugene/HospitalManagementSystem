@@ -40,7 +40,7 @@ namespace HMS.API.Infrastructure.Sync
                 SyncEntitiesAsync(_db.InvoiceItems, "InvoiceItem", cancellationToken),
                 SyncEntitiesAsync(_db.LabRequests, "LabRequest", cancellationToken),
                 SyncEntitiesAsync(_db.Prescriptions, "Prescription", cancellationToken),
-                SyncEntitiesAsync(_db.Drugs, "Drug", cancellationToken),
+                // Drug entity removed; inventory (InventoryItems) are the single source for medications
                 SyncEntitiesAsync(_db.Payments, "Payment", cancellationToken),
                 SyncEntitiesAsync(_db.Refunds, "Refund", cancellationToken),
                 SyncEntitiesAsync(_db.Reservations, "Reservation", cancellationToken),

@@ -13,8 +13,10 @@
                 <th>Invoice#</th>
                 <th>Patient</th>
                 <th>Visit</th>
+                <th>Source</th>
                 <th>Total</th>
                 <th>Paid</th>
+                <th>Balance</th>
                 <th>Status</th>
                 <th></th>
             </tr>
@@ -24,10 +26,12 @@
             {
                 <tr>
                     <td>@(i.InvoiceNumber ?? "-")</td>
-                    <td>@(i.PatientId == Guid.Empty ? "-" : i.PatientId.ToString())</td>
-                    <td>@(i.VisitId?.ToString() ?? "-")</td>
+                    <td>@(string.IsNullOrWhiteSpace(i.PatientName) ? (i.PatientId == Guid.Empty ? "-" : i.PatientId.ToString()) : i.PatientName)</td>
+                    <td>@(i.VisitType == null && i.VisitAt == null ? (i.VisitId?.ToString() ?? "-") : ((i.VisitType ?? "") + (i.VisitAt.HasValue ? (" / " + i.VisitAt.Value.ToLocalTime().ToString("yyyy-MM-dd")) : "")))</td>
+                    <td>@(string.IsNullOrWhiteSpace(i.Source) ? "-" : i.Source)</td>
                     <td>@i.TotalAmount @i.Currency</td>
                     <td>@i.AmountPaid</td>
+                    <td>@i.Balance @i.Currency</td>
                     <td>
                         <span class="badge bg-@(
                             i.Status == "PAID" ? "success" : i.Status == "PARTIAL" ? "warning" : "secondary")">

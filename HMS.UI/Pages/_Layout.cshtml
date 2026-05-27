@@ -1,4 +1,20 @@
 @inherits Microsoft.AspNetCore.Mvc.Razor.RazorPage<dynamic>
+@using System.Security.Claims
+@{
+    var currentPath = Context.Request.Path.Value ?? string.Empty;
+    var displayName = User.FindFirst("display_name")?.Value
+        ?? User.Identity?.Name
+        ?? "User";
+    if (string.IsNullOrWhiteSpace(displayName))
+    {
+        displayName = "User";
+    }
+    var userInitial = displayName.Substring(0, 1).ToUpperInvariant();
+    var tenantName = User.FindFirst("tenant_name")?.Value
+        ?? ViewData["TenantName"] as string
+        ?? Context.Request.Cookies["HmsTenantName"]
+        ?? string.Empty;
+}
 
 <!doctype html>
 <html lang="en">
@@ -22,21 +38,26 @@
 <body class="portal-layout">
 
     <!-- SIDEBAR -->
-    <aside class="sidebar">
+    <aside class="sidebar" id="portalSidebar">
 
         <!-- BRAND -->
         <div class="sidebar-brand">
-            <div class="d-flex align-items-center gap-3">
+            <div class="d-flex align-items-start justify-content-between gap-3">
+                <div class="d-flex align-items-center gap-3">
 
-                <div class="brand-logo">
-                    <i class="bi bi-hospital-fill"></i>
+                    <div class="brand-logo">
+                        <i class="bi bi-hospital-fill"></i>
+                    </div>
+
+                    <div>
+                        <h3>HMS Cloud</h3>
+                        <p>@(!string.IsNullOrWhiteSpace(tenantName) ? tenantName : "Hospital Management")</p>
+                    </div>
                 </div>
 
-                <div>
-                    <h3>HMS Cloud</h3>
-                    <p>Hospital Management</p>
-                </div>
-
+                <button type="button" class="btn btn-outline-light btn-sm d-lg-none sidebar-close-button" data-sidebar-close aria-label="Close menu">
+                    <i class="bi bi-x-lg"></i>
+                </button>
             </div>
         </div>
 
@@ -47,31 +68,36 @@
                 Main Menu
             </div>
 
-            <a class="sidebar-link active" href="/Account/Dashboard">
+            <a class="sidebar-link @(currentPath.StartsWith("/Account/Dashboard", StringComparison.OrdinalIgnoreCase) ? "active" : string.Empty)" href="/Account/Dashboard">
                 <i class="bi bi-grid-1x2-fill"></i>
                 <span>Dashboard</span>
             </a>
 
             @if (User.Identity?.IsAuthenticated ?? false)
             {
-                <a class="sidebar-link" href="/Patients">
+                <a class="sidebar-link @(currentPath.StartsWith("/Patients", StringComparison.OrdinalIgnoreCase) ? "active" : string.Empty)" href="/Patients">
                     <i class="bi bi-people-fill"></i>
                     <span>Patients</span>
                 </a>
 
-                <a class="sidebar-link" href="/Lab">
+                <a class="sidebar-link @(currentPath.StartsWith("/Lab", StringComparison.OrdinalIgnoreCase) ? "active" : string.Empty)" href="/Lab">
                     <i class="bi bi-heart-pulse-fill"></i>
                     <span>Laboratory</span>
                 </a>
 
-                <a class="sidebar-link" href="/Pharmacy">
+                <a class="sidebar-link @(currentPath.StartsWith("/Pharmacy", StringComparison.OrdinalIgnoreCase) ? "active" : string.Empty)" href="/Pharmacy">
                     <i class="bi bi-capsule-pill"></i>
                     <span>Pharmacy</span>
                 </a>
 
-                <a class="sidebar-link" href="/Billing">
+                <a class="sidebar-link @(currentPath.StartsWith("/Billing", StringComparison.OrdinalIgnoreCase) ? "active" : string.Empty)" href="/Billing">
                     <i class="bi bi-cash-stack"></i>
                     <span>Billing</span>
+                </a>
+
+                <a class="sidebar-link @(currentPath.StartsWith("/Reports", StringComparison.OrdinalIgnoreCase) ? "active" : string.Empty)" href="/Reports">
+                    <i class="bi bi-bar-chart-fill"></i>
+                    <span>Reports</span>
                 </a>
             }
 
@@ -79,23 +105,41 @@
                 Administration
             </div>
 
-            <a class="sidebar-link" href="/Profile/Me">
+            <a class="sidebar-link @(currentPath.StartsWith("/Profile/Me", StringComparison.OrdinalIgnoreCase) ? "active" : string.Empty)" href="/Profile/Me">
                 <i class="bi bi-person-circle"></i>
                 <span>My Profile</span>
             </a>
 
-                @* Admin link for local tenant config (requires users.manage) *@
-                @if (User.Identity?.IsAuthenticated ?? false)
-                {
-                    <a class="sidebar-link" href="/Admin/LocalTenant">
-                        <i class="bi bi-gear-fill"></i>
-                        <span>Local Tenant</span>
-                    </a>
-                    <a class="sidebar-link" href="/Users">
-                        <i class="bi bi-people-fill"></i>
-                        <span>Users</span>
-                    </a>
-                }
+            @if (User.HasClaim("permission", "PROFILE.UPDATE"))
+            {
+                <a class="sidebar-link @(currentPath.StartsWith("/Profile/Security", StringComparison.OrdinalIgnoreCase) ? "active" : string.Empty)" href="/Profile/Security">
+                    <i class="bi bi-shield-lock-fill"></i>
+                    <span>Security</span>
+                </a>
+            }
+
+            @if (User.Identity?.IsAuthenticated ?? false)
+            {
+                <a class="sidebar-link @(currentPath.StartsWith("/Users", StringComparison.OrdinalIgnoreCase) ? "active" : string.Empty)" href="/Users">
+                    <i class="bi bi-people-fill"></i>
+                    <span>Users</span>
+                </a>
+
+                <a class="sidebar-link @(currentPath.StartsWith("/Roles", StringComparison.OrdinalIgnoreCase) ? "active" : string.Empty)" href="/Roles">
+                    <i class="bi bi-person-gear"></i>
+                    <span>Roles & Permissions</span>
+                </a>
+
+                <a class="sidebar-link @(currentPath.StartsWith("/Admin/LocalTenant", StringComparison.OrdinalIgnoreCase) ? "active" : string.Empty)" href="/Admin/LocalTenant">
+                    <i class="bi bi-building-gear"></i>
+                    <span>Local Tenant</span>
+                </a>
+
+                <a class="sidebar-link @(currentPath.StartsWith("/Admin/AppSettings", StringComparison.OrdinalIgnoreCase) ? "active" : string.Empty)" href="/Admin/AppSettings">
+                    <i class="bi bi-sliders"></i>
+                    <span>App Settings</span>
+                </a>
+            }
 
             <!-- LOGOUT -->
             <form method="post"
@@ -113,6 +157,7 @@
         </div>
 
     </aside>
+    <div class="sidebar-backdrop d-lg-none" data-sidebar-close></div>
 
     <!-- MAIN -->
     <div class="main-content">
@@ -125,8 +170,9 @@
                 <!-- LEFT -->
                 <div class="d-flex align-items-center gap-3">
 
-                    <button class="btn btn-light rounded-circle shadow-sm d-lg-none"
-                            id="sidebarToggle">
+                    <button type="button" class="btn btn-light rounded-circle shadow-sm d-lg-none"
+                            data-sidebar-toggle
+                            aria-label="Open menu">
                         <i class="bi bi-list"></i>
                     </button>
 
@@ -148,22 +194,19 @@
                     <div class="topbar-user">
 
                         <div class="avatar-sm">
-                            @User.Identity?.Name?.Substring(0, 1).ToUpper()
+                            @userInitial
                         </div>
 
                         <div class="d-none d-md-block">
                             <div class="fw-semibold">
-                                @User.Identity?.Name
+                                @displayName
                             </div>
 
                     <small class="text-muted">
-                        Administrator
-                        @{
-                            var tenantName = Context.Request.Cookies["HmsTenantName"] ?? string.Empty;
-                            if (!string.IsNullOrWhiteSpace(tenantName))
-                            {
-                                <text> | @tenantName</text>
-                            }
+                        Signed in
+                        @if (!string.IsNullOrWhiteSpace(tenantName))
+                        {
+                            <text> | @tenantName</text>
                         }
                     </small>
                         </div>
@@ -189,17 +232,8 @@
     <!-- jQuery -->
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="/js/portal-layout.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js" ></script>
-
-    
-    <script>
-        document.getElementById('sidebarToggle')
-            ?.addEventListener('click', function () {
-
-                document.querySelector('.sidebar')
-                    ?.classList.toggle('show');
-            });
-    </script>
 
     <script>
     

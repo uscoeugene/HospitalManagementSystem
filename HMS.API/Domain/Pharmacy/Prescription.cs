@@ -24,8 +24,8 @@ namespace HMS.API.Domain.Pharmacy
     {
         public Guid PrescriptionId { get; set; }
         public Prescription Prescription { get; set; } = null!;
-        public Guid DrugId { get; set; }
-        public Drug Drug { get; set; } = null!;
+        public Guid InventoryItemId { get; set; }
+        public InventoryItem InventoryItem { get; set; } = null!;
         public int Quantity { get; set; }
         public decimal Price { get; set; }
         public string Currency { get; set; } = "USD";

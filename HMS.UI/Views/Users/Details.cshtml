@@ -2,86 +2,127 @@
 @{
     Layout = "~/Pages/_Layout.cshtml";
     ViewData["Title"] = "User Details";
+    var initials = (string.IsNullOrWhiteSpace(Model.Username) ? "U" : Model.Username.Substring(0, 1)).ToUpperInvariant();
 }
 
 <div class="container py-4">
-    <div class="d-flex align-items-center gap-3 mb-3">
-        @if (!string.IsNullOrWhiteSpace(Model?.PhotoUrl))
-        {
-            <img src="@Model.PhotoUrl" class="rounded-circle" style="width:96px;height:96px;object-fit:cover;" />
-        }
-        else
-        {
-            <div class="avatar-sm">@((Model?.Username ?? "").FirstOrDefault().ToString().ToUpper())</div>
-        }
-
-        <div>
-            <h4 class="mb-0">@(string.IsNullOrWhiteSpace(Model?.FullName) ? Model.Username : Model.FullName)</h4>
-            <div class="text-muted">@Model.Email</div>
-            <div class="text-muted small">Hospital: @(Model.TenantName ?? "-")</div>
-            <div class="text-muted small">Last login: @(Model.LastLogin?.ToString() ?? "Unknown")</div>
-        </div>
-    </div>
-
-    <div class="card mb-3">
-        <div class="card-body">
-            <h5>Roles</h5>
-            <div>
-                @if (Model.Roles != null && Model.Roles.Length > 0)
-                {
-                    foreach(var r in Model.Roles)
+    <div class="row g-4">
+        <div class="col-lg-4">
+            <div class="card shadow-sm border-0 h-100">
+                <div class="card-body text-center">
+                    @if (!string.IsNullOrWhiteSpace(Model.PhotoUrl))
                     {
-                        <span class="badge bg-secondary me-1">@r</span>
+                        <img src="@Model.PhotoUrl" class="rounded-circle mb-3" style="width:96px;height:96px;object-fit:cover;" alt="Profile photo" />
                     }
-                }
-                else
-                {
-                    <div class="text-muted">No roles assigned</div>
-                }
+                    else
+                    {
+                        <div class="rounded-circle bg-primary-subtle text-primary d-inline-flex align-items-center justify-content-center mb-3" style="width:96px;height:96px;font-size:2rem;">
+                            @initials
+                        </div>
+                    }
+
+                    <h4 class="mb-1">@(!string.IsNullOrWhiteSpace(Model.FullName) ? Model.FullName : Model.Username)</h4>
+                    <p class="text-muted mb-3">@Model.Email</p>
+                    <div class="d-flex justify-content-center gap-2 flex-wrap">
+                        <span class="badge @(Model.IsLocked ? "text-bg-danger" : "text-bg-success")">
+                            @(Model.IsLocked ? "Locked" : "Active")
+                        </span>
+                        <span class="badge text-bg-light">@((Model.TenantName ?? "Global"))</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-8">
+            <div class="card shadow-sm border-0">
+                <div class="card-body p-4">
+                    <div class="d-flex justify-content-between align-items-start flex-wrap gap-3 mb-4">
+                        <div>
+                            <h3 class="mb-1">User Details</h3>
+                            <p class="text-muted mb-0">Review assigned roles and recent account activity.</p>
+                        </div>
+                        <div class="d-flex gap-2">
+                            <a asp-action="Edit" asp-route-id="@Model.Id" class="btn btn-primary">
+                                <i class="bi bi-pencil-square me-1"></i>Manage user
+                            </a>
+                            <a asp-action="Index" class="btn btn-outline-secondary">Back</a>
+                        </div>
+                    </div>
+
+                    <div class="row g-4">
+                        <div class="col-md-6">
+                            <div class="card border-0 bg-light h-100">
+                                <div class="card-body">
+                                    <h5 class="card-title">Roles</h5>
+                                    @if (Model.Roles != null && Model.Roles.Length > 0)
+                                    {
+                                        @foreach (var role in Model.Roles)
+                                        {
+                                            <span class="badge text-bg-light border me-1 mb-1">@role</span>
+                                        }
+                                    }
+                                    else
+                                    {
+                                        <p class="text-muted mb-0">No roles assigned.</p>
+                                    }
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <div class="card border-0 bg-light h-100">
+                                <div class="card-body">
+                                    <h5 class="card-title">Account Summary</h5>
+                                    <dl class="row mb-0">
+                                        <dt class="col-5">Username</dt>
+                                        <dd class="col-7">@Model.Username</dd>
+                                        <dt class="col-5">Email</dt>
+                                        <dd class="col-7">@Model.Email</dd>
+                                        <dt class="col-5">Last login</dt>
+                                        <dd class="col-7">@(Model.LastLogin?.ToLocalTime().ToString("dd MMM yyyy, HH:mm") ?? "Never")</dd>
+                                    </dl>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-12">
+                            <div class="card border-0 bg-light">
+                                <div class="card-body">
+                                    <h5 class="card-title">Recent Activity</h5>
+                                    @if (Model.Activity != null && Model.Activity.Length > 0)
+                                    {
+                                        <div class="table-responsive">
+                                            <table class="table table-sm align-middle mb-0">
+                                                <thead>
+                                                    <tr>
+                                                        <th>Date</th>
+                                                        <th>Action</th>
+                                                        <th>Details</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    @foreach (var activity in Model.Activity)
+                                                    {
+                                                        <tr>
+                                                            <td>@activity.PerformedAt.ToLocalTime().ToString("dd MMM yyyy, HH:mm")</td>
+                                                            <td>@activity.Action</td>
+                                                            <td>@(activity.Details ?? "-")</td>
+                                                        </tr>
+                                                    }
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <p class="text-muted mb-0">No recent activity recorded for this user.</p>
+                                    }
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
-
-    <div class="card">
-        <div class="card-body">
-            <h5>Recent Activity</h5>
-            <div>
-                @if (Model.Activity != null && Model.Activity.Length > 0)
-                {
-                    <ul class="small">
-                    @foreach(var a in Model.Activity)
-                    {
-                        <li>@a.PerformedAt - @a.Action - @a.Details</li>
-                    }
-                    </ul>
-                }
-                else
-                {
-                    <div class="text-muted">No recent activity</div>
-                }
-            </div>
-        </div>
-    </div>
-
-    <a class="btn btn-light mt-3" href="/Users">Back to list</a>
 </div>
-
-@section Scripts {
-    <script>
-        (function(){
-            const id = '@Model?.Id';
-            if(!id) return;
-            fetch(`/auth/users/${id}/roles`).then(r=>r.json()).then(js=>{
-                var el = document.getElementById('rolesList');
-                if(!Array.isArray(js)) { el.textContent = 'No roles'; return; }
-                el.innerHTML = js.map(x=>'<span class="badge bg-secondary me-1">'+x+'</span>').join('');
-            }).catch(e=>{document.getElementById('rolesList').textContent='Error loading roles';});
-
-            fetch(`/auth/audits?userId=${id}`).then(r=>r.json()).then(js=>{
-                var el = document.getElementById('activityList');
-                if(!Array.isArray(js) || !js.length) { el.textContent = 'No recent activity'; return; }
-                el.innerHTML = '<ul class="small">'+js.slice(0,10).map(a=>' <li>'+ (a.performedAt||a.PerformedAt)+' - '+a.action+' - '+(a.details||'') +'</li>').join('')+'</ul>';
-            }).catch(e=>{document.getElementById('activityList').textContent='Error loading activity';});
-        })();
-    </script>
-}

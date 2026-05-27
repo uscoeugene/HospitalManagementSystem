@@ -4,9 +4,9 @@ namespace HMS.API.Application.Pharmacy
 {
     public class StockShortageDto
     {
-        public Guid DrugId { get; set; }
-        public string DrugCode { get; set; } = string.Empty;
-        public string DrugName { get; set; } = string.Empty;
+        public Guid InventoryItemId { get; set; }
+        public string InventoryItemCode { get; set; } = string.Empty;
+        public string InventoryItemName { get; set; } = string.Empty;
         public int Stock { get; set; }
         public int Reserved { get; set; }
     }
@@ -17,10 +17,10 @@ namespace HMS.API.Application.Pharmacy
         public int DispensedCount { get; set; }
     }
 
-    public class DrugRevenueDto
+    public class InventoryRevenueDto
     {
-        public Guid DrugId { get; set; }
-        public string DrugName { get; set; } = string.Empty;
+        public Guid InventoryItemId { get; set; }
+        public string InventoryItemName { get; set; } = string.Empty;
         public decimal Revenue { get; set; }
     }
 }

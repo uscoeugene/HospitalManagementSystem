@@ -1,0 +1,46 @@
+@{
+    Layout = "~/Pages/_Layout.cshtml";
+    ViewData["Title"] = "Reports Dashboard";
+}
+
+<div class="container py-4">
+    <h3>Reports Dashboard</h3>
+
+    <div class="row g-3 mt-3">
+        <div class="col-md-4">
+            <div class="card h-100">
+                <div class="card-body d-flex flex-column">
+                    <h5 class="card-title">Lab - Status Breakdown</h5>
+                    <p class="card-text text-muted">Summary of lab requests by status (e.g. Pending, Completed).</p>
+                    <div class="mt-auto">
+                        <a class="btn btn-primary" asp-controller="Reports" asp-action="LabStatusBreakdown">View</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card h-100">
+                <div class="card-body d-flex flex-column">
+                    <h5 class="card-title">Lab - Turnaround Times</h5>
+                    <p class="card-text text-muted">Recent turnaround times for lab requests.</p>
+                    <div class="mt-auto">
+                        <a class="btn btn-primary" asp-controller="Reports" asp-action="LabTurnaround">View</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card h-100">
+                <div class="card-body d-flex flex-column">
+                    <h5 class="card-title">Lab - Top Tests</h5>
+                    <p class="card-text text-muted">Most frequently requested lab tests.</p>
+                    <div class="mt-auto">
+                        <a class="btn btn-primary" asp-controller="Reports" asp-action="LabTopTests">View</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

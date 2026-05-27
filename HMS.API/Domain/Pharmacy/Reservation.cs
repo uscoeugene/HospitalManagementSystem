@@ -5,7 +5,7 @@ namespace HMS.API.Domain.Pharmacy
 {
     public class Reservation : BaseEntity
     {
-        public Guid DrugId { get; set; }
+        public Guid InventoryItemId { get; set; }
         public int Quantity { get; set; }
         public DateTimeOffset ExpiresAt { get; set; }
         public Guid? PrescriptionItemId { get; set; }

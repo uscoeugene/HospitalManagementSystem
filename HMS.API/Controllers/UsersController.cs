@@ -1,207 +1,216 @@
-using System;
-using System.Linq;
-using System.Threading.Tasks;
-using HMS.API.Infrastructure.Auth;
-using HMS.API.Domain.Auth;
+using HMS.API.Application.Auth;
+using HMS.API.Application.Auth.DTOs;
+using HMS.API.Security;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using HMS.API.Security;
 
-namespace HMS.API.Controllers
+namespace HMS.API.Controllers;
+
+[ApiController]
+[Route("auth/[controller]")]
+public class UsersController : ControllerBase
 {
-    [ApiController]
-    [Route("auth/[controller]")]
-    public class UsersController : ControllerBase
+    private readonly IUserManagementService _users;
+    private readonly IPasswordHasher _hasher;
+    private readonly HMS.API.Infrastructure.Auth.AuthDbContext _authDb;
+
+    public UsersController(
+        IUserManagementService users,
+        IPasswordHasher hasher,
+        HMS.API.Infrastructure.Auth.AuthDbContext authDb)
     {
-        private readonly AuthDbContext _authDb;
-        private readonly HMS.API.Application.Common.ICurrentUserService _currentUser;
+        _users = users;
+        _hasher = hasher;
+        _authDb = authDb;
+    }
 
-        public UsersController(AuthDbContext authDb, HMS.API.Application.Common.ICurrentUserService currentUser)
+    [HttpGet]
+    [HasPermission("users.manage")]
+    public async Task<IActionResult> List([FromQuery] int page = 1, [FromQuery] int pageSize = 20, [FromQuery] string? search = null)
+    {
+        var result = await _users.ListAsync(page, pageSize, search);
+        return Ok(result);
+    }
+
+    [HttpGet("available-roles")]
+    [HasPermission("users.manage")]
+    public async Task<IActionResult> AvailableRoles([FromServices] HMS.API.Application.Common.ICurrentUserService currentUser)
+    {
+        var rolesQuery = _authDb.Roles
+            .IgnoreQueryFilters()
+            .AsNoTracking()
+            .Where(r => !r.IsDeleted);
+
+        if (currentUser.TenantId.HasValue)
         {
-            _authDb = authDb;
-            _currentUser = currentUser;
+            var tenantId = currentUser.TenantId.Value;
+            rolesQuery = rolesQuery.Where(r => r.TenantId == null || r.TenantId == tenantId);
         }
 
-        [HttpGet]
-        [HasPermission("users.manage")]
-        public async Task<IActionResult> List()
-        {
-            // If caller is tenant-scoped, only return users for that tenant
-            if (_currentUser.TenantId.HasValue)
+        var roles = await rolesQuery
+            .Include(r => r.RolePermissions)
+            .ThenInclude(rp => rp.Permission)
+            .OrderBy(r => r.Name)
+            .Select(r => new
             {
-                var tid = _currentUser.TenantId.Value;
-                var users = await _authDb.Users.AsNoTracking().Where(u => u.TenantId == tid).ToListAsync();
-                return Ok(users.Select(u => new { u.Id, u.Username, u.Email, u.TenantId, u.IsLocked }));
-            }
+                r.Id,
+                r.Name,
+                r.Description,
+                Permissions = r.RolePermissions.Select(rp => rp.Permission.Code)
+            })
+            .ToListAsync();
 
-            // Central/super-admin: return all users
-            var all = await _authDb.Users.AsNoTracking().ToListAsync();
-            return Ok(all.Select(u => new { u.Id, u.Username, u.Email, u.TenantId, u.IsLocked }));
-        }
+        return Ok(roles);
+    }
 
-        [HttpPost("{id}/assign-tenant/{tenantId}")]
-        [HasPermission("users.manage")]
-        public async Task<IActionResult> AssignTenant(Guid id, Guid tenantId)
+    [HttpGet("{id:guid}")]
+    [HasPermission("users.manage")]
+    public async Task<IActionResult> Get(Guid id)
+    {
+        var user = await _users.GetAsync(id);
+        return user == null ? NotFound() : Ok(user);
+    }
+
+    [HttpPost]
+    [HasPermission("users.manage")]
+    public async Task<IActionResult> Create([FromBody] CreateUserRequest request)
+    {
+        try
         {
-            // Only central/super-admin context may assign arbitrary tenants.
-            if (_currentUser.TenantId.HasValue) return Forbid();
-
-            var user = await _authDb.Users.SingleOrDefaultAsync(u => u.Id == id);
-            if (user == null) return NotFound(new { error = "User not found" });
-
-            var tenant = await _authDb.Tenants.SingleOrDefaultAsync(t => t.Id == tenantId);
-            if (tenant == null) return NotFound(new { error = "Tenant not found" });
-
-            user.TenantId = tenantId;
-            await _authDb.SaveChangesAsync();
-            return NoContent();
+            var created = await _users.CreateAsync(request);
+            return CreatedAtAction(nameof(Get), new { id = created.Id }, created);
         }
-
-        [HttpPost("{id}/clear-tenant")]
-        [HasPermission("users.manage")]
-        public async Task<IActionResult> ClearTenant(Guid id)
+        catch (InvalidOperationException ex)
         {
-            // Only central/super-admin context may clear tenant assignments
-            if (_currentUser.TenantId.HasValue) return Forbid();
-
-            var user = await _authDb.Users.SingleOrDefaultAsync(u => u.Id == id);
-            if (user == null) return NotFound(new { error = "User not found" });
-
-            user.TenantId = null;
-            await _authDb.SaveChangesAsync();
-            return NoContent();
+            return BadRequest(new { error = ex.Message });
         }
+    }
 
-        // GET auth/users/{id}/roles
-        [HttpGet("{id}/roles")]
-        [HasPermission("users.manage")]
-        public async Task<IActionResult> GetUserRoles(Guid id)
+    [HttpPut("{id:guid}")]
+    [HasPermission("users.manage")]
+    public async Task<IActionResult> Update(Guid id, [FromBody] UpdateUserRequest request)
+    {
+        try
         {
-            // Ensure requesting tenant can only inspect roles for users within same tenant
-            if (_currentUser.TenantId.HasValue)
-            {
-                var target = await _authDb.Users.AsNoTracking().SingleOrDefaultAsync(u => u.Id == id);
-                if (target == null) return NotFound(new { error = "User not found" });
-                if (target.TenantId != _currentUser.TenantId) return Forbid();
-            }
+            var updated = await _users.UpdateAsync(id, request);
+            return updated == null ? NotFound() : Ok(updated);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
+    }
 
-            var roles = await _authDb.UserRoles.AsNoTracking().Where(ur => ur.UserId == id).Select(ur => ur.RoleId).ToArrayAsync();
+    [HttpDelete("{id:guid}")]
+    [HasPermission("users.manage")]
+    public async Task<IActionResult> Delete(Guid id)
+    {
+        try
+        {
+            var deleted = await _users.DeleteAsync(id);
+            return deleted ? NoContent() : NotFound();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
+    }
+
+    [HttpGet("{id:guid}/roles")]
+    [HasPermission("users.manage")]
+    public async Task<IActionResult> GetUserRoles(Guid id)
+    {
+        try
+        {
+            var roles = await _users.GetRoleIdsAsync(id);
             return Ok(roles);
         }
-
-        // POST auth/users/{id}/roles/{roleId}
-        [HttpPost("{id}/roles/{roleId}")]
-        [HasPermission("users.manage")]
-        public async Task<IActionResult> AssignRole(Guid id, Guid roleId)
+        catch (InvalidOperationException ex)
         {
-            var user = await _authDb.Users.SingleOrDefaultAsync(u => u.Id == id);
-            if (user == null) return NotFound(new { error = "User not found" });
+            return BadRequest(new { error = ex.Message });
+        }
+    }
 
-            // Tenant-scoped users cannot be modified by other tenants
-            if (_currentUser.TenantId.HasValue && user.TenantId != _currentUser.TenantId) return Forbid();
-
-            var role = await _authDb.Roles.SingleOrDefaultAsync(r => r.Id == roleId);
-            if (role == null) return NotFound(new { error = "Role not found" });
-
-            var exists = await _authDb.UserRoles.AnyAsync(ur => ur.UserId == id && ur.RoleId == roleId);
-            if (!exists)
-            {
-                _authDb.UserRoles.Add(new Domain.Auth.UserRole { UserId = id, RoleId = roleId });
-                await _authDb.SaveChangesAsync();
-            }
-
+    [HttpPost("{id:guid}/roles/{roleId:guid}")]
+    [HasPermission("users.manage")]
+    public async Task<IActionResult> AssignRole(Guid id, Guid roleId)
+    {
+        try
+        {
+            await _users.AssignRoleAsync(id, roleId);
             return NoContent();
         }
-
-        // DELETE auth/users/{id}/roles/{roleId}
-        [HttpDelete("{id}/roles/{roleId}")]
-        [HasPermission("users.manage")]
-        public async Task<IActionResult> RemoveRole(Guid id, Guid roleId)
+        catch (InvalidOperationException ex)
         {
-            var ur = await _authDb.UserRoles.SingleOrDefaultAsync(x => x.UserId == id && x.RoleId == roleId);
-            if (ur == null) return NotFound(new { error = "Role assignment not found" });
+            return BadRequest(new { error = ex.Message });
+        }
+    }
 
-            var user = await _authDb.Users.AsNoTracking().SingleOrDefaultAsync(u => u.Id == id);
-            if (user == null) return NotFound(new { error = "User not found" });
-            if (_currentUser.TenantId.HasValue && user.TenantId != _currentUser.TenantId) return Forbid();
+    [HttpDelete("{id:guid}/roles/{roleId:guid}")]
+    [HasPermission("users.manage")]
+    public async Task<IActionResult> RemoveRole(Guid id, Guid roleId)
+    {
+        try
+        {
+            await _users.RemoveRoleAsync(id, roleId);
+            return NoContent();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
+    }
 
-            _authDb.UserRoles.Remove(ur);
+    [HttpPost("{id:guid}/reset-password")]
+    [HasPermission("users.manage")]
+    public async Task<IActionResult> ResetPassword(Guid id, [FromBody] ResetPasswordRequest req)
+    {
+        var user = await _authDb.Users.IgnoreQueryFilters().SingleOrDefaultAsync(u => u.Id == id && !u.IsDeleted);
+        if (user == null) return NotFound(new { error = "User not found" });
+
+        user.PasswordHash = !string.IsNullOrWhiteSpace(req.NewPasswordPlain)
+            ? _hasher.Hash(req.NewPasswordPlain)
+            : req.NewPasswordHash ?? string.Empty;
+
+        user.IsLocked = false;
+        user.LockedUntil = null;
+        await _authDb.SaveChangesAsync();
+        return NoContent();
+    }
+
+    [HttpPost("{id:guid}/lock")]
+    [HasPermission("users.manage")]
+    public async Task<IActionResult> LockUser(Guid id, [FromBody] LockRequest req)
+    {
+        var updated = await _users.UpdateAsync(id, new UpdateUserRequest { IsLocked = true });
+        if (updated == null) return NotFound(new { error = "User not found" });
+
+        if (req.LockedUntil.HasValue)
+        {
+            var user = await _authDb.Users.IgnoreQueryFilters().SingleAsync(u => u.Id == id);
+            user.LockedUntil = req.LockedUntil.Value;
             await _authDb.SaveChangesAsync();
-            return NoContent();
         }
 
-        // GET auth/users/{id}
-        [HttpGet("{id}")]
-        [HasPermission("users.manage")]
-        public async Task<IActionResult> Get(Guid id)
-        {
-            // Tenant-scoped callers may only view users in their tenant
-            var user = await _authDb.Users.AsNoTracking().SingleOrDefaultAsync(u => u.Id == id);
-            if (user == null) return NotFound();
+        return NoContent();
+    }
 
-            if (_currentUser.TenantId.HasValue && user.TenantId != _currentUser.TenantId) return Forbid();
+    [HttpPost("{id:guid}/unlock")]
+    [HasPermission("users.manage")]
+    public async Task<IActionResult> UnlockUser(Guid id)
+    {
+        var updated = await _users.UpdateAsync(id, new UpdateUserRequest { IsLocked = false });
+        return updated == null ? NotFound(new { error = "User not found" }) : NoContent();
+    }
 
-            return Ok(new { user.Id, user.Username, user.Email, user.TenantId, user.IsLocked });
-        }
+    public class ResetPasswordRequest
+    {
+        public string? NewPasswordHash { get; set; }
+        public string? NewPasswordPlain { get; set; }
+    }
 
-        // POST auth/users/{id}/reset-password
-        [HttpPost("{id}/reset-password")]
-        [HasPermission("users.manage")]
-        public async Task<IActionResult> ResetPassword(Guid id, [FromBody] ResetPasswordRequest req)
-        {
-            var user = await _authDb.Users.SingleOrDefaultAsync(u => u.Id == id);
-            if (user == null) return NotFound(new { error = "User not found" });
-
-            user.PasswordHash = req.NewPasswordHash ?? string.Empty;
-            // If a plain password supplied, hash it
-            if (!string.IsNullOrWhiteSpace(req.NewPasswordPlain))
-            {
-                // Use configured hasher from DI
-                var hasher = HttpContext.RequestServices.GetService(typeof(HMS.API.Application.Auth.IPasswordHasher)) as HMS.API.Application.Auth.IPasswordHasher;
-                if (hasher != null)
-                {
-                    user.PasswordHash = hasher.Hash(req.NewPasswordPlain);
-                }
-            }
-
-            user.IsLocked = false;
-            user.LockedUntil = null;
-            await _authDb.SaveChangesAsync();
-            return NoContent();
-        }
-
-        public class ResetPasswordRequest
-        {
-            public string? NewPasswordHash { get; set; }
-            public string? NewPasswordPlain { get; set; }
-        }
-
-        // POST auth/users/{id}/lock
-        [HttpPost("{id}/lock")]
-        [HasPermission("users.manage")]
-        public async Task<IActionResult> LockUser(Guid id, [FromBody] LockRequest req)
-        {
-            var user = await _authDb.Users.SingleOrDefaultAsync(u => u.Id == id);
-            if (user == null) return NotFound(new { error = "User not found" });
-            user.IsLocked = true;
-            if (req.LockedUntil.HasValue) user.LockedUntil = req.LockedUntil.Value;
-            await _authDb.SaveChangesAsync();
-            return NoContent();
-        }
-
-        // POST auth/users/{id}/unlock
-        [HttpPost("{id}/unlock")]
-        [HasPermission("users.manage")]
-        public async Task<IActionResult> UnlockUser(Guid id)
-        {
-            var user = await _authDb.Users.SingleOrDefaultAsync(u => u.Id == id);
-            if (user == null) return NotFound(new { error = "User not found" });
-            user.IsLocked = false;
-            user.LockedUntil = null;
-            await _authDb.SaveChangesAsync();
-            return NoContent();
-        }
-
-        public class LockRequest { public DateTimeOffset? LockedUntil { get; set; } }
+    public class LockRequest
+    {
+        public DateTimeOffset? LockedUntil { get; set; }
     }
 }

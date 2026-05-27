@@ -23,14 +23,16 @@ namespace HMS.API.Application.Auth
         private readonly IConfiguration _config;
         private readonly ILogger<AuthService> _logger;
         private readonly HMS.API.Application.Profile.IProfileService? _profileService;
+        private readonly INotificationService? _notificationService;
 
-        public AuthService(AuthDbContext db, IPasswordHasher hasher, IConfiguration config, ILogger<AuthService> logger, HMS.API.Application.Profile.IProfileService? profileService = null)
+        public AuthService(AuthDbContext db, IPasswordHasher hasher, IConfiguration config, ILogger<AuthService> logger, HMS.API.Application.Profile.IProfileService? profileService = null, INotificationService? notificationService = null)
         {
             _db = db;
             _hasher = hasher;
             _config = config;
             _logger = logger;
             _profileService = profileService;
+            _notificationService = notificationService;
         }
 
         public async Task<LoginResponse> LoginAsync(LoginRequest request)
@@ -116,6 +118,8 @@ namespace HMS.API.Application.Auth
 
             // load tenant info for UI
             TenantDto? tenantDto = null;
+            string displayName = user.Username;
+            string[] roleNames = user.UserRoles.Select(ur => ur.Role.Name).Distinct().OrderBy(x => x).ToArray();
             if (user.TenantId.HasValue)
             {
                 var t = await _db.Tenants.AsNoTracking().SingleOrDefaultAsync(x => x.Id == user.TenantId.Value);
@@ -134,14 +138,38 @@ namespace HMS.API.Application.Auth
                 }
             }
 
+            try
+            {
+                if (_profileService != null)
+                {
+                    var profile = await _profileService.GetByUserIdAsync(user.Id);
+                    if (profile != null)
+                    {
+                        var fullName = string.Join(" ", new[] { profile.FirstName, profile.OtherNames, profile.LastName }
+                            .Where(x => !string.IsNullOrWhiteSpace(x)));
+                        if (!string.IsNullOrWhiteSpace(fullName))
+                        {
+                            displayName = fullName;
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "Failed to build display name for user {UserId}", user.Id);
+            }
+
             return new LoginResponse
             {
                 AccessToken = token.tokenString,
                 RefreshToken = refreshPlain,
                 ExpiresAt = token.expiresAt,
                 UserId = user.Id,
+                Username = user.Username,
+                DisplayName = displayName,
                 TenantId = user.TenantId,
                 Permissions = permissions,
+                Roles = roleNames,
                 Tenant = tenantDto
             };
         }
@@ -196,6 +224,12 @@ namespace HMS.API.Application.Auth
                 .ToListAsync();
 
             var permissions = perms.SelectMany(ur => ur.Role.RolePermissions).Select(rp => rp.Permission.Code).Distinct().ToArray();
+            var roleNames = perms.Select(ur => ur.Role.Name).Distinct().OrderBy(x => x).ToArray();
+            var displayName = string.Join(" ", new[] { request.FirstName, request.LastName }.Where(x => !string.IsNullOrWhiteSpace(x))).Trim();
+            if (string.IsNullOrWhiteSpace(displayName))
+            {
+                displayName = request.Username;
+            }
 
             var token = BuildJwtToken(user.Id, user.Username, permissions, user.TenantId);
             var (refreshPlain, refreshEntity) = await CreateRefreshToken(user);
@@ -215,8 +249,11 @@ namespace HMS.API.Application.Auth
                 RefreshToken = refreshPlain,
                 ExpiresAt = token.expiresAt,
                 UserId = user.Id,
+                Username = user.Username,
+                DisplayName = displayName,
                 TenantId = user.TenantId,
-                Permissions = permissions
+                Permissions = permissions,
+                Roles = roleNames
             };
         }
 
@@ -325,6 +362,206 @@ namespace HMS.API.Application.Auth
             rt.IsRevoked = true;
             rt.RevokedAt = DateTimeOffset.UtcNow;
             await _db.SaveChangesAsync();
+        }
+
+        public async Task RequestPasswordRecoveryAsync(string email, string resetBaseUrl)
+        {
+            if (string.IsNullOrWhiteSpace(email))
+            {
+                return;
+            }
+
+            var tenantId = CurrentTenantAccessor.CurrentTenantId;
+            var user = await _db.Users
+                .IgnoreQueryFilters()
+                .SingleOrDefaultAsync(u => !u.IsDeleted && u.Email == email && u.TenantId == tenantId);
+
+            if (user == null && tenantId.HasValue)
+            {
+                user = await _db.Users
+                    .IgnoreQueryFilters()
+                    .SingleOrDefaultAsync(u => !u.IsDeleted && u.Email == email && u.TenantId == null);
+            }
+
+            if (user == null || string.IsNullOrWhiteSpace(user.Email))
+            {
+                return;
+            }
+
+            var token = BuildPasswordResetToken(user);
+            var separator = resetBaseUrl.Contains('?') ? "&" : "?";
+            var resetLink = $"{resetBaseUrl}{separator}token={Uri.EscapeDataString(token)}";
+
+            if (_notificationService != null)
+            {
+                await _notificationService.NotifyAsync("email", new
+                {
+                    to = user.Email,
+                    subject = "HMS password recovery",
+                    body = $"""
+                        <p>Hello {user.Username},</p>
+                        <p>We received a request to reset your HMS password.</p>
+                        <p><a href="{resetLink}">Reset your password</a></p>
+                        <p>This link expires in 30 minutes.</p>
+                        """
+                });
+            }
+
+            _db.AuthAudits.Add(new Domain.Auth.AuthAudit
+            {
+                UserId = user.Id,
+                Action = "PasswordRecoveryRequested",
+                Details = "Password recovery email requested"
+            });
+            await _db.SaveChangesAsync();
+        }
+
+        public async Task<PasswordRecoveryTokenStatusDto> ValidatePasswordResetTokenAsync(string token)
+        {
+            var principal = ValidatePasswordResetPrincipal(token);
+            if (principal == null)
+            {
+                return new PasswordRecoveryTokenStatusDto { Valid = false };
+            }
+
+            var userIdValue = principal.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (!Guid.TryParse(userIdValue, out var userId))
+            {
+                return new PasswordRecoveryTokenStatusDto { Valid = false };
+            }
+
+            var passwordStamp = principal.FindFirst("pwd")?.Value ?? string.Empty;
+            var user = await _db.Users.IgnoreQueryFilters().SingleOrDefaultAsync(u => u.Id == userId && !u.IsDeleted);
+            if (user == null)
+            {
+                return new PasswordRecoveryTokenStatusDto { Valid = false };
+            }
+
+            if (!string.Equals(passwordStamp, ComputeSha256Hash(user.PasswordHash), StringComparison.Ordinal))
+            {
+                return new PasswordRecoveryTokenStatusDto { Valid = false };
+            }
+
+            return new PasswordRecoveryTokenStatusDto
+            {
+                Valid = true,
+                Username = user.Username,
+                Email = user.Email
+            };
+        }
+
+        public async Task ResetPasswordWithTokenAsync(string token, string newPassword)
+        {
+            var principal = ValidatePasswordResetPrincipal(token);
+            if (principal == null)
+            {
+                throw new InvalidOperationException("Invalid or expired recovery token.");
+            }
+
+            var userIdValue = principal.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (!Guid.TryParse(userIdValue, out var userId))
+            {
+                throw new InvalidOperationException("Invalid recovery token.");
+            }
+
+            var passwordStamp = principal.FindFirst("pwd")?.Value ?? string.Empty;
+            var user = await _db.Users.IgnoreQueryFilters().SingleOrDefaultAsync(u => u.Id == userId && !u.IsDeleted);
+            if (user == null)
+            {
+                throw new InvalidOperationException("User not found.");
+            }
+
+            if (!string.Equals(passwordStamp, ComputeSha256Hash(user.PasswordHash), StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException("This recovery link has already been used or is no longer valid.");
+            }
+
+            user.PasswordHash = _hasher.Hash(newPassword);
+            user.IsLocked = false;
+            user.LockedUntil = null;
+
+            _db.AuthAudits.Add(new Domain.Auth.AuthAudit
+            {
+                UserId = user.Id,
+                Action = "PasswordRecovered",
+                Details = "Password reset via email recovery flow"
+            });
+
+            await _db.SaveChangesAsync();
+        }
+
+        private string BuildPasswordResetToken(Domain.Auth.User user)
+        {
+            var key = _config["Jwt:Key"] ?? throw new InvalidOperationException("Jwt:Key not configured");
+            var issuer = _config["Jwt:Issuer"] ?? "hms";
+            var audience = _config["Jwt:Audience"] ?? "hms_clients";
+
+            var keyBytes = Encoding.UTF8.GetBytes(key);
+            if (keyBytes.Length < 32)
+            {
+                using var sha = SHA256.Create();
+                keyBytes = sha.ComputeHash(Encoding.UTF8.GetBytes(key));
+            }
+
+            var claims = new List<Claim>
+            {
+                new Claim(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
+                new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
+                new Claim(JwtRegisteredClaimNames.UniqueName, user.Username),
+                new Claim("typ", "password_reset"),
+                new Claim("pwd", ComputeSha256Hash(user.PasswordHash))
+            };
+
+            if (user.TenantId.HasValue)
+            {
+                claims.Add(new Claim("tenant_id", user.TenantId.Value.ToString()));
+            }
+
+            var credentials = new SigningCredentials(new SymmetricSecurityKey(keyBytes), SecurityAlgorithms.HmacSha256);
+            var token = new JwtSecurityToken(
+                issuer,
+                audience,
+                claims,
+                expires: DateTime.UtcNow.AddMinutes(30),
+                signingCredentials: credentials);
+
+            return new JwtSecurityTokenHandler().WriteToken(token);
+        }
+
+        private ClaimsPrincipal? ValidatePasswordResetPrincipal(string token)
+        {
+            try
+            {
+                var key = _config["Jwt:Key"] ?? throw new InvalidOperationException("Jwt:Key not configured");
+                var keyBytes = Encoding.UTF8.GetBytes(key);
+                if (keyBytes.Length < 32)
+                {
+                    using var sha = SHA256.Create();
+                    keyBytes = sha.ComputeHash(Encoding.UTF8.GetBytes(key));
+                }
+
+                var handler = new JwtSecurityTokenHandler();
+                var principal = handler.ValidateToken(token, new TokenValidationParameters
+                {
+                    ValidateIssuerSigningKey = true,
+                    IssuerSigningKey = new SymmetricSecurityKey(keyBytes),
+                    ValidateIssuer = false,
+                    ValidateAudience = false,
+                    ClockSkew = TimeSpan.FromSeconds(30)
+                }, out var validatedToken);
+
+                if (validatedToken is not JwtSecurityToken jwt)
+                {
+                    return null;
+                }
+
+                var tokenType = principal.FindFirst("typ")?.Value;
+                return string.Equals(tokenType, "password_reset", StringComparison.Ordinal) ? principal : null;
+            }
+            catch
+            {
+                return null;
+            }
         }
     }
 }

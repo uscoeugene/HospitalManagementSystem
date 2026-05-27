@@ -18,8 +18,8 @@ namespace HMS.API.Application.Pharmacy
 
         public async Task<IEnumerable<StockShortageDto>> GetStockShortagesAsync(int threshold = 5)
         {
-            var q = _db.Drugs.AsNoTracking().Where(d => d.Stock - d.ReservedStock <= threshold);
-            var data = await q.Select(d => new StockShortageDto { DrugId = d.Id, DrugCode = d.Code, DrugName = d.Name, Stock = d.Stock, Reserved = d.ReservedStock }).ToListAsync();
+            var q = _db.InventoryItems.AsNoTracking().Where(d => d.Stock - d.ReservedStock <= threshold);
+            var data = await q.Select(d => new StockShortageDto { InventoryItemId = d.Id, InventoryItemCode = d.Code, InventoryItemName = d.Name, Stock = d.Stock, Reserved = d.ReservedStock }).ToListAsync();
             return data;
         }
 
@@ -34,14 +34,14 @@ namespace HMS.API.Application.Pharmacy
             return data;
         }
 
-        public async Task<IEnumerable<DrugRevenueDto>> GetRevenuePerDrugAsync(int monthsBack = 6)
+        public async Task<IEnumerable<InventoryRevenueDto>> GetRevenuePerInventoryAsync(int monthsBack = 6)
         {
             var since = DateTimeOffset.UtcNow.AddMonths(-monthsBack);
-            // Aggregate revenue from prescription items referencing drugs
-            var q = _db.PrescriptionItems.AsNoTracking().Where(pi => pi.CreatedAt >= since && !pi.IsDeleted).Include(pi => pi.Drug);
+            // Aggregate revenue from prescription items referencing inventory items
+            var q = _db.PrescriptionItems.AsNoTracking().Where(pi => pi.CreatedAt >= since && !pi.IsDeleted).Include(pi => pi.InventoryItem);
 
-            var data = await q.GroupBy(pi => new { pi.DrugId, pi.Drug!.Name })
-                              .Select(g => new DrugRevenueDto { DrugId = g.Key.DrugId, DrugName = g.Key.Name, Revenue = g.Sum(pi => pi.Price * pi.Quantity) })
+            var data = await q.GroupBy(pi => new { pi.InventoryItemId, pi.InventoryItem!.Name })
+                              .Select(g => new InventoryRevenueDto { InventoryItemId = g.Key.InventoryItemId, InventoryItemName = g.Key.Name, Revenue = g.Sum(pi => pi.Price * pi.Quantity) })
                               .OrderByDescending(r => r.Revenue)
                               .ToListAsync();
             return data;

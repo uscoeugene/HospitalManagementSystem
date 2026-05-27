@@ -3,20 +3,11 @@ using System.Collections.Generic;
 
 namespace HMS.API.Application.Pharmacy.DTOs
 {
-    public class DrugDto
-    {
-        public Guid Id { get; set; }
-        public string Code { get; set; } = string.Empty;
-        public string Name { get; set; } = string.Empty;
-        public string Description { get; set; } = string.Empty;
-        public decimal Price { get; set; }
-        public string Currency { get; set; } = "USD";
-        public int Stock { get; set; }
-    }
+    // DrugDto removed - inventory is managed via InventoryService and InventoryDtos
 
     public class CreatePrescriptionItem
     {
-        public Guid DrugId { get; set; }
+        public Guid InventoryItemId { get; set; }
         public int Quantity { get; set; }
     }
 
@@ -30,7 +21,7 @@ namespace HMS.API.Application.Pharmacy.DTOs
     public class PrescriptionItemDto
     {
         public Guid Id { get; set; }
-        public Guid DrugId { get; set; }
+        public Guid InventoryItemId { get; set; }
         public string Name { get; set; } = string.Empty;
         public int Quantity { get; set; }
         public int DispensedQuantity { get; set; }

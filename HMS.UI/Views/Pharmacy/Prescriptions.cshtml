@@ -1,0 +1,35 @@
+@model HMS.UI.Models.PagedResult<HMS.UI.Models.Pharmacy.PrescriptionViewModel>
+@{
+    Layout = "~/Pages/_Layout.cshtml";
+    ViewData["Title"] = "Prescriptions";
+}
+
+<div class="container py-4">
+    <h3>Prescriptions</h3>
+
+    <div class="mb-3 text-end">
+        <a class="btn btn-success" asp-action="CreatePrescription">New Prescription</a>
+    </div>
+
+    <table class="table table-hover">
+        <thead><tr><th>Id</th><th>Patient</th><th>Status</th><th class="text-end">Items</th><th></th></tr></thead>
+        <tbody>
+            @if(Model.Items != null && Model.Items.Length > 0)
+            {
+                foreach(var p in Model.Items)
+                {
+                    <tr>
+                        <td>@p.Id</td>
+                        <td>@p.PatientId</td>
+                        <td>@p.Status</td>
+                        <td class="text-end">@p.Items.Length</td>
+                        <td class="text-end"><a class="btn btn-sm btn-outline-primary" href="@Url.Action("PrescriptionDetails", "Pharmacy", new { id = p.Id })">View</a></td>
+                    </tr>
+                }
+            }
+            else
+            {
+                <tr><td colspan="5" class="text-center text-muted">No prescriptions</td></tr>
+            }
+        </tbody></table>
+</div>

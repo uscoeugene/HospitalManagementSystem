@@ -1,0 +1,81 @@
+@model HMS.UI.Models.Pharmacy.EditPrescriptionViewModel
+@{
+    Layout = "~/Pages/_Layout.cshtml";
+    ViewData["Title"] = "Edit Prescription";
+}
+
+<div class="container py-4">
+    <h3>Edit Prescription @Model.Prescription.Id</h3>
+
+    @if (TempData["Error"] != null)
+    {
+        <div class="alert alert-danger">@TempData["Error"]</div>
+    }
+
+    <form method="post" asp-action="UpdatePrescription" asp-controller="Pharmacy">
+        @Html.AntiForgeryToken()
+        <input type="hidden" name="id" value="@Model.Prescription.Id" />
+        <div class="row g-3">
+            <div class="col-md-6">
+                <label class="form-label">Patient Id</label>
+                <input name="patientId" value="@Model.Prescription.PatientId" class="form-control" />
+            </div>
+            <div class="col-md-6">
+                <label class="form-label">Visit Id (optional)</label>
+                <input name="visitId" value="@Model.Prescription.VisitId" class="form-control" />
+            </div>
+        </div>
+        <div class="mt-3 text-end">
+            <button class="btn btn-primary">Save</button>
+            <a class="btn btn-light" href="/Pharmacy/PrescriptionDetails?id=@Model.Prescription.Id">Cancel</a>
+        </div>
+    </form>
+
+    <hr />
+
+    <h5>Items</h5>
+    <form method="post" asp-action="UpdatePrescriptionItems" asp-controller="Pharmacy">
+        @Html.AntiForgeryToken()
+        <input type="hidden" name="id" value="@Model.Prescription.Id" />
+        <table class="table">
+            <thead><tr><th>Inventory Item</th><th class="text-end">Quantity</th></tr></thead>
+            <tbody>
+                @for (int i = 0; i < Model.Prescription.Items.Length; i++)
+                {
+                    <tr>
+                        <td>
+                            <select name="inventoryItemIds" class="form-select">
+                                <option value="">-- select --</option>
+                                @{
+                                    foreach(var it in Model.AvailableInventoryItems)
+                                    {
+                                        if (it.Id == Model.Prescription.Items[i].InventoryItemId)
+                                        {
+                                            <text><option value="@it.Id" selected="selected">@it.Name (@it.Code)</option></text>
+                                        }
+                                        else
+                                        {
+                                            <text><option value="@it.Id">@it.Name (@it.Code)</option></text>
+                                        }
+                                    }
+                                }
+                            </select>
+                        </td>
+                        <td>
+                            <input type="number" name="quantities" value="@Model.Prescription.Items[i].Quantity" class="form-control text-end" style="width:120px;" />
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+
+        <div class="form-check mb-3">
+            <input class="form-check-input" type="checkbox" value="true" name="allowIfDispensed" id="allowIfDispensed">
+            <label class="form-check-label" for="allowIfDispensed">Allow update if already dispensed</label>
+        </div>
+
+        <div class="text-end">
+            <button class="btn btn-primary">Update Items</button>
+        </div>
+    </form>
+</div>

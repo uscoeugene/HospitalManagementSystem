@@ -10,11 +10,34 @@
         <strong>Status:</strong> @Model.Status
     </div>
     <div class="mb-3">
+        <strong>Patient:</strong> @(string.IsNullOrWhiteSpace(Model.PatientName) ? (Model.PatientId == Guid.Empty ? "-" : Model.PatientId.ToString()) : Model.PatientName)
+    </div>
+    <div class="mb-3">
+        <strong>Visit:</strong> @(Model.VisitType == null && Model.VisitAt == null ? (Model.VisitId?.ToString() ?? "-") : ((Model.VisitType ?? "") + (Model.VisitAt.HasValue ? (" / " + Model.VisitAt.Value.ToLocalTime().ToString("yyyy-MM-dd HH:mm")) : "")))
+    </div>
+    <div class="mb-3">
+        <strong>Source:</strong> @(string.IsNullOrWhiteSpace(Model.Source) ? "-" : Model.Source)
+    </div>
+    <div class="mb-3">
         <strong>Total:</strong> @Model.TotalAmount @Model.Currency
     </div>
     <div class="mb-3">
         <strong>Paid:</strong> @Model.AmountPaid
     </div>
+    <div class="mb-3">
+        <strong>Balance:</strong> @(Model.TotalAmount - Model.AmountPaid) @Model.Currency
+    </div>
+
+    @if (User.HasClaim(c => c.Type == "permission" && c.Value == "billing.manage"))
+    {
+        <div class="mb-3 text-muted small">
+            <div>Created: @Model.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm") @(!string.IsNullOrWhiteSpace(Model.CreatedByName) ? ("by " + Model.CreatedByName) : "")</div>
+            @if(Model.UpdatedAt.HasValue)
+            {
+                <div>Updated: @Model.UpdatedAt.Value.ToLocalTime().ToString("yyyy-MM-dd HH:mm") @(!string.IsNullOrWhiteSpace(Model.UpdatedByName) ? ("by " + Model.UpdatedByName) : "")</div>
+            }
+        </div>
+    }
 
     <h5>Items</h5>
     <table class="table">

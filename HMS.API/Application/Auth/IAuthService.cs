@@ -9,5 +9,8 @@ namespace HMS.API.Application.Auth
         Task<LoginResponse> RegisterAsync(RegisterRequest request);
         Task<RefreshResponse> RefreshAsync(RefreshRequest request);
         Task RevokeRefreshAsync(string refreshToken);
+        Task RequestPasswordRecoveryAsync(string email, string resetBaseUrl);
+        Task<PasswordRecoveryTokenStatusDto> ValidatePasswordResetTokenAsync(string token);
+        Task ResetPasswordWithTokenAsync(string token, string newPassword);
     }
 }

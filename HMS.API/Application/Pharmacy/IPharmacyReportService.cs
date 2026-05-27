@@ -7,6 +7,6 @@ namespace HMS.API.Application.Pharmacy
     {
         Task<IEnumerable<StockShortageDto>> GetStockShortagesAsync(int threshold = 5);
         Task<IEnumerable<DailyDispenseDto>> GetDailyDispensesAsync(int daysBack = 30);
-        Task<IEnumerable<DrugRevenueDto>> GetRevenuePerDrugAsync(int monthsBack = 6);
+        Task<IEnumerable<InventoryRevenueDto>> GetRevenuePerInventoryAsync(int monthsBack = 6);
     }
 }

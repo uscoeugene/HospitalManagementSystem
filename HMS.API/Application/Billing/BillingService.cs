@@ -118,7 +118,17 @@ namespace HMS.API.Application.Billing
             if (inv == null) return null;
 
             var debts = await GetDebtsForInvoiceAsync(inv.Id);
-
+            // resolve created/updated user names from profiles if available
+            string? createdByName = null;
+            string? updatedByName = null;
+            if (inv.CreatedBy.HasValue)
+            {
+                createdByName = await _db.UserProfiles.Where(p => p.UserId == inv.CreatedBy.Value).Select(p => (p.FirstName + " " + p.LastName).Trim()).FirstOrDefaultAsync();
+            }
+            if (inv.UpdatedBy.HasValue)
+            {
+                updatedByName = await _db.UserProfiles.Where(p => p.UserId == inv.UpdatedBy.Value).Select(p => (p.FirstName + " " + p.LastName).Trim()).FirstOrDefaultAsync();
+            }
             return new InvoiceDto
             {
                 Id = inv.Id,
@@ -131,9 +141,21 @@ namespace HMS.API.Application.Billing
                     Currency = inv.Currency,
                     AllowOnCredit = inv.AllowOnCredit,
                     CreditReason = inv.CreditReason,
+                CreatedAt = inv.CreatedAt,
+                CreatedBy = inv.CreatedBy,
+                UpdatedAt = inv.UpdatedAt,
+                UpdatedBy = inv.UpdatedBy,
                 Items = inv.Items.Select(i => new InvoiceItemDto { Id = i.Id, Description = i.Description, UnitPrice = i.UnitPrice, Quantity = i.Quantity, LineTotal = i.LineTotal, SourceId = i.SourceId, SourceType = i.SourceType }).ToArray(),
                 Payments = inv.Payments.Select(p => new InvoicePaymentDto { Id = p.Id, InvoiceId = p.InvoiceId, Amount = p.Amount, PaidAt = p.PaidAt, ExternalReference = p.ExternalReference }).ToArray(),
                 Debts = debts.ToArray()
+                ,
+                PatientName = await _db.Patients.Where(p => p.Id == inv.PatientId).Select(p => (p.FirstName + " " + p.LastName).Trim()).FirstOrDefaultAsync(),
+                VisitAt = inv.VisitId.HasValue ? await _db.Visits.Where(v => v.Id == inv.VisitId.Value).Select(v => (DateTimeOffset?)v.VisitAt).FirstOrDefaultAsync() : null,
+                VisitType = inv.VisitId.HasValue ? await _db.Visits.Where(v => v.Id == inv.VisitId.Value).Select(v => v.VisitType).FirstOrDefaultAsync() : null,
+                Source = inv.Items.Select(i => i.SourceType).Where(s => !string.IsNullOrEmpty(s)).FirstOrDefault(),
+                Balance = inv.TotalAmount - inv.AmountPaid,
+                CreatedByName = createdByName,
+                UpdatedByName = updatedByName
             };
         }
 
@@ -247,6 +269,12 @@ namespace HMS.API.Application.Billing
             var total = await q.CountAsync();
             var items = await q.OrderByDescending(i => i.CreatedAt).Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
 
+            // prefetch patient names and visits to avoid per-item DB calls
+            var patientIds = items.Select(i => i.PatientId).Distinct().ToArray();
+            var patientNames = await _db.Patients.AsNoTracking().Where(p => patientIds.Contains(p.Id)).Select(p => new { p.Id, Name = (p.FirstName + " " + p.LastName).Trim() }).ToDictionaryAsync(x => x.Id, x => x.Name);
+            var visitIds = items.Where(i => i.VisitId.HasValue).Select(i => i.VisitId!.Value).Distinct().ToArray();
+            var visits = await _db.Visits.AsNoTracking().Where(v => visitIds.Contains(v.Id)).Select(v => new { v.Id, v.VisitAt, v.VisitType }).ToDictionaryAsync(x => x.Id, x => new { x.VisitAt, x.VisitType });
+
             var dtos = items.Select(inv => new InvoiceDto
             {
                 Id = inv.Id,
@@ -259,8 +287,27 @@ namespace HMS.API.Application.Billing
                 Currency = inv.Currency,
                 Items = inv.Items.Select(i => new InvoiceItemDto { Id = i.Id, Description = i.Description, UnitPrice = i.UnitPrice, Quantity = i.Quantity, LineTotal = i.LineTotal, SourceId = i.SourceId, SourceType = i.SourceType }).ToArray(),
                 Payments = inv.Payments.Select(p => new InvoicePaymentDto { Id = p.Id, InvoiceId = p.InvoiceId, Amount = p.Amount, PaidAt = p.PaidAt, ExternalReference = p.ExternalReference }).ToArray(),
-                Debts = new DebtDto[] { }
+                Debts = new DebtDto[] { },
+                // UI friendly fields
+                PatientName = patientNames.TryGetValue(inv.PatientId, out var pn) ? pn : null,
+                VisitAt = (inv.VisitId.HasValue && visits.TryGetValue(inv.VisitId.Value, out var v)) ? (DateTimeOffset?)v.VisitAt : null,
+                VisitType = (inv.VisitId.HasValue && visits.TryGetValue(inv.VisitId.Value, out var v2)) ? v2.VisitType : null,
+                Source = inv.Items.Select(i => i.SourceType).Where(s => !string.IsNullOrEmpty(s)).FirstOrDefault(),
+                Balance = inv.TotalAmount - inv.AmountPaid,
+                CreatedAt = inv.CreatedAt,
+                CreatedBy = inv.CreatedBy,
+                UpdatedAt = inv.UpdatedAt,
+                UpdatedBy = inv.UpdatedBy
             }).ToArray();
+
+            // enrich created/updated names in bulk to avoid N+1 where possible
+            var userIds = dtos.SelectMany(d => new Guid?[] { d.CreatedBy, d.UpdatedBy }).Where(g => g.HasValue).Select(g => g!.Value).Distinct().ToArray();
+            var names = await _db.UserProfiles.AsNoTracking().Where(p => userIds.Contains(p.UserId)).Select(p => new { p.UserId, Name = (p.FirstName + " " + p.LastName).Trim() }).ToDictionaryAsync(x => x.UserId, x => x.Name);
+            foreach (var d in dtos)
+            {
+                if (d.CreatedBy.HasValue && names.TryGetValue(d.CreatedBy.Value, out var cbn)) d.CreatedByName = cbn;
+                if (d.UpdatedBy.HasValue && names.TryGetValue(d.UpdatedBy.Value, out var ubn)) d.UpdatedByName = ubn;
+            }
 
             return new PagedResult<InvoiceDto> { Items = dtos, TotalCount = total, Page = page, PageSize = pageSize };
         }

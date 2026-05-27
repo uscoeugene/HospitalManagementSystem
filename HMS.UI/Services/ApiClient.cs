@@ -1,5 +1,6 @@
 using System.Net.Http.Json;
 using Microsoft.AspNetCore.Http;
+using System.Text.Json.Nodes;
 
 namespace HMS.UI.Services;
 
@@ -550,7 +551,7 @@ public class ApiClient
                 {
                     if (root.TryGetProperty("data", out var data))
                     {
-                        var dataJson = data.GetRawText();
+                        var dataJson = NormalizeJsonUrls(data.GetRawText());
                         return System.Text.Json.JsonSerializer.Deserialize<T>(dataJson, new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
                     }
 
@@ -573,7 +574,8 @@ public class ApiClient
         }
 
         // fallback: deserialize directly to T
-        return System.Text.Json.JsonSerializer.Deserialize<T>(raw, new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+        var normalizedRaw = NormalizeJsonUrls(raw);
+        return System.Text.Json.JsonSerializer.Deserialize<T>(normalizedRaw, new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
     }
     public async Task<HttpResponseMessage> PostRawAsync(string path, object payload)
     {
@@ -812,5 +814,110 @@ public class ApiClient
         {
             _logger.LogWarning(ex, "Failed to process auth response cookies");
         }
+    }
+
+    private string NormalizeJsonUrls(string rawJson)
+    {
+        if (string.IsNullOrWhiteSpace(rawJson))
+        {
+            return rawJson;
+        }
+
+        try
+        {
+            var node = JsonNode.Parse(rawJson);
+            if (node == null)
+            {
+                return rawJson;
+            }
+
+            NormalizeJsonNodeUrls(node, null);
+            return node.ToJsonString();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Failed to normalize URL properties in API payload");
+            return rawJson;
+        }
+    }
+
+    private void NormalizeJsonNodeUrls(JsonNode? node, string? propertyName)
+    {
+        if (node == null)
+        {
+            return;
+        }
+
+        if (node is JsonObject obj)
+        {
+            foreach (var key in obj.Select(kvp => kvp.Key).ToList())
+            {
+                var child = obj[key];
+                if (child is JsonValue value &&
+                    IsUrlPropertyName(key) &&
+                    value.TryGetValue<string>(out var stringValue) &&
+                    ShouldNormalizeUrl(stringValue))
+                {
+                    obj[key] = MakeAbsoluteUrl(stringValue);
+                    continue;
+                }
+
+                NormalizeJsonNodeUrls(child, key);
+            }
+
+            return;
+        }
+
+        if (node is JsonArray arr)
+        {
+            for (var i = 0; i < arr.Count; i++)
+            {
+                var child = arr[i];
+                if (child is JsonValue value &&
+                    IsUrlPropertyName(propertyName) &&
+                    value.TryGetValue<string>(out var stringValue) &&
+                    ShouldNormalizeUrl(stringValue))
+                {
+                    arr[i] = MakeAbsoluteUrl(stringValue);
+                    continue;
+                }
+
+                NormalizeJsonNodeUrls(child, propertyName);
+            }
+        }
+    }
+
+    private static bool IsUrlPropertyName(string? propertyName)
+    {
+        if (string.IsNullOrWhiteSpace(propertyName))
+        {
+            return false;
+        }
+
+        return propertyName.Equals("url", StringComparison.OrdinalIgnoreCase)
+            || propertyName.EndsWith("url", StringComparison.OrdinalIgnoreCase)
+            || propertyName.EndsWith("uri", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool ShouldNormalizeUrl(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return false;
+        }
+
+        var trimmed = value.Trim();
+        if (trimmed.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+            trimmed.StartsWith("https://", StringComparison.OrdinalIgnoreCase) ||
+            trimmed.StartsWith("data:", StringComparison.OrdinalIgnoreCase) ||
+            trimmed.StartsWith("blob:", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        return trimmed.StartsWith("/")
+            || trimmed.StartsWith("~/")
+            || trimmed.StartsWith("uploads/", StringComparison.OrdinalIgnoreCase)
+            || trimmed.StartsWith("wwwroot/", StringComparison.OrdinalIgnoreCase);
     }
 }

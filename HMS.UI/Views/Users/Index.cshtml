@@ -5,47 +5,129 @@
 }
 
 <div class="container py-4">
-    <div class="d-flex justify-content-between align-items-center mb-3">
-        <h3>Users</h3>
-        <a href="/Users/Create" class="btn btn-primary">New User</a>
-    </div>
+    <div class="card shadow-sm border-0">
+        <div class="card-body p-4">
+            <div class="d-flex justify-content-between align-items-start flex-wrap gap-3 mb-4">
+                <div>
+                    <h3 class="mb-1">User Management</h3>
+                    <p class="text-muted mb-0">Manage staff accounts, tenant access, and role assignments.</p>
+                </div>
+                <a asp-action="Create" class="btn btn-primary">
+                    <i class="bi bi-person-plus-fill me-1"></i>New User
+                </a>
+            </div>
 
-    <form method="get" class="mb-3 d-flex gap-2">
-        <input type="text" name="search" value="@Model.Search" placeholder="Search users..." class="form-control" />
-        <button class="btn btn-secondary">Search</button>
-    </form>
+            <partial name="_StatusAlerts" />
 
-    <table class="table">
-        <thead>
-            <tr><th></th><th>Username</th><th>Email</th><th>Tenant</th><th></th></tr>
-        </thead>
-        <tbody>
-            @foreach(var u in Model.Items)
-            {
-                <tr>
-                    <td>
-                        @if(!string.IsNullOrWhiteSpace(u.PhotoUrl)) { <img src="@u.PhotoUrl" style="width:32px;height:32px;object-fit:cover" class="rounded-circle" /> } else { <div class="avatar-sm">@((u.Username??"").FirstOrDefault().ToString().ToUpper())</div> }
-                    </td>
-                    <td>@(string.IsNullOrWhiteSpace(u.FullName) ? u.Username : u.FullName)</td>
-                    <td>@u.Email</td>
-                    <td>@(u.TenantName ?? "-")</td>
-                    <td>
-                        <a class="btn btn-sm btn-outline-secondary" href="/Users/Edit?id=@u.Id">Edit</a>
-                        <a class="btn btn-sm btn-outline-info" href="/Users/Details?id=@u.Id">Details</a>
-                    </td>
-                </tr>
-            }
-        </tbody>
-    </table>
+            <form method="get" class="row g-2 align-items-end mb-4">
+                <div class="col-md-8">
+                    <label class="form-label">Search users</label>
+                    <input type="text" name="search" value="@Model.Search" placeholder="Search by username or email" class="form-control" />
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Page size</label>
+                    <select name="pageSize" class="form-select">
+                        @foreach (var size in new[] { 10, 20, 50, 100 })
+                        {
+                            <option value="@size" selected="@(Model.PageSize == size ? "selected" : null)">@size</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-md-2 d-grid">
+                    <button class="btn btn-outline-primary">
+                        <i class="bi bi-search me-1"></i>Search
+                    </button>
+                </div>
+            </form>
 
-    <div class="d-flex justify-content-between align-items-center">
-        <div>Showing @Model.Items.Count of @Model.TotalCount</div>
-        <div>
-            @if(Model.Page > 1)
-            {
-                <a class="btn btn-sm btn-outline-primary" href="?page=@(Model.Page-1)&pageSize=@Model.PageSize&search=@Model.Search">Previous</a>
-            }
-            <a class="btn btn-sm btn-outline-primary" href="?page=@(Model.Page+1)&pageSize=@Model.PageSize&search=@Model.Search">Next</a>
+            <div class="table-responsive">
+                <table class="table align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th>User</th>
+                            <th>Roles</th>
+                            <th>Tenant</th>
+                            <th>Status</th>
+                            <th>Last Login</th>
+                            <th class="text-end">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (Model.Items.Count == 0)
+                        {
+                            <tr>
+                                <td colspan="6" class="text-center text-muted py-5">No users found.</td>
+                            </tr>
+                        }
+                        else
+                        {
+                            @foreach (var user in Model.Items)
+                            {
+                                <tr>
+                                    <td>
+                                        <div class="d-flex align-items-center gap-3">
+                                            @if (!string.IsNullOrWhiteSpace(user.PhotoUrl))
+                                            {
+                                                <img src="@user.PhotoUrl" alt="User photo" class="rounded-circle" style="width:42px;height:42px;object-fit:cover;" />
+                                            }
+                                            else
+                                            {
+                                                <div class="rounded-circle bg-primary-subtle text-primary d-flex align-items-center justify-content-center" style="width:42px;height:42px;">
+                                                    @((string.IsNullOrWhiteSpace(user.Username) ? "U" : user.Username.Substring(0, 1)).ToUpperInvariant())
+                                                </div>
+                                            }
+                                            <div>
+                                                <div class="fw-semibold">@(!string.IsNullOrWhiteSpace(user.FullName) ? user.FullName : user.Username)</div>
+                                                <div class="text-muted small">@user.Email</div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        @if (user.Roles != null && user.Roles.Length > 0)
+                                        {
+                                            @foreach (var role in user.Roles)
+                                            {
+                                                <span class="badge text-bg-light border me-1">@role</span>
+                                            }
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted">No roles</span>
+                                        }
+                                    </td>
+                                    <td>@(user.TenantName ?? "Global")</td>
+                                    <td>
+                                        <span class="badge @(user.IsLocked ? "text-bg-danger" : "text-bg-success")">
+                                            @(user.IsLocked ? "Locked" : "Active")
+                                        </span>
+                                    </td>
+                                    <td>@(user.LastLogin?.ToLocalTime().ToString("dd MMM yyyy, HH:mm") ?? "Never")</td>
+                                    <td class="text-end">
+                                        <div class="btn-group">
+                                            <a asp-action="Details" asp-route-id="@user.Id" class="btn btn-sm btn-outline-info">Details</a>
+                                            <a asp-action="Edit" asp-route-id="@user.Id" class="btn btn-sm btn-outline-primary">Manage</a>
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mt-3">
+                <div class="text-muted">Showing @Model.Items.Count of @Model.TotalCount users</div>
+                <div class="btn-group">
+                    @if (Model.Page > 1)
+                    {
+                        <a class="btn btn-outline-secondary" href="?page=@(Model.Page - 1)&pageSize=@Model.PageSize&search=@Model.Search">Previous</a>
+                    }
+                    @if (Model.Page * Model.PageSize < Model.TotalCount)
+                    {
+                        <a class="btn btn-outline-secondary" href="?page=@(Model.Page + 1)&pageSize=@Model.PageSize&search=@Model.Search">Next</a>
+                    }
+                </div>
+            </div>
         </div>
     </div>
 </div>

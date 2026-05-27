@@ -12,7 +12,11 @@ namespace HMS.API.Infrastructure.Auth
     {
         public static async Task EnsureSeedDataAsync(AuthDbContext db, global::HMS.API.Application.Auth.IPasswordHasher hasher)
         {
-            if (await db.Roles.AnyAsync()) return;
+            if (await db.Roles.AnyAsync())
+            {
+                await EnsureExistingCorePermissionsAsync(db);
+                return;
+            }
 
             // create permissions
             var permManageUsers = new Permission { Code = "users.manage", Description = "Manage users" };
@@ -60,6 +64,10 @@ namespace HMS.API.Infrastructure.Auth
 
             db.Permissions.AddRange(permReportsPatientsView, permReportsProfilesView);
 
+            // service/reporting admin permission used by admin dashboard
+            var permAdminDashboard = new Permission { Code = "ADMIN.DASHBOARD.VIEW", Description = "View admin dashboard" };
+            db.Permissions.Add(permAdminDashboard);
+
             // new credit permissions
             var permLabChargeOnCredit = new Permission { Code = "lab.charge.credit", Description = "Allow charging lab items on credit" };
             var permPharmDispenseOnCredit = new Permission { Code = "pharmacy.dispense.credit", Description = "Allow dispensing pharmacy items on credit" };
@@ -98,6 +106,8 @@ namespace HMS.API.Infrastructure.Auth
             db.RolePermissions.Add(new RolePermission { Role = adminRole, Permission = permLabView });
             db.RolePermissions.Add(new RolePermission { Role = adminRole, Permission = permLabManage });
             db.RolePermissions.Add(new RolePermission { Role = adminRole, Permission = permPharmView });
+            // ensure admin has inventory management as well
+            db.RolePermissions.Add(new RolePermission { Role = adminRole, Permission = permPharmInventory });
             db.RolePermissions.Add(new RolePermission { Role = adminRole, Permission = permPharmManage });
             db.RolePermissions.Add(new RolePermission { Role = adminRole, Permission = permPharmCreate });
             db.RolePermissions.Add(new RolePermission { Role = adminRole, Permission = permPharmDispense });
@@ -148,6 +158,8 @@ namespace HMS.API.Infrastructure.Auth
             db.UserRoles.Add(new UserRole { User = admin, Role = adminRole });
             await db.SaveChangesAsync();
 
+            // role-based permissions assigned above; avoid user-level permission entries (not supported in current model)
+
             // create regular user for tests
             var user = new User
             {
@@ -197,6 +209,58 @@ namespace HMS.API.Infrastructure.Auth
                 await db.SaveChangesAsync();
 
                 await db.SaveChangesAsync();
+            }
+        }
+
+        private static async Task EnsureExistingCorePermissionsAsync(AuthDbContext db)
+        {
+            var profileRead = await EnsurePermissionAsync(db, "PROFILE.READ", "Read user profiles");
+            var profileUpdate = await EnsurePermissionAsync(db, "PROFILE.UPDATE", "Update user profiles");
+            var profileManage = await EnsurePermissionAsync(db, "PROFILE.MANAGE", "Manage user profiles");
+            var usersManage = await EnsurePermissionAsync(db, "users.manage", "Manage users");
+            var rolesManage = await EnsurePermissionAsync(db, "roles.manage", "Manage roles");
+
+            var userRole = await db.Roles.IgnoreQueryFilters().SingleOrDefaultAsync(r => !r.IsDeleted && r.Name == "User");
+            var adminRole = await db.Roles.IgnoreQueryFilters().SingleOrDefaultAsync(r => !r.IsDeleted && r.Name == "Admin");
+
+            if (userRole != null)
+            {
+                await EnsureRolePermissionAsync(db, userRole.Id, profileRead.Id);
+                await EnsureRolePermissionAsync(db, userRole.Id, profileUpdate.Id);
+            }
+
+            if (adminRole != null)
+            {
+                await EnsureRolePermissionAsync(db, adminRole.Id, profileRead.Id);
+                await EnsureRolePermissionAsync(db, adminRole.Id, profileUpdate.Id);
+                await EnsureRolePermissionAsync(db, adminRole.Id, profileManage.Id);
+                await EnsureRolePermissionAsync(db, adminRole.Id, usersManage.Id);
+                await EnsureRolePermissionAsync(db, adminRole.Id, rolesManage.Id);
+            }
+
+            await db.SaveChangesAsync();
+        }
+
+        private static async Task<Permission> EnsurePermissionAsync(AuthDbContext db, string code, string description)
+        {
+            var permission = await db.Permissions.IgnoreQueryFilters().SingleOrDefaultAsync(p => !p.IsDeleted && p.Code == code);
+            if (permission != null)
+            {
+                return permission;
+            }
+
+            permission = new Permission { Code = code, Description = description };
+            db.Permissions.Add(permission);
+            await db.SaveChangesAsync();
+            return permission;
+        }
+
+        private static async Task EnsureRolePermissionAsync(AuthDbContext db, Guid roleId, Guid permissionId)
+        {
+            var exists = await db.RolePermissions.IgnoreQueryFilters().AnyAsync(rp => rp.RoleId == roleId && rp.PermissionId == permissionId);
+            if (!exists)
+            {
+                db.RolePermissions.Add(new RolePermission { RoleId = roleId, PermissionId = permissionId });
             }
         }
     }

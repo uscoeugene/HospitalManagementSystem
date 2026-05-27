@@ -9,6 +9,8 @@ namespace HMS.API.Application.Auth.DTOs
         public string RefreshToken { get; set; } = string.Empty;
         public DateTimeOffset ExpiresAt { get; set; }
         public Guid UserId { get; set; }
+        public string Username { get; set; } = string.Empty;
+        public string DisplayName { get; set; } = string.Empty;
         public Guid? TenantId { get; set; }
         public IEnumerable<string> Permissions { get; set; } = Array.Empty<string>();
         // Roles assigned to user (names) - useful for local/offline tokens

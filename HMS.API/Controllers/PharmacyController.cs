@@ -18,21 +18,7 @@ namespace HMS.API.Controllers
             _pharmacy = pharmacy;
         }
 
-        [HttpGet("drugs")]
-        [HasPermission("pharmacy.view")]
-        public async Task<ActionResult> ListDrugs()
-        {
-            var d = await _pharmacy.ListDrugsAsync();
-            return Ok(d);
-        }
-
-        [HttpPost("drugs")]
-        [HasPermission("pharmacy.manage")]
-        public async Task<ActionResult<DrugDto>> CreateDrug([FromBody] DrugDto dto)
-        {
-            var res = await _pharmacy.CreateDrugAsync(dto);
-            return CreatedAtAction(nameof(ListDrugs), new { id = res.Id }, res);
-        }
+        // Drug endpoints removed. Use /pharmacy/inventory for medication management.
 
         [HttpPost("prescriptions")]
         [HasPermission("pharmacy.create")]
@@ -95,5 +81,40 @@ namespace HMS.API.Controllers
                 return BadRequest(new { error = ex.Message });
             }
         }
+
+        // Update prescription header/details
+        [HttpPut("prescriptions/{id}")]
+        [HasPermission("pharmacy.create")]
+        public async Task<ActionResult> UpdatePrescription(Guid id, [FromBody] UpdatePrescriptionRequest req)
+        {
+            try
+            {
+                await _pharmacy.UpdatePrescriptionAsync(id, req.PatientId, req.VisitId);
+                return NoContent();
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new { error = ex.Message });
+            }
+        }
+
+        // Replace/Update prescription items
+        [HttpPut("prescriptions/{id}/items")]
+        [HasPermission("pharmacy.create")]
+        public async Task<ActionResult> UpdatePrescriptionItems(Guid id, [FromBody] UpdatePrescriptionItemsRequest req)
+        {
+            try
+            {
+                await _pharmacy.UpdatePrescriptionItemsAsync(id, req.Items, req.AllowIfDispensed);
+                return NoContent();
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new { error = ex.Message });
+            }
+        }
     }
+
+    public class UpdatePrescriptionRequest { public Guid PatientId { get; set; } public Guid? VisitId { get; set; } }
+    public class UpdatePrescriptionItemsRequest { public System.Collections.Generic.List<HMS.API.Application.Pharmacy.DTOs.CreatePrescriptionItem> Items { get; set; } = new(); public bool AllowIfDispensed { get; set; } = false; }
 }

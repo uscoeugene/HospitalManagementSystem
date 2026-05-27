@@ -142,6 +142,24 @@ a {
     box-shadow: var(--shadow-lg);
 }
 
+.sidebar-close-button {
+    border-radius: 999px;
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    flex-shrink: 0;
+}
+
+.sidebar-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.45);
+    opacity: 0;
+    visibility: hidden;
+    transition: var(--transition);
+    z-index: 999;
+}
+
 .sidebar-brand {
     padding: 28px;
     border-bottom: 1px solid rgba(255,255,255,0.08);
@@ -578,6 +596,11 @@ a {
         .sidebar.show {
             transform: translateX(0);
         }
+
+    body.sidebar-open .sidebar-backdrop {
+        opacity: 1;
+        visibility: visible;
+    }
 
     .main-content {
         margin-left: 0;
