@@ -12,7 +12,11 @@ namespace HMS.UI.Controllers
 
         public LabController(ApiClient api) { _api = api; }
 
-        public async Task<IActionResult> Index()
+        public IActionResult Index()
+        {
+            return View();
+        }
+        public async Task<IActionResult> Tests()
         {
             try
             {

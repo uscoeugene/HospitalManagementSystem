@@ -1,42 +1,224 @@
 @model HMS.UI.Models.Pharmacy.InventoryItemViewModel[]
+
 @{
     Layout = "~/Pages/_Layout.cshtml";
     ViewData["Title"] = "Inventory";
 }
 
-<div class="container py-4">
-    <h3>Inventory</h3>
+<div class="page-content">
 
-    @if(TempData["Error"] != null)
-    {
-        <div class="alert alert-danger">@TempData["Error"]</div>
-    }
+    <!-- HEADER -->
+    <div class="page-header d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3 mb-4">
 
-    <div class="mb-3 text-end">
-        <a class="btn btn-success" href="/Pharmacy/CreateInventory">New Item</a>
+        <div>
+            <h1 class="page-title">
+                <i class="bi bi-box-seam me-2 text-primary"></i>
+                Pharmacy Inventory
+            </h1>
+            <p class="page-subtitle">
+                Manage stock levels, categories, and medicine availability
+            </p>
+        </div>
+
+        <a class="btn btn-success-custom"
+           href="/Pharmacy/CreateInventory">
+
+            <i class="bi bi-plus-circle me-1"></i>
+            New Item
+        </a>
+
     </div>
 
-    <table class="table table-hover">
-        <thead><tr><th>Code</th><th>Name</th><th>Category</th><th class="text-end">Stock</th><th class="text-end">Actions</th></tr></thead>
-        <tbody>
-            @if(Model != null && Model.Length > 0)
+    <!-- ALERT -->
+    @if (TempData["Error"] != null)
+    {
+        <div class="alert alert-danger alert-modern mb-3">
+            <i class="bi bi-exclamation-triangle-fill me-2"></i>
+            @TempData["Error"]
+        </div>
+    }
+
+    <!-- DESKTOP TABLE VIEW -->
+    <div class="portal-card d-none d-md-block">
+
+        <div class="portal-card-header d-flex justify-content-between align-items-center">
+
+            <div>
+                <i class="bi bi-list-ul me-2 text-primary"></i>
+                Inventory Items
+            </div>
+
+            <span class="badge bg-light text-dark border">
+                @(Model?.Length ?? 0) Items
+            </span>
+
+        </div>
+
+        <div class="portal-card-body p-0 table-responsive">
+
+            @if (Model == null || Model.Length == 0)
             {
-                foreach(var it in Model)
-                {
-                    <tr>
-                        <td>@it.Code</td>
-                        <td>@it.Name</td>
-                        <td>@it.Category</td>
-                        <td class="text-end">@it.Stock</td>
-                        <td class="text-end">
-                            <a class="btn btn-sm btn-outline-primary" href="@Url.Action("InventoryDetails", "Pharmacy", new { id = it.Id })">View</a>
-                        </td>
-                    </tr>
-                }
+                <div class="empty-state">
+                    <div class="empty-state-icon">
+                        <i class="bi bi-box"></i>
+                    </div>
+                    <div class="empty-state-title">No Inventory Items</div>
+                    <div class="empty-state-text">
+                        No pharmacy stock records available yet.
+                    </div>
+                </div>
             }
             else
             {
-                <tr><td colspan="5" class="text-center text-muted">No inventory</td></tr>
+                <table class="table table-modern mb-0 align-middle">
+
+                    <thead>
+                        <tr>
+                            <th>Code</th>
+                            <th>Name</th>
+                            <th>Category</th>
+                            <th class="text-end">Stock</th>
+                            <th class="text-end">Status</th>
+                            <th class="text-end">Action</th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+
+                        @foreach (var it in Model)
+                        {
+                            <tr>
+
+                                <td class="fw-semibold text-muted">@it.Code</td>
+
+                                <td class="fw-semibold">
+                                    <i class="bi bi-capsule-pill me-1 text-primary"></i>
+                                    @it.Name
+                                </td>
+
+                                <td class="text-muted">@it.Category</td>
+
+                                <td class="text-end fw-semibold">@it.Stock</td>
+
+                                <td class="text-end">
+
+                                    @if (it.Stock <= 5)
+                                    {
+                                        <span class="badge-soft-danger">Low Stock</span>
+                                    }
+                                    else if (it.Stock <= 20)
+                                    {
+                                        <span class="badge-soft-warning">Moderate</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge-soft-success">In Stock</span>
+                                    }
+
+                                </td>
+
+                                <td class="text-end">
+                                    <a class="btn btn-sm btn-outline-primary"
+                                       href="@Url.Action("InventoryDetails", "Pharmacy", new { id = it.Id })">
+                                        <i class="bi bi-eye"></i>
+                                        View
+                                    </a>
+                                </td>
+
+                            </tr>
+                        }
+
+                    </tbody>
+
+                </table>
+
             }
-        </tbody></table>
+
+        </div>
+
+    </div>
+
+    <!-- MOBILE CARD VIEW -->
+    <div class="d-block d-md-none">
+
+        @if (Model == null || Model.Length == 0)
+        {
+            <div class="empty-state">
+                <div class="empty-state-icon">
+                    <i class="bi bi-box"></i>
+                </div>
+                <div class="empty-state-title">No Inventory Items</div>
+                <div class="empty-state-text">
+                    No pharmacy stock records available yet.
+                </div>
+            </div>
+        }
+        else
+        {
+            <div class="row row-tight">
+
+                @foreach (var it in Model)
+                {
+                    <div class="col-12">
+
+                        <div class="portal-card">
+
+                            <div class="portal-card-body">
+
+                                <div class="d-flex justify-content-between align-items-start mb-2">
+
+                                    <div>
+                                        <div class="fw-bold">
+                                            <i class="bi bi-capsule-pill text-primary me-1"></i>
+                                            @it.Name
+                                        </div>
+
+                                        <div class="small text-muted">
+                                            @it.Code • @it.Category
+                                        </div>
+                                    </div>
+
+                                    <div class="text-end">
+
+                                        <div class="fw-bold">
+                                            @it.Stock
+                                        </div>
+
+                                        @if (it.Stock <= 5)
+                                        {
+                                            <span class="badge-soft-danger">Low Stock</span>
+                                        }
+                                        else if (it.Stock <= 20)
+                                        {
+                                            <span class="badge-soft-warning">Moderate</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge-soft-success">In Stock</span>
+                                        }
+
+                                    </div>
+
+                                </div>
+
+                                <a class="btn btn-sm btn-outline-primary w-100"
+                                   href="@Url.Action("InventoryDetails", "Pharmacy", new { id = it.Id })">
+
+                                    <i class="bi bi-eye me-1"></i>
+                                    View Details
+
+                                </a>
+
+                            </div>
+
+                        </div>
+
+                    </div>
+                }
+
+            </div>
+        }
+
+    </div>
+
 </div>

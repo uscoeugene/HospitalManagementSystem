@@ -1,67 +1,236 @@
 @model HMS.UI.Models.PagedResult<HMS.UI.Models.Pharmacy.PrescriptionViewModel>
+
 @{
     Layout = "~/Pages/_Layout.cshtml";
     ViewData["Title"] = "Prescriptions";
 }
 
-<div class="container-fluid py-4">
-    <div class="d-flex flex-column flex-lg-row align-items-lg-center justify-content-between gap-3 mb-4">
+<div class="page-content">
+
+    <!-- HEADER -->
+    <div class="page-header d-flex flex-column flex-lg-row align-items-lg-center justify-content-between gap-3 mb-4">
+
         <div>
-            <h3 class="mb-1">Prescriptions</h3>
-            <p class="text-muted mb-0">Consultation prescriptions flow into pharmacy for reconciliation, dispensing, stock updates, and billing.</p>
+            <h1 class="page-title">
+                <i class="bi bi-journal-medical me-2 text-primary"></i>
+                Prescriptions
+            </h1>
+            <p class="page-subtitle">
+                Clinical prescriptions routed to pharmacy for dispensing, stock deduction, and billing
+            </p>
         </div>
-        <a class="btn btn-success" asp-action="CreatePrescription">New Prescription</a>
+
+        <a class="btn btn-success-custom"
+           asp-action="CreatePrescription">
+
+            <i class="bi bi-plus-circle me-1"></i>
+            New Prescription
+
+        </a>
+
     </div>
 
+    <!-- ALERTS -->
     <partial name="~/Views/Shared/_StatusAlerts.cshtml" />
 
-    <div class="card border-0 shadow-sm">
-        <div class="card-body p-0">
+    <!-- DESKTOP TABLE -->
+    <div class="portal-card d-none d-md-block">
+
+        <div class="portal-card-header d-flex justify-content-between align-items-center">
+
+            <div>
+                <i class="bi bi-list-ul me-2 text-primary"></i>
+                Prescription Records
+            </div>
+
+            <span class="badge bg-light text-dark border">
+                @(Model?.Items?.Length ?? 0) Records
+            </span>
+
+        </div>
+
+        <div class="portal-card-body p-0">
+
             <div class="table-responsive">
-                <table class="table table-hover align-middle mb-0">
-                    <thead class="table-light">
+
+                <table class="table table-modern mb-0 align-middle">
+
+                    <thead>
                         <tr>
                             <th>Prescription</th>
                             <th>Patient</th>
                             <th>Status</th>
-                            <th>Medication Summary</th>
-                            <th class="text-end">Actions</th>
+                            <th>Medications</th>
+                            <th class="text-end">Action</th>
                         </tr>
                     </thead>
+
                     <tbody>
+
                         @if (Model.Items != null && Model.Items.Length > 0)
                         {
                             foreach (var p in Model.Items)
                             {
-                                var medicationSummary = string.Join(", ", p.Items.Take(2).Select(item => item.MedicationName));
+                                var medicationSummary = string.Join(", ",
+                                p.Items.Take(2).Select(i => i.MedicationName));
+
                                 if (p.Items.Length > 2)
                                 {
                                     medicationSummary += $" +{p.Items.Length - 2} more";
                                 }
 
-                                <tr>
-                                    <td class="text-break">@p.Id</td>
-                                    <td class="text-break">@p.PatientId</td>
-                                    <td><span class="badge text-bg-light">@p.Status</span></td>
-                                    <td>
-                                        <div class="fw-semibold">@p.Items.Length item(s)</div>
-                                        <div class="text-muted small">@(string.IsNullOrWhiteSpace(medicationSummary) ? "No items recorded" : medicationSummary)</div>
-                                    </td>
-                                    <td class="text-end">
-                                        <a class="btn btn-sm btn-outline-primary" asp-action="PrescriptionDetails" asp-route-id="@p.Id">Open</a>
-                                    </td>
+                        <tr>
+
+                            <td class="fw-semibold text-muted">
+                                @p.Id
+                            </td>
+
+                            <td class="fw-semibold">
+                                @(!string.IsNullOrWhiteSpace(p.PatientDisplay) ? p.PatientDisplay : p.PatientId.ToString())
+                            </td>
+
+                            <td>
+                                <span class="badge-soft-warning">
+                                    @p.Status
+                                </span>
+                            </td>
+
+                            <td>
+                                <div class="fw-semibold">
+                                    @p.Items.Length item(s)
+                                </div>
+                                <div class="small text-muted">
+                                    @(string.IsNullOrWhiteSpace(medicationSummary)
+                                                                        ? "No medications recorded"
+                                                                        : medicationSummary)
+                                </div>
+                            </td>
+
+                            <td class="text-end">
+
+                                <a class="btn btn-sm btn-outline-primary"
+                                   asp-action="PrescriptionDetails"
+                                   asp-route-id="@p.Id">
+
+                                    <i class="bi bi-eye"></i>
+                                    Open
+
+                                </a>
+
+                            </td>
+
                                 </tr>
-                            }
+                                                }
                         }
                         else
                         {
                             <tr>
-                                <td colspan="5" class="text-center text-muted py-5">No prescriptions found.</td>
+                                <td colspan="5" class="text-center text-muted py-5">
+                                    No prescriptions found.
+                                </td>
                             </tr>
                         }
+
                     </tbody>
+
                 </table>
+
             </div>
+
         </div>
+
     </div>
+
+    <!-- MOBILE CARD VIEW -->
+    <div class="d-block d-md-none">
+
+        @if (Model.Items == null || Model.Items.Length == 0)
+        {
+            <div class="empty-state">
+                <div class="empty-state-icon">
+                    <i class="bi bi-journal-medical"></i>
+                </div>
+                <div class="empty-state-title">No Prescriptions</div>
+                <div class="empty-state-text">
+                    No prescription records available yet.
+                </div>
+            </div>
+        }
+        else
+        {
+            <div class="row row-tight">
+
+                @foreach (var p in Model.Items)
+                {
+                    var medicationSummary = string.Join(", ",
+                    p.Items.Take(2).Select(i => i.MedicationName));
+
+                    if (p.Items.Length > 2)
+                    {
+                        medicationSummary += $" +{p.Items.Length - 2} more";
+                    }
+
+                <div class="col-12">
+
+                    <div class="portal-card">
+
+                        <div class="portal-card-body">
+
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+
+                                <div>
+                                    <div class="fw-bold">
+                                        Prescription #@p.Id
+                                    </div>
+
+                                    <div class="small text-muted">
+                                        Patient: @p.PatientId
+                                    </div>
+                                </div>
+
+                                <span class="badge-soft-warning">
+                                    @p.Status
+                                </span>
+
+                            </div>
+
+                            <div class="mb-3">
+
+                                <div class="small text-muted">
+                                    Medications
+                                </div>
+
+                                <div class="fw-semibold">
+                                    @p.Items.Length item(s)
+                                </div>
+
+                                <div class="small text-muted">
+                                    @(string.IsNullOrWhiteSpace(medicationSummary)
+                                                                    ? "No medications recorded"
+                                                                    : medicationSummary)
+                            </div>
+
+                                </div>
+
+                                <a class="btn btn-sm btn-outline-primary w-100"
+                                   asp-action="PrescriptionDetails"
+                                   asp-route-id="@p.Id">
+
+                                    <i class="bi bi-eye me-1"></i>
+                                    Open Prescription
+
+                                </a>
+
+                            </div>
+
+                        </div>
+
+                    </div>
+                        }
+
+            </div>
+        }
+
+    </div>
+
 </div>

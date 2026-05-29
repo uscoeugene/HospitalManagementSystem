@@ -148,6 +148,13 @@
         <label class="form-label">Quantity</label>
         <input name="Items[${index}].Quantity" value="1" type="number" min="0" class="form-control" />
       </div>
+  <div class="col-md-3">
+                <label class="form-label">Billing</label>
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" name="Items[${index}].ChargeSeparately" value="true" @(Model.Item.InventoryItemId.HasValue ? "" : "") />
+                    <label class="form-check-label">Charge separately</label>
+                </div>
+            </div>
     </div>
   </div>
 </div>`;

@@ -1,58 +1,223 @@
+
 @model HMS.UI.Models.PagedResult<HMS.UI.Models.Lab.LabRequestViewModel>
+
 @{
     Layout = "~/Pages/_Layout.cshtml";
     ViewData["Title"] = "Lab Requests";
 }
 
-<div class="container py-4">
-    <div class="d-flex justify-content-between align-items-center mb-4">
+<div class="page-content">
+
+    <!-- PAGE HEADER -->
+    <div class="page-header d-flex flex-column flex-lg-row align-items-lg-center justify-content-between gap-3 mb-4">
+
         <div>
-            <h3 class="mb-0">Lab Requests</h3>
-            <small class="text-muted">List of lab requests</small>
+            <h1 class="page-title">
+                <i class="bi bi-heart-pulse me-2 text-primary"></i>
+                Lab Requests
+            </h1>
+
+            <p class="page-subtitle">
+                Manage and monitor patient laboratory requests
+            </p>
         </div>
-        <a asp-action="Request" asp-controller="Lab" class="btn btn-primary">New Request</a>
+
+        <div class="d-flex align-items-center gap-2">
+
+            <a asp-action="Request"
+               asp-controller="Lab"
+               class="btn btn-primary-custom">
+
+                <i class="bi bi-plus-circle me-1"></i>
+                New Request
+            </a>
+
+        </div>
+
     </div>
 
-    @if(Model.Items == null || Model.Items.Length == 0)
-    {
-        <div class="text-muted">No lab requests found</div>
-    }
-    else
-    {
-        <div class="list-group">
-            @foreach(var r in Model.Items)
-            {
-                <div class="list-group-item d-flex justify-content-between align-items-center">
-                    <div>
-                        <div class="fw-semibold">@( (r.CreatedAt.HasValue ? r.CreatedAt.Value.ToLocalTime().ToString("yyyy-MM-dd HH:mm") : r.Id.ToString())) - @(r.PatientName ?? "")</div>
+    <!-- MAIN CARD -->
+    <div class="portal-card">
 
-                        <div class="small text-muted">
-                            @if (!string.IsNullOrWhiteSpace(r.RequestNumber))
-                            {
-                                <span>[@r.RequestNumber]</span>
-                    
-                                <br />
-                            }
-                            Status: @r.Status • Items: @r.ItemsCount • Results: @(r.ResultsStatus ?? "-")
-                            @if(r.InvoiceSummary != null)
-                            {
-                                <span class="badge bg-@((r.InvoiceSummary.Status ?? "").ToUpperInvariant() == "PAID" ? "success" : "warning") ms-2">Invoice: @r.InvoiceSummary.InvoiceNumber (@r.InvoiceSummary.Status)</span>
-                            }
-                            else if(!string.IsNullOrWhiteSpace(r.InvoiceStatus))
-                            {
-                                <span class="badge bg-secondary ms-2">Invoice: @r.InvoiceStatus</span>
-                            }
-                        </div>
+        <div class="portal-card-header d-flex justify-content-between align-items-center">
+
+            <div class="fw-bold">
+                <i class="bi bi-list-ul me-2 text-primary"></i>
+                Requests List
+            </div>
+
+            <span class="badge bg-light text-dark border">
+                @(Model?.Items?.Length ?? 0) Records
+            </span>
+
+        </div>
+
+        <div class="portal-card-body p-0">
+
+            @if (Model?.Items == null || Model.Items.Length == 0)
+            {
+                <div class="empty-state">
+
+                    <div class="empty-state-icon">
+                        <i class="bi bi-clipboard2-x"></i>
                     </div>
-                    <div>
-                        @if(r.InvoiceSummary != null && !string.Equals(r.InvoiceSummary.Status, "PAID", StringComparison.OrdinalIgnoreCase))
-                        {
-                            <a href="/Billing/Details?id=@r.InvoiceSummary.Id" class="btn btn-sm btn-outline-primary me-2">Pay</a>
-                        }
-                        <a asp-action="Details" asp-route-id="@r.Id" class="btn btn-sm btn-outline-secondary">View</a>
+
+                    <div class="empty-state-title">
+                        No Lab Requests Found
                     </div>
+
+                    <div class="empty-state-text">
+                        There are currently no laboratory requests available.
+                    </div>
+
                 </div>
             }
+            else
+            {
+                <div class="list-group list-group-flush">
+
+                    @foreach (var r in Model.Items)
+                    {
+                        <div class="list-group-item border-0 border-bottom px-3 py-3">
+
+                            <div class="d-flex flex-column flex-lg-row justify-content-between gap-3">
+
+                                <!-- LEFT -->
+                                <div class="flex-grow-1">
+
+                                    <!-- TITLE -->
+                                    <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+
+                                        <div class="fw-semibold text-dark">
+
+                                            <i class="bi bi-person-vcard me-1 text-primary"></i>
+
+                                            @(r.PatientName ?? "Unknown Patient")
+
+                                        </div>
+
+                                        @if (!string.IsNullOrWhiteSpace(r.RequestNumber))
+                                        {
+                                            <span class="badge bg-light text-dark border">
+                                                @r.RequestNumber
+                                            </span>
+                                        }
+
+                                </div>
+
+                                <!-- META -->
+                                <div class="d-flex flex-wrap gap-3 small text-muted mb-2">
+
+                                    <span>
+                                        <i class="bi bi-calendar-event me-1"></i>
+
+                                        @(r.CreatedAt.HasValue
+                                                                            ? r.CreatedAt.Value.ToLocalTime().ToString("dd MMM yyyy • hh:mm tt")
+                                                                            : "-")
+                                </span>
+
+                                        <span>
+                                            <i class="bi bi-box-seam me-1"></i>
+                                            @r.ItemsCount Item(s)
+                                        </span>
+
+                                        <span>
+                                            <i class="bi bi-clipboard2-pulse me-1"></i>
+                                            @r.ResultsStatus
+                                        </span>
+
+                                    </div>
+
+                                    <!-- STATUS ROW -->
+                                    <div class="d-flex flex-wrap align-items-center gap-2">
+
+                                        <!-- REQUEST STATUS -->
+                                @switch ((r.Status ?? "").ToUpperInvariant())
+                                        {
+                                            case "COMPLETED":
+                                                <span class="badge-soft-success">
+                                                    Completed
+                                                </span>
+                                                break;
+
+                                            case "PENDING":
+                                                <span class="badge-soft-warning">
+                                                    Pending
+                                                </span>
+                                                break;
+
+                                            default:
+                                                <span class="badge bg-light text-dark border">
+                                                    @r.Status
+                                                </span>
+                                                break;
+                                        }
+
+                                        <!-- INVOICE -->
+                                        @if (r.InvoiceSummary != null)
+                                        {
+                                            if ((r.InvoiceSummary.Status ?? "").ToUpperInvariant() == "PAID")
+                                            {
+                                                <span class="badge-soft-success">
+                                                    Invoice Paid
+                                                </span>
+                                            }
+                                            else
+                                            {
+                                                <span class="badge-soft-warning">
+                                                    Invoice Pending
+                                                </span>
+                                            }
+
+                                            <span class="small text-muted">
+                                                #@r.InvoiceSummary.InvoiceNumber
+                                            </span>
+                                        }
+                                        else if (!string.IsNullOrWhiteSpace(r.InvoiceStatus))
+                                        {
+                                            <span class="badge bg-light text-dark border">
+                                                @r.InvoiceStatus
+                                            </span>
+                                        }
+
+                                    </div>
+
+                                </div>
+
+                                <!-- RIGHT -->
+                                <div class="d-flex align-items-center gap-2">
+
+                                    @if (r.InvoiceSummary != null &&
+                                                                !string.Equals(r.InvoiceSummary.Status, "PAID", StringComparison.OrdinalIgnoreCase))
+                                    {
+                                        <a href="/Billing/Details?id=@r.InvoiceSummary.Id"
+                                           class="btn btn-sm btn-outline-primary">
+
+                                            <i class="bi bi-credit-card me-1"></i>
+                                            Pay
+                                        </a>
+                                    }
+
+                                    <a asp-action="Details"
+                                       asp-route-id="@r.Id"
+                                       class="btn btn-sm btn-outline-secondary">
+
+                                        <i class="bi bi-eye me-1"></i>
+                                        View
+                                    </a>
+
+                                </div>
+
+                            </div>
+
+                        </div>
+                    }
+
+                </div>
+            }
+
         </div>
-    }
+
+    </div>
+
 </div>

@@ -1,101 +1,589 @@
 @model HMS.UI.Models.Lab.LabRequestViewModel
+
 @{
     Layout = "~/Pages/_Layout.cshtml";
     ViewData["Title"] = "Lab Request Details";
 }
 
-<div class="container py-4">
-    <div class="card shadow-sm">
-        <div class="card-body">
-            <h5 class="mb-2">Lab Request: @Model.Id</h5>
-            <div class="mb-2">Date: <strong>@(Model.CreatedAt?.ToLocalTime().ToString("yyyy-MM-dd HH:mm") ?? "-")</strong></div>
-            <div class="mb-2">Patient: <strong>@(Model.PatientName ?? "-")</strong></div>
-            <div class="mb-3">Status: <strong>@Model.Status</strong> • Invoice: <strong>@(Model.InvoiceStatus ?? "-")</strong> • Items: <strong>@Model.ItemsCount</strong></div>
+<div class="page-content">
 
-            @if(!string.IsNullOrWhiteSpace(Model.InvoiceStatus) && !Model.InvoiceStatus.Equals("PAID", StringComparison.OrdinalIgnoreCase) && !Model.InvoiceStatus.Equals("CHARGED", StringComparison.OrdinalIgnoreCase))
+    <!-- PAGE HEADER -->
+    <div class="page-header d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3 mb-4">
+
+        <div>
+
+            <div class="d-flex align-items-center gap-2 mb-2">
+
+                <a asp-action="Requests"
+                   class="btn btn-sm btn-danger border">
+
+                    <i class="bi bi-arrow-left"></i>
+                </a>
+
+                <h1 class="page-title mb-0">
+                    <i class="bi bi-clipboard2-pulse me-2 text-primary"></i>
+                    Lab Request Details
+                </h1>
+
+            </div>
+
+            <p class="page-subtitle">
+                Review laboratory request information and manage patient test results
+            </p>
+
+        </div>
+
+        <div class="d-flex flex-wrap align-items-center gap-2">
+
+            @if ((Model.Status ?? "").ToUpperInvariant() == "COMPLETED")
             {
-                <div class="alert alert-warning">This lab request invoice has not been paid. Results may not be updated unless charged on credit.</div>
+                <span class="badge-soft-success">
+                    <i class="bi bi-check-circle me-1"></i>
+                    Invoice Paid
+                </span>
+            }
+            else if ((Model.Status ?? "").ToUpperInvariant() == "PARTIAL")
+            {
+                <span class="badge-soft-info">
+                    <i class="bi bi-check-circle me-1"></i>
+                    Partial Payment
+                </span>
+            }
+            else
+            {
+                <span class="badge-soft-warning">
+                    <i class="bi bi-exclamation-circle me-1"></i>
+                    Payment Pending
+                </span>
             }
 
-            <h6>Items</h6>
-            <div class="list-group mb-3">
-                @foreach(var it in Model.Items)
-                {
-                    <div class="list-group-item">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <div>
-                                <div class="fw-semibold">@it.LabTest?.Name ?? it.LabTestId.ToString()</div>
-                                <div class="small text-muted">Code: @it.LabTest?.Code</div>
-                                <div class="small text-muted">Price: @it.Price @it.Currency</div>
-                            </div>
-                            <div class="text-end">
-                                <div class="small text-muted">Status: @it.ResultStatus</div>
-                                <a class="btn btn-sm btn-outline-primary" data-bs-toggle="collapse" href="#res_@it.Id" role="button" aria-expanded="false" aria-controls="res_@it.Id">View / Update</a>
-                            </div>
+        </div>
+
+    </div>
+
+    <!-- REQUEST SUMMARY -->
+    <div class="row row-tight mb-4">
+
+        <div class="col-lg-3 col-md-6">
+
+            <div class="stats-card bg-gradient-primary shadow-soft">
+
+                <h2>@Model.ItemsCount</h2>
+
+                <p>Total Test Items</p>
+
+                <i class="bi bi-list-check"></i>
+
+            </div>
+
+        </div>
+
+        <div class="col-lg-3 col-md-6">
+
+            <div class="stats-card bg-gradient-success shadow-soft">
+
+                <h2>@(Model.Items?.Count(x => x.ResultStatus == "VERIFIED") ?? 0)</h2>
+
+                <p>Completed (Verified) Results</p>
+
+                <i class="bi bi-check2-circle"></i>
+
+            </div>
+
+        </div>
+
+        <div class="col-lg-3 col-md-6">
+
+            <div class="stats-card bg-gradient-warning shadow-soft">
+
+                <h2>@(Model.Items?.Count(x => x.ResultStatus == "PENDING") ?? 0)</h2>
+
+                <p>Pending Results</p>
+
+                <i class="bi bi-hourglass-split"></i>
+
+            </div>
+
+        </div>
+
+        <div class="col-lg-3 col-md-6">
+
+            <div class="stats-card bg-gradient-danger shadow-soft">
+
+                <h2>@(Model.Items?.Count(x => x.ResultStatus == "RESULTED") ?? 0)</h2>
+
+                <p>Uploaded/Updated Results</p>
+
+                <i class="bi bi-activity"></i>
+
+            </div>
+
+        </div>
+
+    </div>
+
+    <!-- MAIN CONTENT -->
+    <div class="row row-tight">
+
+        <!-- LEFT -->
+        <div class="col-xl-4">
+
+            <!-- REQUEST INFO -->
+            <div class="portal-card mb-3">
+
+                <div class="portal-card-header">
+
+                    <i class="bi bi-info-circle me-2 text-primary"></i>
+                    Request Information
+
+                </div>
+
+                <div class="portal-card-body">
+
+                    <div class="mb-3">
+
+                        <div class="small text-muted mb-1">
+                            Request/Tracking Number
                         </div>
 
-                        <div class="collapse mt-3" id="res_@it.Id">
-                            <div class="card card-body">
-                                <form method="post" asp-action="UpdateResult" asp-controller="Lab">
-                                    @Html.AntiForgeryToken()
-                                    <input type="hidden" name="requestId" value="@Model.Id" />
-                                    <input type="hidden" name="itemId" value="@it.Id" />
-
-                                    <div class="mb-2">
-                                        <label class="form-label">Result Value</label>
-                                        <input name="ResultValue" class="form-control" value="@it.ResultValue" />
-                                    </div>
-
-                                    <div class="mb-2">
-                                        <label class="form-label">Unit</label>
-                                        <input name="ResultUnit" class="form-control" value="@it.ResultUnit" />
-                                    </div>
-
-                                    <div class="mb-2">
-                                        <label class="form-label">Reference Range</label>
-                                        <input name="ReferenceRange" class="form-control" value="@it.ReferenceRange" />
-                                    </div>
-
-                                    <div class="mb-2">
-                                        <label class="form-label">Abnormal Flag</label>
-                                        <input name="AbnormalFlag" class="form-control" value="@it.AbnormalFlag" />
-                                    </div>
-
-                                    <div class="mb-2">
-                                        <label class="form-label">Notes</label>
-                                        <textarea name="ResultNotes" class="form-control">@it.ResultNotes</textarea>
-                                    </div>
-
-                                    <div class="form-check mb-2">
-                                        <input class="form-check-input" type="checkbox" name="Verify" value="true" id="verify_@it.Id" />
-                                        <label class="form-check-label" for="verify_@it.Id">Verify result</label>
-                                    </div>
-
-                                    <div class="d-flex justify-content-end gap-2">
-                                        <button class="btn btn-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#res_@it.Id">Close</button>
-                                        <button class="btn btn-primary">Save</button>
-                                    </div>
-                                </form>
-
-                                <div class="mt-3">
-                                    <form method="post" asp-action="UploadResultAttachment" asp-controller="Lab" enctype="multipart/form-data">
-                                        @Html.AntiForgeryToken()
-                                        <input type="hidden" name="requestId" value="@Model.Id" />
-                                        <input type="hidden" name="itemId" value="@it.Id" />
-                                        <div class="input-group">
-                                            <input type="file" name="file" class="form-control" />
-                                            <button class="btn btn-outline-secondary">Upload</button>
-                                        </div>
-                                    </form>
-                                </div>
-                            </div>
+                        <div class="fw-semibold">
+                            @if (!string.IsNullOrWhiteSpace(Model.RequestNumber))
+                            {
+                                    @Model.RequestNumber
+                                 
+                                 
+                               
+                            }
                         </div>
 
                     </div>
-                }
+
+                    <div class="mb-3">
+
+                        <div class="small text-muted mb-1">
+                            Patient
+                        </div>
+
+                        <div class="fw-semibold">
+                            @(Model.PatientName ?? "-")
+                        </div>
+
+                    </div>
+
+                    <div class="mb-3">
+
+                        <div class="small text-muted mb-1">
+                            Request Date
+                        </div>
+
+                        <div class="fw-semibold">
+
+                            @(Model.CreatedAt?.ToLocalTime().ToString("dd MMM yyyy • hh:mm tt") ?? "-")
+
+                        </div>
+
+                    </div>
+
+                    <div class="mb-3">
+
+                        <div class="small text-muted mb-1">
+                            Invoice Status
+                        </div>
+
+                        <div class="fw-semibold">
+                            @(Model.InvoiceStatus ?? "-")
+                        </div>
+
+                    </div>
+
+                    <div>
+
+                        <div class="small text-muted mb-1">
+                            Current Status
+                        </div>
+
+                        <div class="fw-semibold">
+                            @Model.Status
+                        </div>
+
+                    </div>
+
+                </div>
+
             </div>
 
-            <a asp-action="Requests" class="btn btn-light">Back to requests</a>
+            <!-- PAYMENT ALERT -->
+            @if (!string.IsNullOrWhiteSpace(Model.InvoiceStatus)
+                        && !Model.InvoiceStatus.Equals("PAID", StringComparison.OrdinalIgnoreCase)
+                        && !Model.InvoiceStatus.Equals("CHARGED", StringComparison.OrdinalIgnoreCase))
+            {
+                <div class="alert alert-warning alert-modern">
+
+                    <div class="d-flex align-items-start gap-2">
+
+                        <i class="bi bi-exclamation-triangle-fill"></i>
+
+                        <div>
+                            This laboratory request invoice has not been paid.
+                            Results may remain pending unless charged on credit.
+                        </div>
+
+                    </div>
+
+                </div>
+            }
+
         </div>
+
+        <!-- RIGHT -->
+        <div class="col-xl-8">
+
+            <div class="portal-card">
+
+                <div class="portal-card-header d-flex justify-content-between align-items-center">
+
+                    <div>
+
+                        <i class="bi bi-beaker me-2 text-primary"></i>
+                        Laboratory Test Items
+
+                    </div>
+
+                    <span class="badge bg-light text-dark border">
+
+                        @(Model.Items?.Count() ?? 0) Item(s)
+
+                    </span>
+
+                </div>
+
+                <div class="portal-card-body p-0">
+
+                    @if (Model.Items == null || !Model.Items.Any())
+                    {
+                        <div class="empty-state">
+
+                            <div class="empty-state-icon">
+                                <i class="bi bi-clipboard2-x"></i>
+                            </div>
+
+                            <div class="empty-state-title">
+                                No Lab Items Available
+                            </div>
+
+                            <div class="empty-state-text">
+                                No laboratory test items have been attached to this request.
+                            </div>
+
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="accordion accordion-flush" id="labItemsAccordion">
+
+                            @foreach (var it in Model.Items)
+                            {
+                                <div class="accordion-item border-0 border-bottom rounded-0">
+
+                                    <h2 class="accordion-header" id="heading_@it.Id">
+
+                                        <button class="accordion-button collapsed shadow-none"
+                                                type="button"
+                                                data-bs-toggle="collapse"
+                                                data-bs-target="#collapse_@it.Id">
+
+                                            <div class="w-100 pe-3">
+
+                                                <div class="d-flex flex-column flex-lg-row justify-content-between gap-2">
+
+                                                    <div>
+
+                                                        <div class="fw-semibold text-dark mb-1">
+
+                                                            @(it.LabTest?.Name ?? it.LabTestId.ToString())
+
+                                                        </div>
+
+                                                        <div class="small text-muted">
+
+                                                            Code:
+                                                            @(it.LabTest?.Code ?? "-")
+
+                                                            •
+
+                                                            Price:
+                                                            @it.Price @it.Currency
+
+                                                        </div>
+
+                                                    </div>
+
+                                                    <div class="text-lg-end">
+
+                                                        @if ((it.ResultStatus ?? "").ToUpperInvariant() == "VERIFIED")
+                                                        {
+                                                            <span class="badge-soft-success">
+                                                                Completed
+                                                            </span>
+                                                        }
+                                                        else if ((it.ResultStatus ?? "").ToUpperInvariant() == "RESULTED")
+                                                        {
+                                                            <span class="badge bg-info">
+                                                                Resulted
+                                                            </span>
+                                                        }
+                                                        else
+                                                        {
+                                                            <span class="badge-soft-warning">
+                                                                Pending
+                                                            </span>
+                                                        }
+
+                                                    </div>
+
+                                                </div>
+
+                                            </div>
+
+                                        </button>
+
+                                    </h2>
+
+                                    <div id="collapse_@it.Id"
+                                         class="accordion-collapse collapse"
+                                         data-bs-parent="#labItemsAccordion">
+
+                                        <div class="accordion-body">
+
+                                            <div class="row row-tight">
+
+                                                <!-- RESULT FORM -->
+                                                <div class="col-lg-8">
+
+                                                    <div class="portal-card border">
+
+                                                        <div class="portal-card-header">
+                                                            Update Result
+                                                        </div>
+
+                                                        <div class="portal-card-body">
+
+                                                            <form method="post"
+                                                                  asp-action="UpdateResult"
+                                                                  asp-controller="Lab">
+
+                                                                @Html.AntiForgeryToken()
+
+                                                                <input type="hidden"
+                                                                       name="requestId"
+                                                                       value="@Model.Id" />
+
+                                                                <input type="hidden"
+                                                                       name="itemId"
+                                                                       value="@it.Id" />
+
+                                                                <div class="row row-tight">
+
+                                                                    <div class="col-md-6">
+
+                                                                        <div class="form-group">
+
+                                                                            <label class="form-label">
+                                                                                Result Value
+                                                                            </label>
+
+                                                                            <input name="ResultValue"
+                                                                                   class="form-control"
+                                                                                   value="@it.ResultValue" />
+
+                                                                        </div>
+
+                                                                    </div>
+
+                                                                    <div class="col-md-6">
+
+                                                                        <div class="form-group">
+
+                                                                            <label class="form-label">
+                                                                                Unit
+                                                                            </label>
+
+                                                                            <input name="ResultUnit"
+                                                                                   class="form-control"
+                                                                                   value="@it.ResultUnit" />
+
+                                                                        </div>
+
+                                                                    </div>
+
+                                                                    <div class="col-md-6">
+
+                                                                        <div class="form-group">
+
+                                                                            <label class="form-label">
+                                                                                Reference Range
+                                                                            </label>
+
+                                                                            <input name="ReferenceRange"
+                                                                                   class="form-control"
+                                                                                   value="@it.ReferenceRange" />
+
+                                                                        </div>
+
+                                                                    </div>
+
+                                                                    <div class="col-md-6">
+
+                                                                        <div class="form-group">
+
+                                                                            <label class="form-label">
+                                                                                Abnormal Flag
+                                                                            </label>
+
+                                                                            <input name="AbnormalFlag"
+                                                                                   class="form-control"
+                                                                                   value="@it.AbnormalFlag" />
+
+                                                                        </div>
+
+                                                                    </div>
+
+                                                                    <div class="col-12">
+
+                                                                        <div class="form-group">
+
+                                                                            <label class="form-label">
+                                                                                Notes
+                                                                            </label>
+
+                                                                            <textarea name="ResultNotes"
+                                                                              class="form-control"
+                                                                              rows="4">@it.ResultNotes</textarea>
+
+                                                                        </div>
+
+                                                                    </div>
+
+                                                                    <div class="col-12">
+
+                                                                        <div class="form-check">
+
+                                                                            <input class="form-check-input"
+                                                                                   type="checkbox"
+                                                                                   name="Verify"
+                                                                                   value="true"
+                                                                                   id="verify_@it.Id" />
+
+                                                                            <label class="form-check-label"
+                                                                                   for="verify_@it.Id">
+
+                                                                                Verify Result
+
+                                                                            </label>
+
+                                                                        </div>
+
+                                                                    </div>
+
+                                                                </div>
+
+                                                                <div class="d-flex justify-content-end gap-2 mt-3">
+
+                                                                    <button class="btn btn-light border"
+                                                                            type="reset">
+
+                                                                        Reset
+
+                                                                    </button>
+
+                                                                    <button class="btn btn-primary-custom">
+
+                                                                        <i class="bi bi-check2-circle me-1"></i>
+                                                                        Save Result
+
+                                                                    </button>
+
+                                                                </div>
+
+                                                            </form>
+
+                                                        </div>
+
+                                                    </div>
+
+                                                </div>
+
+                                                <!-- ATTACHMENT -->
+                                                <div class="col-lg-4">
+
+                                                    <div class="portal-card border">
+
+                                                        <div class="portal-card-header">
+                                                            Result Attachment
+                                                        </div>
+
+                                                        <div class="portal-card-body">
+
+                                                            <form method="post"
+                                                                  asp-action="UploadResultAttachment"
+                                                                  asp-controller="Lab"
+                                                                  enctype="multipart/form-data">
+
+                                                                @Html.AntiForgeryToken()
+
+                                                                <input type="hidden"
+                                                                       name="requestId"
+                                                                       value="@Model.Id" />
+
+                                                                <input type="hidden"
+                                                                       name="itemId"
+                                                                       value="@it.Id" />
+
+                                                                <div class="mb-3">
+
+                                                                    <label class="form-label">
+                                                                        Upload File
+                                                                    </label>
+
+                                                                    <input type="file"
+                                                                           name="file"
+                                                                           class="form-control" />
+
+                                                                </div>
+
+                                                                <button class="btn btn-outline-primary w-100">
+
+                                                                    <i class="bi bi-upload me-1"></i>
+                                                                    Upload Attachment
+
+                                                                </button>
+
+                                                            </form>
+
+                                                        </div>
+
+                                                    </div>
+
+                                                </div>
+
+                                            </div>
+
+                                        </div>
+
+                                    </div>
+
+                                </div>
+                            }
+
+                        </div>
+                    }
+
+                </div>
+
+            </div>
+
+        </div>
+
     </div>
+
 </div>

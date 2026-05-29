@@ -1,52 +1,159 @@
 @model HMS.UI.Models.Pharmacy.CreateInventoryItemViewModel
+
 @{
     Layout = "~/Pages/_Layout.cshtml";
     ViewData["Title"] = "Create Inventory Item";
 }
 
-<div class="container py-4">
-    <h3>Create Inventory Item</h3>
+<div class="page-content">
 
-    <form method="post" asp-action="CreateInventory">
-        @Html.AntiForgeryToken()
-        <div class="row g-3">
-            <div class="col-md-4">
-                <label class="form-label">Code</label>
-                <input asp-for="Code" class="form-control" />
-            </div>
-            <div class="col-md-8">
-                <label class="form-label">Name</label>
-                <input asp-for="Name" class="form-control" />
-            </div>
-            <div class="col-12">
-                <label class="form-label">Description</label>
-                <textarea asp-for="Description" class="form-control"></textarea>
-            </div>
-            <div class="col-md-4">
-                <label class="form-label">Unit Price</label>
-                <input asp-for="UnitPrice" class="form-control" />
-            </div>
-            <div class="col-md-4">
-                <label class="form-label">Currency</label>
-                <input asp-for="Currency" class="form-control" />
-            </div>
-            <div class="col-md-4">
-                <label class="form-label">Stock</label>
-                <input asp-for="Stock" class="form-control" />
-            </div>
-            <div class="col-md-4">
-                <label class="form-label">Category</label>
-                <input asp-for="Category" class="form-control" />
-            </div>
-            <div class="col-md-4">
-                <label class="form-label">Unit</label>
-                <input asp-for="Unit" class="form-control" />
-            </div>
+    <!-- HEADER -->
+    <div class="page-header d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3 mb-4">
+
+        <div>
+            <h1 class="page-title">
+                <i class="bi bi-plus-square me-2 text-primary"></i>
+                Create Inventory Item
+            </h1>
+            <p class="page-subtitle">
+                Add a new medicine or pharmacy stock item
+            </p>
         </div>
 
-        <div class="mt-4">
-            <button class="btn btn-primary">Create</button>
-            <a class="btn btn-light" href="/Pharmacy/Inventory">Cancel</a>
+        <a class="btn btn-light border"
+           href="/Pharmacy/Inventory">
+
+            <i class="bi bi-arrow-left me-1"></i>
+            Back
+        </a>
+
+    </div>
+
+    <!-- FORM CARD -->
+    <div class="portal-card">
+
+        <div class="portal-card-header">
+            <i class="bi bi-clipboard-plus me-2 text-primary"></i>
+            Inventory Details
         </div>
-    </form>
+
+        <div class="portal-card-body">
+
+            <form method="post" asp-action="CreateInventory">
+
+                @Html.AntiForgeryToken()
+
+                <!-- BASIC INFO -->
+                <div class="row row-tight mb-3">
+
+                    <div class="col-md-4">
+                        <label class="form-label">Code</label>
+                        <input asp-for="Code" class="form-control" placeholder="e.g. MED-001" />
+                    </div>
+
+                    <div class="col-md-8">
+                        <label class="form-label">Medicine Name</label>
+                        <input asp-for="Name" class="form-control" placeholder="Enter medicine name" />
+                    </div>
+
+                </div>
+
+                <!-- DESCRIPTION -->
+                <div class="mb-3">
+
+                    <label class="form-label">Description</label>
+
+                    <textarea asp-for="Description"
+                              class="form-control"
+                              rows="3"
+                              placeholder="Optional notes about this medicine"></textarea>
+
+                </div>
+
+                <!-- PRICING & STOCK -->
+                <div class="row row-tight mb-3">
+
+                    <div class="col-md-4">
+
+                        <label class="form-label">Unit Price</label>
+
+                        <input asp-for="UnitPrice"
+                               class="form-control"
+                               placeholder="0.00" />
+
+                    </div>
+
+                    <div class="col-md-4">
+
+                        <label class="form-label">Currency</label>
+
+                        <input asp-for="Currency"
+                               class="form-control"
+                               placeholder="e.g. NGN" />
+
+                    </div>
+
+                    <div class="col-md-4">
+
+                        <label class="form-label">Initial Stock</label>
+
+                        <input asp-for="Stock"
+                               class="form-control"
+                               placeholder="0" />
+
+                    </div>
+
+                </div>
+
+                <!-- CLASSIFICATION -->
+                <div class="row row-tight mb-4">
+
+                    <div class="col-md-6">
+
+                        <label class="form-label">Category</label>
+
+                        <input asp-for="Category"
+                               class="form-control"
+                               placeholder="e.g. Antibiotics" />
+
+                    </div>
+
+                    <div class="col-md-6">
+
+                        <label class="form-label">Unit</label>
+
+                        <input asp-for="Unit"
+                               class="form-control"
+                               placeholder="e.g. Tablets, Syrup" />
+
+                    </div>
+
+                </div>
+
+                <!-- ACTIONS -->
+                <div class="d-flex flex-column flex-md-row justify-content-end gap-2 pt-2 border-top">
+
+                    <a class="btn btn-light border"
+                       href="/Pharmacy/Inventory">
+
+                        <i class="bi bi-x-circle me-1"></i>
+                        Cancel
+
+                    </a>
+
+                    <button class="btn btn-primary-custom">
+
+                        <i class="bi bi-check2-circle me-1"></i>
+                        Create Item
+
+                    </button>
+
+                </div>
+
+            </form>
+
+        </div>
+
+    </div>
+
 </div>

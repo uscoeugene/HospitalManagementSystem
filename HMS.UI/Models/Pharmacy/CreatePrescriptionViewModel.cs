@@ -26,6 +26,7 @@ namespace HMS.UI.Models.Pharmacy
         public string? Dosage { get; set; }
         public string? Frequency { get; set; }
         public int Quantity { get; set; }
+        public bool ChargeSeparately { get; set; } = false;
     }
 
     public class CreatePrescriptionViewModel

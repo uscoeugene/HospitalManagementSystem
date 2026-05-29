@@ -28,6 +28,9 @@ namespace HMS.UI.Models.Pharmacy
         public Guid Id { get; set; }
         public Guid PatientId { get; set; }
         public Guid? VisitId { get; set; }
+        // UI friendly fields
+        public string? PatientDisplay { get; set; }
+        public string? VisitDisplay { get; set; }
         public string Status { get; set; } = string.Empty;
         public PrescriptionItemViewModel[] Items { get; set; } = Array.Empty<PrescriptionItemViewModel>();
     }

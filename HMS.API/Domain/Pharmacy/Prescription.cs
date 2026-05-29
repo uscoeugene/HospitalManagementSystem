@@ -45,6 +45,9 @@ namespace HMS.API.Domain.Pharmacy
         public decimal Price { get; set; }
         public string Currency { get; set; } = "NGN";
         public Guid? ChargeInvoiceItemId { get; set; }
+        // If true, this item should be invoiced separately (per-item invoice) instead of being grouped
+        // into a single prescription invoice. Default: false (grouped invoicing).
+        public bool ChargeSeparately { get; set; } = false;
         public int DispensedQuantity { get; set; } = 0;
         public string? Notes { get; set; }
         public PrescriptionItemStatus FulfillmentStatus { get; set; } = PrescriptionItemStatus.PENDING;

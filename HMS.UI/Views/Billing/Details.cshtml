@@ -1,90 +1,250 @@
 @model HMS.UI.Models.Billing.InvoiceViewModel
+
 @{
     Layout = "~/Pages/_Layout.cshtml";
     ViewData["Title"] = "Invoice Details";
+
+    var balance = Model.TotalAmount - Model.AmountPaid;
 }
 
-<div class="container py-4">
-    <h3>Invoice @Model.InvoiceNumber</h3>
-    <div class="mb-3">
-        <strong>Status:</strong> @Model.Status
-    </div>
-    <div class="mb-3">
-        <strong>Patient:</strong> @(string.IsNullOrWhiteSpace(Model.PatientName) ? (Model.PatientId == Guid.Empty ? "-" : Model.PatientId.ToString()) : Model.PatientName)
-    </div>
-    <div class="mb-3">
-        <strong>Visit:</strong> @(Model.VisitType == null && Model.VisitAt == null ? (Model.VisitId?.ToString() ?? "-") : ((Model.VisitType ?? "") + (Model.VisitAt.HasValue ? (" / " + Model.VisitAt.Value.ToLocalTime().ToString("yyyy-MM-dd HH:mm")) : "")))
-    </div>
-    <div class="mb-3">
-        <strong>Source:</strong> @(string.IsNullOrWhiteSpace(Model.Source) ? "-" : Model.Source)
-    </div>
-    <div class="mb-3">
-        <strong>Total:</strong> @Model.TotalAmount @Model.Currency
-    </div>
-    <div class="mb-3">
-        <strong>Paid:</strong> @Model.AmountPaid
-    </div>
-    <div class="mb-3">
-        <strong>Balance:</strong> @(Model.TotalAmount - Model.AmountPaid) @Model.Currency
-    </div>
+@section Styles {
+  
+    <link href="~/css/portal-invoice.css" rel="stylesheet" />
+}
 
-    @if (User.HasClaim(c => c.Type == "permission" && c.Value == "billing.manage"))
-    {
-        <div class="mb-3 text-muted small">
-            <div>Created: @Model.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm") @(!string.IsNullOrWhiteSpace(Model.CreatedByName) ? ("by " + Model.CreatedByName) : "")</div>
-            @if(Model.UpdatedAt.HasValue)
-            {
-                <div>Updated: @Model.UpdatedAt.Value.ToLocalTime().ToString("yyyy-MM-dd HH:mm") @(!string.IsNullOrWhiteSpace(Model.UpdatedByName) ? ("by " + Model.UpdatedByName) : "")</div>
-            }
-        </div>
-    }
+<div class="page-content">
+    <div class="invoice-page">
 
-    <h5>Items</h5>
-    <table class="table">
-        <thead><tr><th>Description</th><th>Unit</th><th>Qty</th><th>Line</th></tr></thead>
-        <tbody>
-            @foreach(var it in Model.Items)
-            {
-                <tr>
-                    <td>@it.Description</td>
-                    <td>@it.UnitPrice</td>
-                    <td>@it.Quantity</td>
-                    <td>@it.LineTotal</td>
-                </tr>
-            }
-        </tbody>
-    </table>
+        <!-- INVOICE SHEET -->
+        <div class="invoice-sheet">
 
-    <h5>Payments</h5>
-    <table class="table">
-        <thead><tr><th>Amount</th><th>PaidAt</th><th>ExternalRef</th></tr></thead>
-        <tbody>
-            @foreach(var p in Model.Payments)
-            {
-                <tr>
-                    <td>@p.Amount</td>
-                    <td>@p.PaidAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</td>
-                    <td>@p.ExternalReference</td>
-                </tr>
-            }
-        </tbody>
-    </table>
+            <!-- HEADER -->
+            <div class="invoice-header">
 
-    <div class="mt-4">
-        <form method="post" asp-action="Pay" asp-route-id="@Model.Id">
-            @Html.AntiForgeryToken()
-            <div class="row g-2 align-items-center">
-                <div class="col-auto">
-                    <input name="amount" class="form-control" placeholder="Amount" />
+                <div class="d-flex justify-content-between align-items-start invoice-header-top">
+
+                    <div>
+                        <div class="invoice-brand">
+                            INVOICE
+                        </div>
+
+                        <div class="invoice-meta mt-2">
+                            Invoice #: <strong>@Model.InvoiceNumber</strong>
+                        </div>
+
+                        <div class="invoice-meta">
+                            Generated: @DateTime.Now.ToString("dd MMM yyyy")
+                        </div>
+
+                        @if (!string.IsNullOrWhiteSpace(Model.Source))
+                        {
+                            <div class="invoice-meta">
+                                Source: @Model.Source
+                            </div>
+                        }
+                    </div>
+
+                    <div>
+                        <span class="invoice-status
+                            @(Model.Status == "PAID"
+                                                              ? "paid"
+                                                              : Model.Status == "PARTIAL"
+                                                                  ? "partial"
+                                                                  : "pending")">
+
+                            @Model.Status
+                        </span>
+                    </div>
+
                 </div>
-                <div class="col-auto">
-                    <input name="externalReference" class="form-control" placeholder="External reference (optional)" />
-                </div>
-                <div class="col-auto">
-                    <button class="btn btn-primary">Pay</button>
-                </div>
+
             </div>
-        </form>
-    </div>
 
+            <!-- SUMMARY -->
+            <div class="invoice-section">
+
+                <div class="invoice-grid">
+
+                    <div class="summary-card">
+                        <div class="summary-label">Total Amount</div>
+                        <div class="summary-value">
+                            @Model.TotalAmount @Model.Currency
+                        </div>
+                    </div>
+
+                    <div class="summary-card">
+                        <div class="summary-label">Amount Paid</div>
+                        <div class="summary-value">
+                            @Model.AmountPaid @Model.Currency
+                        </div>
+                    </div>
+
+                    <div class="summary-card">
+                        <div class="summary-label">Outstanding</div>
+                        <div class="summary-value summary-danger">
+                            @balance @Model.Currency
+                        </div>
+                    </div>
+
+                    <div class="summary-card">
+                        <div class="summary-label">Status</div>
+                        <div class="summary-value">
+                            @Model.Status
+                        </div>
+                    </div>
+
+                </div>
+
+            </div>
+
+            <!-- ITEMS -->
+            <div class="invoice-section">
+
+                <div class="section-title">
+                    Invoice Items
+                </div>
+
+                <div class="invoice-table-wrapper">
+                    <table class="invoice-table">
+
+                        <thead>
+                            <tr>
+                                <th>Description</th>
+                                <th class="text-end">Unit Price</th>
+                                <th class="text-end">Qty</th>
+                                <th class="text-end">Line Total</th>
+                            </tr>
+                        </thead>
+
+                        <tbody>
+
+                            @foreach (var it in Model.Items)
+                            {
+                                <tr>
+                                    <td>@it.Description</td>
+                                    <td class="text-end">@it.UnitPrice</td>
+                                    <td class="text-end">@it.Quantity</td>
+                                    <td class="text-end fw-bold">@it.LineTotal</td>
+                                </tr>
+                            }
+
+                        </tbody>
+
+                    </table>
+                </div>
+
+                <!-- TOTAL BOX -->
+                <div class="mt-4 d-flex justify-content-end">
+
+                    <div class="invoice-total-box">
+
+                        <div class="invoice-total-row">
+                            <span>Subtotal</span>
+                            <span>@Model.TotalAmount @Model.Currency</span>
+                        </div>
+
+                        <div class="invoice-total-row">
+                            <span>Paid</span>
+                            <span>@Model.AmountPaid @Model.Currency</span>
+                        </div>
+
+                        <div class="invoice-total-row grand-total">
+                            <span>Balance</span>
+                            <span>@balance @Model.Currency</span>
+                        </div>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+            <!-- PAYMENTS -->
+            @if (Model.Payments?.Any() == true)
+            {
+                <div class="invoice-section">
+
+                    <div class="section-title">
+                        Payment History
+                    </div>
+
+                    <div class="invoice-table-wrapper">
+                        <table class="invoice-table">
+
+                            <thead>
+                                <tr>
+                                    <th>Amount</th>
+                                    <th>Date</th>
+                                    <th>Reference</th>
+                                </tr>
+                            </thead>
+
+                            <tbody>
+
+                                @foreach (var p in Model.Payments)
+                                {
+                                    <tr>
+                                        <td>@p.Amount</td>
+                                        <td>@p.PaidAt.ToLocalTime().ToString("dd MMM yyyy HH:mm")</td>
+                                        <td>@p.ExternalReference</td>
+                                    </tr>
+                                }
+
+                            </tbody>
+
+                        </table>
+                    </div>
+
+                </div>
+            }
+
+            <!-- FOOTER -->
+            <div class="invoice-section">
+
+                <div class="invoice-note">
+                    Thank you for your payment and continued trust.
+                </div>
+
+            </div>
+
+        </div>
+
+        <!-- PAYMENT FORM -->
+        <div class="invoice-payment-form no-print">
+
+            <div class="section-title mb-3">
+                Record Payment
+            </div>
+
+            <form method="post" asp-action="Pay" asp-route-id="@Model.Id">
+
+                @Html.AntiForgeryToken()
+
+                <div class="row g-3">
+
+                    <div class="col-12 col-md-4">
+                        <input name="amount"
+                               class="form-control"
+                               placeholder="Enter amount" />
+                    </div>
+
+                    <div class="col-12 col-md-5">
+                        <input name="externalReference"
+                               class="form-control"
+                               placeholder="Reference (optional)" />
+                    </div>
+
+                    <div class="col-12 col-md-3">
+                        <button class="btn btn-primary w-100">
+                            Record Payment
+                        </button>
+                    </div>
+
+                </div>
+
+            </form>
+
+        </div>
+
+    </div>
 </div>

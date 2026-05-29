@@ -12,6 +12,8 @@ namespace HMS.API.Application.Pharmacy.DTOs
         public string? Dosage { get; set; }
         public string? Frequency { get; set; }
         public int Quantity { get; set; }
+        // When true, this item will be invoiced separately instead of grouped into the prescription invoice
+        public bool ChargeSeparately { get; set; } = false;
     }
 
     public class CreatePrescriptionRequest

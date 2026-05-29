@@ -4,50 +4,174 @@
     ViewData["Title"] = "Pharmacy Reports";
 }
 
-<div class="container py-4">
-    <h3>Pharmacy Reports</h3>
+<div class="page-content">
 
-    <h5 class="mt-4">Stock Shortages</h5>
-    <table class="table">
-        <thead><tr><th>Code</th><th>Name</th><th class="text-end">Stock</th><th class="text-end">Reserved</th></tr></thead>
-        <tbody>
-            @foreach(var s in Model.Shortages)
-            {
-                <tr>
-                    <td>@s.InventoryItemCode</td>
-                    <td>@s.InventoryItemName</td>
-                    <td class="text-end">@s.Stock</td>
-                    <td class="text-end">@s.Reserved</td>
-                </tr>
-            }
-        </tbody>
-    </table>
+    <!-- HEADER -->
+    <div class="mb-3">
+        <h1 class="page-title mb-1">
+            Pharmacy Reports
+        </h1>
+        <p class="text-muted small mb-0">
+            Stock monitoring, dispensing trends, and revenue analytics
+        </p>
+    </div>
 
-    <h5 class="mt-4">Daily Dispenses</h5>
-    <table class="table">
-        <thead><tr><th>Date</th><th class="text-end">Dispensed</th></tr></thead>
-        <tbody>
-            @foreach(var d in Model.Daily)
-            {
-                <tr>
-                    <td>@d.Date.ToString("yyyy-MM-dd")</td>
-                    <td class="text-end">@d.DispensedCount</td>
-                </tr>
-            }
-        </tbody>
-    </table>
+    <!-- ===================== KPI SUMMARY ===================== -->
+    <div class="row g-2 mb-3">
 
-    <h5 class="mt-4">Revenue per Inventory Item</h5>
-    <table class="table">
-        <thead><tr><th>Item</th><th class="text-end">Revenue</th></tr></thead>
-        <tbody>
-            @foreach(var r in Model.Revenue)
+        <div class="col-6 col-lg-3">
+            <div class="portal-card">
+                <div class="portal-card-body py-2">
+                    <div class="text-muted small">Low Stock Items</div>
+                    <div class="fw-semibold">@Model.Shortages.Length</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-6 col-lg-3">
+            <div class="portal-card">
+                <div class="portal-card-body py-2">
+                    <div class="text-muted small">Today Dispensed</div>
+                    <div class="fw-semibold">
+                        @(Model.Daily.LastOrDefault()?.DispensedCount ?? 0)
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-6 col-lg-3">
+            <div class="portal-card">
+                <div class="portal-card-body py-2">
+                    <div class="text-muted small">Revenue Items</div>
+                    <div class="fw-semibold">@Model.Revenue.Length</div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- ===================== STOCK SHORTAGES ===================== -->
+    <div class="portal-card mb-3">
+        <div class="portal-card-header py-2">
+            Stock Shortages
+        </div>
+
+        <div class="table-responsive d-none d-lg-block">
+            <table class="table table-modern mb-0">
+                <thead>
+                    <tr>
+                        <th>Code</th>
+                        <th>Name</th>
+                        <th class="text-end">Stock</th>
+                        <th class="text-end">Reserved</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var s in Model.Shortages)
+                    {
+                        <tr>
+                            <td>@s.InventoryItemCode</td>
+                            <td>@s.InventoryItemName</td>
+                            <td class="text-end">@s.Stock</td>
+                            <td class="text-end">@s.Reserved</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        <!-- mobile -->
+        <div class="d-lg-none d-flex flex-column gap-2">
+            @foreach (var s in Model.Shortages)
             {
-                <tr>
-                    <td>@r.InventoryItemName</td>
-                    <td class="text-end">@r.Revenue</td>
-                </tr>
+                <div class="border rounded p-2 bg-white">
+                    <div class="fw-semibold">@s.InventoryItemName</div>
+                    <div class="small text-muted">@s.InventoryItemCode</div>
+                    <div class="small">
+                        Stock: @s.Stock | Reserved: @s.Reserved
+                    </div>
+                </div>
             }
-        </tbody>
-    </table>
+        </div>
+
+    </div>
+
+    <!-- ===================== DAILY DISPENSES ===================== -->
+    <div class="portal-card mb-3">
+        <div class="portal-card-header py-2">
+            Daily Dispenses
+        </div>
+
+        <div class="table-responsive d-none d-lg-block">
+            <table class="table table-modern mb-0">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th class="text-end">Dispensed</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var d in Model.Daily)
+                    {
+                        <tr>
+                            <td>@d.Date.ToString("yyyy-MM-dd")</td>
+                            <td class="text-end">@d.DispensedCount</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        <!-- mobile -->
+        <div class="d-lg-none d-flex flex-column gap-2">
+            @foreach (var d in Model.Daily)
+            {
+                <div class="border rounded p-2 bg-white d-flex justify-content-between">
+                    <span>@d.Date.ToString("yyyy-MM-dd")</span>
+                    <span class="fw-semibold">@d.DispensedCount</span>
+                </div>
+            }
+        </div>
+
+    </div>
+
+    <!-- ===================== REVENUE ===================== -->
+    <div class="portal-card mb-3">
+        <div class="portal-card-header py-2">
+            Revenue per Item
+        </div>
+
+        <div class="table-responsive d-none d-lg-block">
+            <table class="table table-modern mb-0">
+                <thead>
+                    <tr>
+                        <th>Item</th>
+                        <th class="text-end">Revenue</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var r in Model.Revenue)
+                    {
+                        <tr>
+                            <td>@r.InventoryItemName</td>
+                            <td class="text-end fw-semibold">@r.Revenue</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        <!-- mobile -->
+        <div class="d-lg-none d-flex flex-column gap-2">
+            @foreach (var r in Model.Revenue)
+            {
+                <div class="border rounded p-2 bg-white d-flex justify-content-between">
+                    <span>@r.InventoryItemName</span>
+                    <span class="fw-semibold">@r.Revenue</span>
+                </div>
+            }
+        </div>
+
+    </div>
+
 </div>

@@ -1,0 +1,194 @@
+@model HMS.UI.Models.PagedResult<HMS.UI.Models.Billing.InvoiceViewModel>
+@{
+    Layout = "~/Pages/_Layout.cshtml";
+    ViewData["Title"] = "Billing";
+}
+
+<div class="page-content">
+
+    <!-- HEADER -->
+    <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-2 mb-3">
+        <div>
+            <h1 class="page-title mb-1">
+                <i class="bi bi-receipt me-2 text-primary"></i>
+                Billing / Invoices
+            </h1>
+            <p class="text-muted mb-0 small">
+                Manage payments, balances, and invoice reconciliation
+            </p>
+        </div>
+    </div>
+
+    <!-- ===================== TABLE VIEW (DESKTOP) ===================== -->
+    <div class="d-none d-lg-block portal-card">
+        <div class="table-responsive">
+
+            <table class="table table-modern align-middle mb-0">
+                <thead>
+                    <tr>
+                        <th>Invoice</th>
+                        <th>Patient</th>
+                        <th>Source</th>
+                        <th class="text-end">Total</th>
+                        <th class="text-end">Paid</th>
+                        <th class="text-end">Balance</th>
+                        <th>Status</th>
+                        <th></th>
+                    </tr>
+                </thead>
+
+                <tbody>
+                    @foreach (var i in Model.Items)
+                    {
+                        <tr>
+                            <td class="fw-semibold text-break">
+                                @i.InvoiceNumber
+                            </td>
+
+                            <td>
+                                @(string.IsNullOrWhiteSpace(i.PatientName)
+                                                            ? i.PatientId.ToString()
+                                                            : i.PatientName)
+                                                                        </td>
+
+                            <td class="text-muted small">
+                                @(string.IsNullOrWhiteSpace(i.Source) ? "-" : i.Source)
+                            </td>
+
+                            <td class="text-end">
+                                @i.TotalAmount @i.Currency
+                            </td>
+
+                            <td class="text-end">
+                                @i.AmountPaid
+                            </td>
+
+                            <td class="text-end fw-semibold text-danger">
+                                @i.Balance @i.Currency
+                            </td>
+
+                            <td>
+                                <span class="badge
+                                    @(i.Status == "PAID" ? "bg-success" :
+                                                                        i.Status == "PARTIAL" ? "bg-warning text-dark" :
+                                                                        "bg-secondary")">
+                                @i.Status
+                            </span>
+                        </td>
+
+                            <td class="text-end">
+                                <a class="btn btn-sm btn-primary"
+                                   href="@Url.Action("Details", "Billing", new { id = i.Id })">
+                                    View
+                                </a>
+                            </td>
+                        </tr>
+                                        }
+                </tbody>
+            </table>
+
+        </div>
+    </div>
+
+    <!-- ===================== CARD VIEW (MOBILE) ===================== -->
+    <div class="d-lg-none d-flex flex-column gap-2">
+
+        @foreach (var i in Model.Items)
+        {
+            <div class="portal-card">
+                <div class="portal-card-body py-3">
+
+                    <div class="d-flex justify-content-between align-items-start mb-2">
+                        <div class="fw-semibold">
+                            @i.InvoiceNumber
+                        </div>
+
+                        <span class="badge
+                                @(i.Status == "PAID" ? "bg-success" :
+                                                            i.Status == "PARTIAL" ? "bg-warning text-dark" :
+                                                            "bg-secondary")">
+                                                                         @i.Status
+                                                                     </span>
+                                                                 </div>
+
+                    <div class="small text-muted mb-1">
+                        @(string.IsNullOrWhiteSpace(i.PatientName)
+                                            ? i.PatientId.ToString()
+                                            : i.PatientName)
+                </div>
+
+                    <div class="row g-2 small mb-2">
+                        <div class="col-4">
+                            <div class="text-muted">Total</div>
+                            <div>@i.TotalAmount</div>
+                        </div>
+
+                        <div class="col-4">
+                            <div class="text-muted">Paid</div>
+                            <div>@i.AmountPaid</div>
+                        </div>
+
+                        <div class="col-4">
+                            <div class="text-muted">Bal</div>
+                            <div class="fw-semibold text-danger">@i.Balance</div>
+                        </div>
+                    </div>
+
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div class="text-muted small">
+                            @(string.IsNullOrWhiteSpace(i.Source) ? "-" : i.Source)
+                        </div>
+
+                        <a class="btn btn-sm btn-primary"
+                           href="@Url.Action("Details", "Billing", new { id = i.Id })">
+                            View
+                        </a>
+                    </div>
+
+                </div>
+            </div>
+                }
+
+    </div>
+
+    <!-- PAGINATION (COMPACT) -->
+    @if (Model.TotalCount > Model.PageSize)
+    {
+        var totalPages = (int)Math.Ceiling(Model.TotalCount / (double)Model.PageSize);
+
+        <div class="d-flex justify-content-center mt-3">
+
+            <nav>
+                <ul class="pagination pagination-sm">
+
+                    <li class="page-item @(Model.Page <= 1 ? "disabled" : "")">
+                        <a class="page-link"
+                           href="@Url.Action("Index", "Billing", new { page = Model.Page - 1 })">
+                            ‹
+                        </a>
+                    </li>
+
+                    @for (var p = 1; p <= totalPages; p++)
+                    {
+                        <li class="page-item @(p == Model.Page ? "active" : "")">
+                            <a class="page-link"
+                               href="@Url.Action("Index", "Billing", new { page = p })">
+                                @p
+                            </a>
+                        </li>
+                    }
+
+                    <li class="page-item @(Model.Page >= totalPages ? "disabled" : "")">
+                        <a class="page-link"
+                           href="@Url.Action("Index", "Billing", new { page = Model.Page + 1 })">
+                            ›
+                        </a>
+                    </li>
+
+                </ul>
+            </nav>
+
+        </div>
+    }
+
+</div>

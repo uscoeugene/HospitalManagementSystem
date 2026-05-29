@@ -61,6 +61,9 @@ namespace HMS.API.Application.Pharmacy
                     ShortageReason = BuildShortageReason(item.Quantity, inventory)
                 };
 
+                // preserve billing preference
+                prescriptionItem.ChargeSeparately = item.ChargeSeparately;
+
                 prescription.Items.Add(prescriptionItem);
             }
 
@@ -196,31 +199,83 @@ namespace HMS.API.Application.Pharmacy
                 _db.DispenseLogs.Add(log);
                 await _db.SaveChangesAsync();
 
-                var invoiceRequest = new CreateInvoiceFromLabRequest
+                // Billing flow: if item is marked to charge separately, create per-item invoice as before.
+                // Otherwise, expect that the pharmacy has already created a grouped invoice for the prescription
+                // and linked invoice items. If no grouped invoice exists, create it now for the whole prescription
+                // excluding items marked ChargeSeparately.
+                if (item.ChargeSeparately)
                 {
-                    PatientId = item.Prescription.PatientId,
-                    VisitId = item.Prescription.VisitId,
-                    Currency = inventory.Currency,
-                    AllowOnCredit = req.AllowOnCredit,
-                    CreditReason = req.CreditReason,
-                    Items = new[]
+                    var invoiceRequest = new CreateInvoiceFromLabRequest
                     {
-                        new CreateInvoiceItemRequest
+                        PatientId = item.Prescription.PatientId,
+                        VisitId = item.Prescription.VisitId,
+                        Currency = inventory.Currency,
+                        AllowOnCredit = req.AllowOnCredit,
+                        CreditReason = req.CreditReason,
+                        Items = new[]
                         {
-                            Description = dispensedMedicationName,
-                            UnitPrice = inventory.UnitPrice,
-                            Quantity = req.Quantity,
-                            SourceId = item.Id,
-                            SourceType = "pharmacy"
+                            new CreateInvoiceItemRequest
+                            {
+                                Description = dispensedMedicationName,
+                                UnitPrice = inventory.UnitPrice,
+                                Quantity = req.Quantity,
+                                SourceId = item.Id,
+                                SourceType = "pharmacy"
+                            }
+                        }
+                    };
+
+                    var invoice = await _billing.CreateInvoiceFromLabRequestAsync(invoiceRequest);
+                    var invoiceItem = invoice.Items.FirstOrDefault(ii => ii.SourceId == item.Id && ii.SourceType == "pharmacy");
+                    if (invoiceItem != null && !item.ChargeInvoiceItemId.HasValue)
+                    {
+                        item.ChargeInvoiceItemId = invoiceItem.Id;
+                    }
+                }
+                else
+                {
+                    // find or create grouped invoice for the prescription
+                    var prescriptionId = item.PrescriptionId;
+                    // try to find an existing invoice that already contains invoice items for this prescription
+                    var groupedInvoice = await _db.Invoices.Include(i => i.Items).Where(i => i.Items.Any(ii => ii.SourceType == "prescription" && ii.SourceId == prescriptionId) && !i.IsDeleted).OrderByDescending(i => i.CreatedAt).FirstOrDefaultAsync();
+                    if (groupedInvoice == null)
+                    {
+                        // build invoice items for prescription items that are NOT ChargeSeparately
+                        var groupItems = item.Prescription.Items.Where(pi => !pi.ChargeSeparately).Select(pi => new CreateInvoiceItemRequest
+                        {
+                            Description = pi.MedicationName,
+                            UnitPrice = pi.Price,
+                            Quantity = pi.Quantity,
+                            SourceId = prescriptionId, // link at invoice item level to prescription id
+                            SourceType = "prescription"
+                        }).ToArray();
+
+                        if (groupItems.Any())
+                        {
+                            var invReq = new CreateInvoiceFromLabRequest
+                            {
+                                PatientId = item.Prescription.PatientId,
+                                VisitId = item.Prescription.VisitId,
+                                Currency = inventory.Currency,
+                                AllowOnCredit = req.AllowOnCredit,
+                                CreditReason = req.CreditReason,
+                                Items = groupItems
+                            };
+
+                            var inv = await _billing.CreateInvoiceFromLabRequestAsync(invReq);
+                            groupedInvoice = await _db.Invoices.Include(i => i.Items).SingleOrDefaultAsync(i => i.Id == inv.Id);
                         }
                     }
-                };
 
-                var invoice = await _billing.CreateInvoiceFromLabRequestAsync(invoiceRequest);
-                var invoiceItem = invoice.Items.FirstOrDefault(ii => ii.SourceId == item.Id && ii.SourceType == "pharmacy");
-                if (invoiceItem != null && !item.ChargeInvoiceItemId.HasValue)
-                {
-                    item.ChargeInvoiceItemId = invoiceItem.Id;
+                    // attempt to find invoice item for this individual prescription item
+                    if (groupedInvoice != null)
+                    {
+                        var invItem = groupedInvoice.Items.FirstOrDefault(ii => ii.SourceType == "prescription" && ii.SourceId == prescriptionId && ii.Description == item.MedicationName && ii.UnitPrice == item.Price);
+                        if (invItem != null && !item.ChargeInvoiceItemId.HasValue)
+                        {
+                            item.ChargeInvoiceItemId = invItem.Id;
+                        }
+                    }
                 }
 
                 item.Prescription.Status = item.Prescription.Items.All(i => i.DispensedQuantity >= i.Quantity)

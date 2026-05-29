@@ -1,50 +1,232 @@
 @model HMS.UI.Models.Pharmacy.InventoryItemViewModel
+
 @{
     Layout = "~/Pages/_Layout.cshtml";
     ViewData["Title"] = "Inventory Item";
 }
 
-<div class="container py-4">
-    <h3>@Model.Name (@Model.Code)</h3>
+<div class="page-content">
 
-    @if(TempData["Error"] != null)
+    <!-- HEADER -->
+    <div class="page-header d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3 mb-4">
+
+        <div>
+            <h1 class="page-title">
+                <i class="bi bi-capsule-pill me-2 text-primary"></i>
+                @Model.Name
+            </h1>
+            <p class="page-subtitle">
+                Inventory Code: <b>@Model.Code</b>
+            </p>
+        </div>
+
+        <div class="d-flex gap-2">
+
+            <a class="btn btn-light border"
+               href="/Pharmacy/Inventory">
+
+                <i class="bi bi-arrow-left me-1"></i>
+                Back
+            </a>
+
+        </div>
+
+    </div>
+
+    <!-- ALERT -->
+    @if (TempData["Error"] != null)
     {
-        <div class="alert alert-danger">@TempData["Error"]</div>
+        <div class="alert alert-danger alert-modern mb-3">
+            <i class="bi bi-exclamation-triangle-fill me-2"></i>
+            @TempData["Error"]
+        </div>
     }
 
-    <div class="mb-3">
-        <strong>Category:</strong> @(Model.Category ?? "-")
-    </div>
-    <div class="mb-3">
-        <strong>Price:</strong> @Model.UnitPrice @Model.Currency
-    </div>
-    <div class="mb-3">
-        <strong>Stock:</strong> @Model.Stock
-    </div>
-    <div class="mb-3">
-        <strong>Reserved:</strong> @Model.ReservedStock
-    </div>
+    <!-- KPI CARDS -->
+    <div class="row row-tight mb-4">
 
-    <div class="d-flex gap-2">
-        <a class="btn btn-primary" href="/Pharmacy/Inventory">Back</a>
-        <form method="post" asp-action="DeleteInventory" asp-route-id="@Model.Id">
-            @Html.AntiForgeryToken()
-            <button class="btn btn-danger">Delete</button>
-        </form>
-    </div>
-
-    <hr />
-
-    <h5>Adjust Stock</h5>
-    <form method="post" asp-action="AdjustStock" asp-route-id="@Model.Id">
-        @Html.AntiForgeryToken()
-        <div class="row g-2 align-items-center">
-            <div class="col-auto">
-                <input type="number" name="delta" class="form-control" placeholder="Delta (positive to add, negative to remove)" />
-            </div>
-            <div class="col-auto">
-                <button class="btn btn-secondary">Apply</button>
+        <div class="col-md-6 col-xl-3">
+            <div class="stats-card bg-gradient-primary shadow-soft">
+                <h2>@Model.Stock</h2>
+                <p>Current Stock</p>
+                <i class="bi bi-box-seam"></i>
             </div>
         </div>
-    </form>
+
+        <div class="col-md-6 col-xl-3">
+            <div class="stats-card bg-gradient-warning shadow-soft">
+                <h2>@Model.ReservedStock</h2>
+                <p>Reserved Stock</p>
+                <i class="bi bi-lock"></i>
+            </div>
+        </div>
+
+        <div class="col-md-6 col-xl-3">
+            <div class="stats-card bg-gradient-success shadow-soft">
+                <h2>@(Model.Stock - Model.ReservedStock)</h2>
+                <p>Available Stock</p>
+                <i class="bi bi-check2-circle"></i>
+            </div>
+        </div>
+
+        <div class="col-md-6 col-xl-3">
+            <div class="stats-card bg-gradient-danger shadow-soft">
+                <h2>@Model.UnitPrice</h2>
+                <p>Unit Price (@Model.Currency)</p>
+                <i class="bi bi-cash-stack"></i>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- MAIN CONTENT -->
+    <div class="row row-tight">
+
+        <!-- LEFT: INFO -->
+        <div class="col-lg-5">
+
+            <div class="portal-card">
+
+                <div class="portal-card-header">
+                    <i class="bi bi-info-circle me-2 text-primary"></i>
+                    Item Information
+                </div>
+
+                <div class="portal-card-body">
+
+                    <div class="mb-3">
+                        <div class="small text-muted">Category</div>
+                        <div class="fw-semibold">
+                            @Model.Category
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <div class="small text-muted">Product Code</div>
+                        <div class="fw-semibold">
+                            @Model.Code
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <div class="small text-muted">Unit Price</div>
+                        <div class="fw-semibold">
+                            @Model.UnitPrice @Model.Currency
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <div class="small text-muted">Stock Level</div>
+
+                        @if (Model.Stock <= 5)
+                        {
+                            <span class="badge-soft-danger">Critical Stock</span>
+                        }
+                        else if (Model.Stock <= 20)
+                        {
+                            <span class="badge-soft-warning">Low Stock</span>
+                        }
+                        else
+                        {
+                            <span class="badge-soft-success">Healthy Stock</span>
+                        }
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+
+        <!-- RIGHT: ACTIONS -->
+        <div class="col-lg-7">
+
+            <!-- STOCK ADJUST -->
+            <div class="portal-card mb-3">
+
+                <div class="portal-card-header">
+                    <i class="bi bi-sliders me-2 text-primary"></i>
+                    Adjust Stock
+                </div>
+
+                <div class="portal-card-body">
+
+                    <form method="post"
+                          asp-action="AdjustStock"
+                          asp-route-id="@Model.Id">
+
+                        @Html.AntiForgeryToken()
+
+                        <div class="row row-tight align-items-end">
+
+                            <div class="col-md-8">
+
+                                <label class="form-label">
+                                    Stock Adjustment ( + add / - reduce )
+                                </label>
+
+                                <input type="number"
+                                       name="delta"
+                                       class="form-control"
+                                       placeholder="e.g. 10 or -5" />
+
+                            </div>
+
+                            <div class="col-md-4">
+
+                                <button class="btn btn-secondary w-100">
+
+                                    <i class="bi bi-check2-circle me-1"></i>
+                                    Apply
+
+                                </button>
+
+                            </div>
+
+                        </div>
+
+                    </form>
+
+                </div>
+
+            </div>
+
+            <!-- DANGER ZONE -->
+            <div class="portal-card border border-danger">
+
+                <div class="portal-card-header text-danger">
+                    <i class="bi bi-exclamation-triangle me-2"></i>
+                    Danger Zone
+                </div>
+
+                <div class="portal-card-body">
+
+                    <p class="small text-muted mb-3">
+                        Deleting this inventory item will permanently remove it from the system.
+                    </p>
+
+                    <form method="post"
+                          asp-action="DeleteInventory"
+                          asp-route-id="@Model.Id">
+
+                        @Html.AntiForgeryToken()
+
+                        <button class="btn btn-danger w-100">
+
+                            <i class="bi bi-trash me-1"></i>
+                            Delete Inventory Item
+
+                        </button>
+
+                    </form>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
 </div>

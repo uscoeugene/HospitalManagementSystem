@@ -29,10 +29,12 @@
     @* <link href="/lib/toastr/toastr.min.css" rel="stylesheet" /> *@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css">
 
-    <link href="/css/hms-portal.css" rel="stylesheet" />
+    <link href="/css/hms-portal.css?v=3" rel="stylesheet" />
 
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css"
           rel="stylesheet" />
+    @await RenderSectionAsync("Styles", required: false)
+
 </head>
 
 <body class="portal-layout">

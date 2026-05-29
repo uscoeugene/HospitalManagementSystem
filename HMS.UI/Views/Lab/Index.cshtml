@@ -1,122 +1,207 @@
-@model HMS.UI.Models.Lab.LabTestViewModel[]
 @{
     Layout = "~/Pages/_Layout.cshtml";
-    ViewData["Title"] = "Lab Tests";
+    ViewData["Title"] = "Laboratory Dashboard";
 }
 
-<div class="container py-4">
+<div class="page-content">
 
-    <!-- Header -->
-    <div class="d-flex flex-wrap justify-content-between align-items-center mb-4">
+    <!-- HEADER -->
+    <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3 mb-4">
+
         <div>
-            <h3 class="mb-0">
-                <i class="bi bi-clipboard2-pulse me-2 text-primary"></i>
-                Lab Tests
-            </h3>
-            <small class="text-muted">Manage all laboratory tests</small>
+            <h1 class="page-title">
+                <i class="bi bi-eyedropper me-2 text-primary"></i>
+                Laboratory Dashboard
+            </h1>
+            <p class="text-muted mb-0">
+                Test processing, sample tracking, and result workflows
+            </p>
         </div>
 
-        <a class="btn btn-success-custom" asp-action="requests" asp-controller="Lab">
-            <i class="bi bi-plus-circle me-1"></i>
-            Lab Requests
-        </a>
-        @if (User.Identity?.IsAuthenticated ?? false && User.HasClaim("perm", "lab.manage"))
-        {
-            <a class="btn btn-primary" asp-action="create" asp-controller="Lab">
-                <i class="bi bi-plus-circle me-1"></i>
-                Create Test
+        <div class="d-flex gap-2">
+            <a href="/Lab/Requests" class="btn btn-primary">
+                <i class="bi bi-clipboard-data me-1"></i> Lab Requests
             </a>
-        }
+            <a href="/Lab/Tests" class="btn btn-outline-primary">
+                <i class="bi bi-list-check me-1"></i> Lab Tests
+            </a>
+          
+        </div>
+
     </div>
 
-    <!-- Alerts -->
-    @if (TempData["Error"] != null)
-    {
-        <div class="alert alert-danger alert-dismissible fade show">
-            <i class="bi bi-exclamation-triangle me-1"></i>
-            @TempData["Error"]
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    <!-- KPI CARDS -->
+    <div class="row g-3 mb-4">
+
+        <div class="col-md-6 col-xl-3">
+            <div class="stats-card bg-gradient-primary shadow-soft">
+                <h2>86</h2>
+                <p>Total Lab Tests</p>
+                <i class="bi bi-activity"></i>
+            </div>
         </div>
-    }
 
-    @if (TempData["Success"] != null)
-    {
-        <div class="alert alert-success alert-dismissible fade show">
-            <i class="bi bi-check-circle me-1"></i>
-            @TempData["Success"]
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        <div class="col-md-6 col-xl-3">
+            <div class="stats-card bg-gradient-warning shadow-soft">
+                <h2>34</h2>
+                <p>Pending Samples</p>
+                <i class="bi bi-hourglass-split"></i>
+            </div>
         </div>
-    }
 
-    <!-- Card Wrapper -->
-    <div class="card shadow-sm border-0">
-        <div class="card-body p-0">
+        <div class="col-md-6 col-xl-3">
+            <div class="stats-card bg-gradient-success shadow-soft">
+                <h2>120</h2>
+                <p>Completed Tests</p>
+                <i class="bi bi-check2-circle"></i>
+            </div>
+        </div>
 
-            <!-- Table -->
-            <div class="table-responsive">
-                <table class="table table-hover align-middle mb-0">
+        <div class="col-md-6 col-xl-3">
+            <div class="stats-card bg-gradient-danger shadow-soft">
+                <h2>12</h2>
+                <p>Critical Results</p>
+                <i class="bi bi-exclamation-triangle-fill"></i>
+            </div>
+        </div>
 
-                    <thead class="table-light">
-                        <tr>
-                            <th>
-                                <i class="bi bi-upc-scan me-1"></i> Code
-                            </th>
-                            <th>
-                                <i class="bi bi-flask me-1"></i> Name
-                            </th>
-                            <th>
-                                <i class="bi bi-cash-coin me-1"></i> Price
-                            </th>
-                            <th class="text-end">Actions</th>
-                        </tr>
-                    </thead>
+    </div>
 
-                    <tbody>
-                        @if (Model != null && Model.Length > 0)
-                        {
-                            foreach (var t in Model)
-                            {
-                                <tr>
-                                    <td>
-                                        <span class="badge bg-light text-dark border">
-                                            @t.Code
-                                        </span>
-                                    </td>
+    <!-- WORKFLOW OVERVIEW -->
+    <div class="row g-4 mb-4">
 
-                                    <td class="fw-semibold">
-                                        @t.Name
-                                    </td>
+        <!-- LEFT: PROCESS FLOW -->
+        <div class="col-xl-8">
 
-                                    <td>
-                                        <span class="text-success fw-semibold">
-                                            @t.Price @t.Currency
-                                        </span>
-                                    </td>
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
 
-                                    <td class="text-end">
-                                        <a class="btn btn-sm btn-outline-primary"
-                                           href="/Lab/Details?id=@t.Id">
-                                            <i class="bi bi-eye me-1"></i>
-                                            Details
-                                        </a>
-                                    </td>
-                                </tr>
-                            }
-                        }
-                        else
-                        {
-                            <tr>
-                                <td colspan="4" class="text-center py-5 text-muted">
-                                    <i class="bi bi-inbox display-6 d-block mb-2"></i>
-                                    No lab tests found
-                                </td>
-                            </tr>
-                        }
-                    </tbody>
+                    <h5 class="mb-3">
+                        <i class="bi bi-diagram-3 me-1 text-success"></i>
+                        Lab Workflow Status
+                    </h5>
 
-                </table>
+                    <div class="row g-3">
+
+                        <div class="col-md-4">
+                            <div class="card bg-light border-0">
+                                <div class="card-body">
+                                    <div class="text-muted small">Collected</div>
+                                    <h4>42</h4>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-md-4">
+                            <div class="card bg-light border-0">
+                                <div class="card-body">
+                                    <div class="text-muted small">Processing</div>
+                                    <h4>28</h4>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-md-4">
+                            <div class="card bg-light border-0">
+                                <div class="card-body">
+                                    <div class="text-muted small">Ready</div>
+                                    <h4>18</h4>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+
+                    <div class="bg-light rounded p-4 text-center text-muted mt-3">
+                        <i class="bi bi-graph-up fs-1"></i>
+                        <div>Sample processing trend chart area</div>
+                    </div>
+
+                </div>
             </div>
 
         </div>
+
+        <!-- RIGHT: QUICK INSIGHTS -->
+        <div class="col-xl-4">
+
+            <div class="card border-0 shadow-sm mb-3">
+                <div class="card-body">
+                    <h6 class="text-muted">Today's Tests</h6>
+                    <h4>64</h4>
+                    <small class="text-success">
+                        <i class="bi bi-arrow-up"></i> +10% increase
+                    </small>
+                </div>
+            </div>
+
+            <div class="card border-0 shadow-sm mb-3">
+                <div class="card-body">
+                    <h6 class="text-muted">Turnaround Time</h6>
+                    <h4>4.2 hrs</h4>
+                    <small class="text-muted">Average processing time</small>
+                </div>
+            </div>
+
+            <div class="card border-0 shadow-sm">
+                <div class="card-body">
+                    <h6 class="text-muted">Critical Alerts</h6>
+                    <h4 class="text-danger">12</h4>
+                    <small class="text-danger">
+                        <i class="bi bi-exclamation-triangle"></i> Needs attention
+                    </small>
+                </div>
+            </div>
+
+        </div>
+
     </div>
+
+    <!-- RECENT ACTIVITY -->
+    <div class="card border-0 shadow-sm">
+
+        <div class="card-body">
+
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="mb-0">
+                    <i class="bi bi-clock-history me-1 text-primary"></i>
+                    Recent Lab Activity
+                </h5>
+                <a href="/Lab/Requests" class="btn btn-sm btn-outline-primary">
+                    View All
+                </a>
+            </div>
+
+            <div class="list-group list-group-flush">
+
+                <div class="list-group-item d-flex justify-content-between">
+                    <div>
+                        <div class="fw-semibold">CBC Test Completed</div>
+                        <div class="text-muted small">Patient: John Doe</div>
+                    </div>
+                    <span class="badge bg-success">Completed</span>
+                </div>
+
+                <div class="list-group-item d-flex justify-content-between">
+                    <div>
+                        <div class="fw-semibold">Malaria Test Pending</div>
+                        <div class="text-muted small">Sample received</div>
+                    </div>
+                    <span class="badge bg-warning text-dark">Processing</span>
+                </div>
+
+                <div class="list-group-item d-flex justify-content-between">
+                    <div>
+                        <div class="fw-semibold">Electrolyte Panel</div>
+                        <div class="text-muted small">Critical result flagged</div>
+                    </div>
+                    <span class="badge bg-danger">Critical</span>
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
 </div>

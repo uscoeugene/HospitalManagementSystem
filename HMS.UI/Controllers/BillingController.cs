@@ -11,7 +11,11 @@ namespace HMS.UI.Controllers
         private readonly ApiClient _api;
         public BillingController(ApiClient api) { _api = api; }
 
-        public async Task<IActionResult> Index(Guid? patientId = null, Guid? visitId = null, int page = 1, int pageSize = 20)
+        public IActionResult Index()
+        {
+            return View();
+        }
+        public async Task<IActionResult> Invoices(Guid? patientId = null, Guid? visitId = null, int page = 1, int pageSize = 20)
         {
             try
             {

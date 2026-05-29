@@ -45,7 +45,30 @@ namespace HMS.UI.Controllers
                     }
                 }
 
-                return View(res ?? new HMS.UI.Models.PagedResult<PrescriptionViewModel> { Items = Array.Empty<PrescriptionViewModel>(), Page = page, PageSize = pageSize });
+                var vm = res ?? new HMS.UI.Models.PagedResult<PrescriptionViewModel> { Items = Array.Empty<PrescriptionViewModel>(), Page = page, PageSize = pageSize };
+                // enrich patient/visit display names where available
+                foreach (var p in vm.Items ?? Array.Empty<PrescriptionViewModel>())
+                {
+                    try
+                    {
+                        // try to resolve patient display name
+                        var patient = await _api.GetAsync<HMS.UI.Models.PatientDetailsViewModel>($"/patients/{p.PatientId}");
+                        if (patient != null) p.PatientDisplay = string.Join(' ', new[] { patient.FirstName, patient.MiddleName, patient.LastName }.Where(x => !string.IsNullOrWhiteSpace(x))).Trim();
+                    }
+                    catch { p.PatientDisplay = null; }
+
+                    try
+                    {
+                        if (p.VisitId.HasValue)
+                        {
+                            var visit = await _api.GetAsync<HMS.UI.Models.VisitViewModel>($"/patients/visits/{p.VisitId}");
+                            if (visit != null) p.VisitDisplay = $"{visit.VisitType} - {visit.VisitAt:yyyy-MM-dd HH:mm}";
+                        }
+                    }
+                    catch { p.VisitDisplay = null; }
+                }
+
+                return View(vm);
             }
             catch (Exception ex)
             {
@@ -118,6 +141,31 @@ namespace HMS.UI.Controllers
                 var prescription = await _api.GetAsync<PrescriptionViewModel>($"/pharmacy/prescriptions/{id}");
                 if (prescription == null) return NotFound();
 
+                // try to resolve patient display name
+                try
+                {
+                    var patient = await _api.GetAsync<PatientDetailsViewModel>($"/patients/{prescription.PatientId}");
+                    if (patient != null)
+                    {
+                        prescription.PatientDisplay = string.Join(' ', new[] { patient.FirstName, patient.MiddleName, patient.LastName }.Where(x => !string.IsNullOrWhiteSpace(x))).Trim();
+                    }
+                }
+                catch { }
+
+                // try to resolve visit display
+                try
+                {
+                    if (prescription.VisitId.HasValue)
+                    {
+                        var visit = await _api.GetAsync<VisitViewModel>($"/patients/visits/{prescription.VisitId}");
+                        if (visit != null)
+                        {
+                            prescription.VisitDisplay = $"{visit.VisitType} - {visit.VisitAt:yyyy-MM-dd HH:mm}";
+                        }
+                    }
+                }
+                catch { }
+
                 ViewBag.AvailableInventoryItems = await _api.GetAsync<InventoryItemViewModel[]>("/pharmacy/inventory") ?? Array.Empty<InventoryItemViewModel>();
                 return View(prescription);
             }
@@ -136,10 +184,21 @@ namespace HMS.UI.Controllers
                 var prescription = await _api.GetAsync<PrescriptionViewModel>($"/pharmacy/prescriptions/{id}");
                 if (prescription == null) return NotFound();
 
+                // Build viewmodel similar to create so we can use dropdowns
+                var patientsPage = await _api.GetAsync<PagedResult<PatientListItemViewModel>>("/patients?page=1&pageSize=200");
+                var patientOptions = (patientsPage?.Items ?? Array.Empty<PatientListItemViewModel>())
+                    .Select(p => new PrescriptionPatientOptionViewModel { Id = p.Id, DisplayName = string.Join(' ', new[] { p.FirstName, p.MiddleName, p.LastName }.Where(x => !string.IsNullOrWhiteSpace(x))).Trim() })
+                    .OrderBy(p => p.DisplayName)
+                    .ToArray();
+
+                var visitOptions = prescription.PatientId != Guid.Empty ? await LoadVisitOptionsAsync(prescription.PatientId) : Array.Empty<PrescriptionVisitOptionViewModel>();
+
                 var vm = new EditPrescriptionViewModel
                 {
                     Prescription = prescription,
-                    AvailableInventoryItems = await _api.GetAsync<InventoryItemViewModel[]>("/pharmacy/inventory") ?? Array.Empty<InventoryItemViewModel>()
+                    AvailableInventoryItems = await _api.GetAsync<InventoryItemViewModel[]>("/pharmacy/inventory") ?? Array.Empty<InventoryItemViewModel>(),
+                    AvailablePatients = patientOptions,
+                    AvailableVisits = visitOptions
                 };
 
                 return View(vm);

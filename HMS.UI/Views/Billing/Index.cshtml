@@ -1,80 +1,168 @@
-@model HMS.UI.Models.PagedResult<HMS.UI.Models.Billing.InvoiceViewModel>
 @{
     Layout = "~/Pages/_Layout.cshtml";
-    ViewData["Title"] = "Billing";
+    ViewData["Title"] = "Billing Dashboard";
 }
 
-<div class="container py-4">
-    <h3>Invoices</h3>
+<div class="page-content">
 
-    <table class="table">
-        <thead>
-            <tr>
-                <th>Invoice#</th>
-                <th>Patient</th>
-                <th>Visit</th>
-                <th>Source</th>
-                <th>Total</th>
-                <th>Paid</th>
-                <th>Balance</th>
-                <th>Status</th>
-                <th></th>
-            </tr>
-        </thead>
-        <tbody>
-            @foreach (var i in Model.Items)
-            {
-                <tr>
-                    <td>@(i.InvoiceNumber ?? "-")</td>
-                    <td>@(string.IsNullOrWhiteSpace(i.PatientName) ? (i.PatientId == Guid.Empty ? "-" : i.PatientId.ToString()) : i.PatientName)</td>
-                    <td>@(i.VisitType == null && i.VisitAt == null ? (i.VisitId?.ToString() ?? "-") : ((i.VisitType ?? "") + (i.VisitAt.HasValue ? (" / " + i.VisitAt.Value.ToLocalTime().ToString("yyyy-MM-dd")) : "")))</td>
-                    <td>@(string.IsNullOrWhiteSpace(i.Source) ? "-" : i.Source)</td>
-                    <td>@i.TotalAmount @i.Currency</td>
-                    <td>@i.AmountPaid</td>
-                    <td>@i.Balance @i.Currency</td>
-                    <td>
-                        <span class="badge bg-@(
-                            i.Status == "PAID" ? "success" : i.Status == "PARTIAL" ? "warning" : "secondary")">
-                            @i.Status
-                        </span>
-                    </td>
-                    <td>
-                        <a class="btn btn-sm btn-primary" href="@Url.Action("Details", "Billing", new { id = i.Id })">View</a>
-                    </td>
-                </tr>
-            }
-        </tbody>
-    </table>
+    <!-- HEADER -->
+    <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3 mb-4">
 
-    @* Paging *@
-    @{ 
-        var total = Model.TotalCount;
-        var page = Model.Page <= 0 ? 1 : Model.Page;
-        var pageSize = Model.PageSize <= 0 ? 20 : Model.PageSize;
-        var totalPages = (int)Math.Ceiling(total / (double)pageSize);
-        var currentQuery = Context.Request.Query;
-    }
+        <div>
+            <h1 class="page-title">
+                <i class="bi bi-speedometer2 me-2 text-primary"></i>
+                Billing Dashboard
+            </h1>
+            <p class="text-muted mb-0">
+                Financial overview, invoice activity, and payment analytics
+            </p>
+        </div>
 
-    @if (totalPages > 1)
-    {
-        <nav aria-label="Invoices pagination">
-            <ul class="pagination">
-                <li class="page-item @(page <= 1 ? "disabled" : "")">
-                    <a class="page-link" href="@Url.Action("Index", "Billing", new { page = page - 1, pageSize = pageSize, patientId = currentQuery["patientId"].ToString(), visitId = currentQuery["visitId"].ToString() })">Previous</a>
-                </li>
+        <div class="d-flex gap-2">
+            <a href="/Billing/Invoices" class="btn btn-primary">
+                <i class="bi bi-receipt me-1"></i> View Invoices
+            </a>
+        </div>
 
-                @for (var p = 1; p <= totalPages; p++)
-                {
-                    <li class="page-item @(p == page ? "active" : "")">
-                        <a class="page-link" href="@Url.Action("Index", "Billing", new { page = p, pageSize = pageSize, patientId = currentQuery["patientId"].ToString(), visitId = currentQuery["visitId"].ToString() })">@p</a>
-                    </li>
-                }
+    </div>
 
-                <li class="page-item @(page >= totalPages ? "disabled" : "")">
-                    <a class="page-link" href="@Url.Action("Index", "Billing", new { page = page + 1, pageSize = pageSize, patientId = currentQuery["patientId"].ToString(), visitId = currentQuery["visitId"].ToString() })">Next</a>
-                </li>
-            </ul>
-        </nav>
-    }
+    <!-- KPI ROW -->
+    <div class="row g-3 mb-4">
+
+        <div class="col-md-6 col-xl-3">
+            <div class="stats-card bg-gradient-primary shadow-soft">
+                <h2>₦8.4M</h2>
+                <p>Total Revenue</p>
+                <i class="bi bi-cash-stack"></i>
+            </div>
+        </div>
+
+        <div class="col-md-6 col-xl-3">
+            <div class="stats-card bg-gradient-success shadow-soft">
+                <h2>124</h2>
+                <p>Paid Invoices</p>
+                <i class="bi bi-check2-circle"></i>
+            </div>
+        </div>
+
+        <div class="col-md-6 col-xl-3">
+            <div class="stats-card bg-gradient-warning shadow-soft">
+                <h2>38</h2>
+                <p>Pending Payments</p>
+                <i class="bi bi-clock-history"></i>
+            </div>
+        </div>
+
+        <div class="col-md-6 col-xl-3">
+            <div class="stats-card bg-gradient-danger shadow-soft">
+                <h2>₦1.2M</h2>
+                <p>Outstanding Balance</p>
+                <i class="bi bi-exclamation-triangle-fill"></i>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- SECOND ROW: QUICK INSIGHTS -->
+    <div class="row g-4 mb-4">
+
+        <div class="col-xl-8">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
+
+                    <h5 class="mb-3">
+                        <i class="bi bi-graph-up me-1 text-success"></i>
+                        Revenue Trend (Mock)
+                    </h5>
+
+                    <div class="bg-light rounded p-4 text-center text-muted">
+                        <i class="bi bi-bar-chart-line fs-1"></i>
+                        <div>Chart Area (Revenue over time)</div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-4">
+
+            <div class="card border-0 shadow-sm mb-3">
+                <div class="card-body">
+                    <h6 class="text-muted">Today</h6>
+                    <h4>₦420,000</h4>
+                    <small class="text-success">
+                        <i class="bi bi-arrow-up"></i> +12% vs yesterday
+                    </small>
+                </div>
+            </div>
+
+            <div class="card border-0 shadow-sm mb-3">
+                <div class="card-body">
+                    <h6 class="text-muted">This Week</h6>
+                    <h4>₦2.9M</h4>
+                    <small class="text-success">
+                        <i class="bi bi-arrow-up"></i> +8% growth
+                    </small>
+                </div>
+            </div>
+
+            <div class="card border-0 shadow-sm">
+                <div class="card-body">
+                    <h6 class="text-muted">Average Invoice</h6>
+                    <h4>₦18,500</h4>
+                    <small class="text-muted">Across all departments</small>
+                </div>
+            </div>
+
+        </div>
+
+    </div>
+
+    <!-- RECENT ACTIVITY -->
+    <div class="card border-0 shadow-sm">
+
+        <div class="card-body">
+
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="mb-0">
+                    <i class="bi bi-clock-history me-1 text-primary"></i>
+                    Recent Billing Activity
+                </h5>
+                <a href="/Billing/Invoices" class="btn btn-sm btn-outline-primary">
+                    View All
+                </a>
+            </div>
+
+            <div class="list-group list-group-flush">
+
+                <div class="list-group-item d-flex justify-content-between">
+                    <div>
+                        <div class="fw-semibold">Invoice #INV-1042</div>
+                        <div class="text-muted small">John Doe - Lab Services</div>
+                    </div>
+                    <span class="badge bg-success">Paid</span>
+                </div>
+
+                <div class="list-group-item d-flex justify-content-between">
+                    <div>
+                        <div class="fw-semibold">Invoice #INV-1043</div>
+                        <div class="text-muted small">Mary James - Consultation</div>
+                    </div>
+                    <span class="badge bg-warning text-dark">Partial</span>
+                </div>
+
+                <div class="list-group-item d-flex justify-content-between">
+                    <div>
+                        <div class="fw-semibold">Invoice #INV-1044</div>
+                        <div class="text-muted small">Emergency Admission</div>
+                    </div>
+                    <span class="badge bg-secondary">Pending</span>
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
 
 </div>

@@ -41,12 +41,38 @@
                     <h5 class="card-title mb-3">Prescription Header</h5>
                     <div class="row g-3">
                         <div class="col-lg-6">
-                            <label class="form-label">Patient Id</label>
-                            <input name="patientId" value="@Model.Prescription.PatientId" class="form-control" />
+                            <label class="form-label">Patient</label>
+                            <select name="patientId" class="form-select" id="editPrescriptionPatient">
+                                <option value="">Select patient</option>
+                                @foreach (var p in Model.AvailablePatients)
+                                {
+                                    if (p.Id == Model.Prescription.PatientId)
+                                    {
+                                        <option value="@p.Id" selected>@p.DisplayName</option>
+                                    }
+                                    else
+                                    {
+                                        <option value="@p.Id">@p.DisplayName</option>
+                                    }
+                                }
+                            </select>
                         </div>
                         <div class="col-lg-6">
-                            <label class="form-label">Visit Id</label>
-                            <input name="visitId" value="@Model.Prescription.VisitId" class="form-control" />
+                            <label class="form-label">Visit</label>
+                            <select name="visitId" class="form-select" id="editPrescriptionVisit" data-patient-visits-url="@Url.Action("PatientVisits", "Pharmacy")">
+                                <option value="">Select visit</option>
+                                @foreach (var v in Model.AvailableVisits)
+                                {
+                                    if (v.Id == Model.Prescription.VisitId)
+                                    {
+                                        <option value="@v.Id" selected>@v.DisplayName</option>
+                                    }
+                                    else
+                                    {
+                                        <option value="@v.Id">@v.DisplayName</option>
+                                    }
+                                }
+                            </select>
                         </div>
                     </div>
                 </div>
