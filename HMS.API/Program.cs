@@ -1,21 +1,77 @@
-using System.Text;
 using HMS.API.Application.Auth;
 using HMS.API.Application.Common;
+using HMS.API.Hubs;
 using HMS.API.Infrastructure.Auth;
+using HMS.API.Infrastructure.Logging;
+using HMS.API.Infrastructure.Outbox;
 using HMS.API.Infrastructure.Persistence;
 using HMS.API.Middleware;
 using HMS.API.Security;
+using Serilog;
+using Serilog.Sinks.MSSqlServer;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.IdentityModel.Tokens;
-using HMS.API.Infrastructure.Outbox;
-using HMS.API.Hubs;
 using Microsoft.Extensions.Caching.StackExchangeRedis;
+using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using Swashbuckle.AspNetCore.SwaggerGen;
 using System.Reflection;
+using System.Text;
+
+
 var builder = WebApplication.CreateBuilder(args);
+
+// Configure Serilog early so startup logs go to configured sinks
+try
+{
+    var cfg = builder.Configuration;
+    var defaultLogDir = System.IO.Path.Combine(builder.Environment.ContentRootPath, "logs");
+    System.IO.Directory.CreateDirectory(defaultLogDir);
+
+    var connStr = cfg.GetConnectionString("Default");
+
+    var loggerConfig = new LoggerConfiguration()
+        .Enrich.FromLogContext()
+        .WriteTo.File(System.IO.Path.Combine(defaultLogDir, "hms-.log"), rollingInterval: RollingInterval.Day, retainedFileCountLimit: 14);
+
+    // If DB connection available, attempt to enable MSSQL sink (auto-create table when possible)
+    if (!string.IsNullOrWhiteSpace(connStr))
+    {
+        try
+        {
+            // test connectivity
+            using var test = new Microsoft.Data.SqlClient.SqlConnection(connStr);
+            test.Open();
+
+            var sinkOpts = new Serilog.Sinks.MSSqlServer.MSSqlServerSinkOptions { TableName = "Logs", AutoCreateSqlTable = true };
+            var columnOptions = new Serilog.Sinks.MSSqlServer.ColumnOptions();
+            // remove LogEvent column to avoid storing large payloads; keep defaults otherwise
+            try { columnOptions.Store.Remove(Serilog.Sinks.MSSqlServer.StandardColumn.LogEvent); } catch { }
+
+            loggerConfig = loggerConfig.WriteTo.MSSqlServer(connStr, sinkOpts, columnOptions: columnOptions);
+        }
+        catch (Exception ex)
+        {
+            File.WriteAllText(
+                Path.Combine(builder.Environment.ContentRootPath,
+                "serilog-startup-error.txt"),
+                ex.ToString());
+
+            throw;
+        }
+    }
+
+    Log.Logger = loggerConfig.CreateLogger();
+    builder.Host.UseSerilog();
+}
+catch (Exception ex)
+{
+    // fallback: ensure a simple file-based logger
+    try { Serilog.Log.Logger = new LoggerConfiguration().WriteTo.File("logs/fallback.log").CreateLogger(); } catch { }
+}
+
 
 // Configure Kestrel explicitly so the app can start even if HTTPS dev cert is missing.
 // We attempt to bind both HTTP and HTTPS; if HTTPS bind fails we fall back to HTTP only.
@@ -26,7 +82,15 @@ builder.WebHost.ConfigureKestrel((context, options) =>
     var httpsPort = cfg.GetValue<int?>("Kestrel:Endpoints:Https:Port") ?? 7142;
 
     // Always bind HTTP
-    options.ListenAnyIP(httpPort);
+    try
+    {
+        options.ListenAnyIP(httpPort);
+    }
+    catch (Exception ex)
+    {
+        // Do not fail startup if HTTP port binding is not permitted (hosted environments like Plesk/IIS)
+        Console.Error.WriteLine($"Warning: Failed to bind HTTP endpoint on port {httpPort}, continuing without explicit HTTP bind. Reason: {ex.Message}");
+    }
 
     // Try bind HTTPS using default certificate (development cert) if available.
     try
@@ -70,9 +134,19 @@ builder.Services.AddControllers().AddJsonOptions(opts =>
 var conn = builder.Configuration.GetConnectionString("Default") ?? "Server=(localdb)\\MSSQLLocalDB;Database=HmsDb;Trusted_Connection=True;";
 // Use distinct migrations history tables for each DbContext when they share the same database to avoid conflicts
 builder.Services.AddDbContext<AuthDbContext>(options =>
-    options.UseSqlServer(conn, sqlOptions => sqlOptions.MigrationsHistoryTable("__AuthMigrationsHistory")));
+    options.UseSqlServer(conn, sqlOptions =>
+    {
+        sqlOptions.MigrationsHistoryTable("__AuthMigrationsHistory");
+        // Enable transient error resiliency (retries) to handle transient SQL connectivity issues in production
+        //sqlOptions.EnableRetryOnFailure(maxRetryCount: 5, maxRetryDelay: TimeSpan.FromSeconds(30), errorNumbersToAdd: null);
+    }));
 builder.Services.AddDbContext<HmsDbContext>(options =>
-    options.UseSqlServer(conn, sqlOptions => sqlOptions.MigrationsHistoryTable("__HmsMigrationsHistory")));
+    options.UseSqlServer(conn, sqlOptions =>
+    {
+        sqlOptions.MigrationsHistoryTable("__HmsMigrationsHistory");
+        // Enable transient error resiliency (retries) to handle transient SQL connectivity issues in production
+        //sqlOptions.EnableRetryOnFailure(maxRetryCount: 5, maxRetryDelay: TimeSpan.FromSeconds(30), errorNumbersToAdd: null);
+    }));
 
 
 // Application services
@@ -254,6 +328,9 @@ builder.Services.AddTransient<SimpleResponseExamplesFilter>();
 builder.Services.AddHttpClient();
 builder.Services.AddSingleton<HMS.API.Application.Common.INotificationService, HMS.API.Infrastructure.Common.NotificationService>();
 
+// register LogReadService for UI/diagnostics
+builder.Services.AddSingleton<HMS.API.Infrastructure.Logging.LogReadService>();
+
 // Add SignalR
 builder.Services.AddSignalR();
 
@@ -310,11 +387,21 @@ using (var scope = app.Services.CreateScope())
 {
     try
     {
+        // Allow disabling automatic migrations in production via configuration
+        var applyMigrations = app.Configuration.GetValue<bool?>("ApplyMigrationsOnStartup") ?? true;
         var db = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
-        db.Database.Migrate();
-
         var hdb = scope.ServiceProvider.GetRequiredService<HmsDbContext>();
-        hdb.Database.Migrate();
+
+        if (applyMigrations)
+        {
+            db.Database.Migrate();
+            hdb.Database.Migrate();
+            Log.Logger?.Information("Database migrations applied on startup");
+        }
+        else
+        {
+            Log.Logger?.Information("Skipping database migrations on startup (ApplyMigrationsOnStartup=false)");
+        }
 
         var hasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher>();
         await SeedData.EnsureSeedDataAsync(db, hasher);
@@ -324,8 +411,22 @@ using (var scope = app.Services.CreateScope())
     }
     catch (Exception ex)
     {
-        Console.WriteLine(ex.ToString());
-        throw;
+        // Do not crash the entire process in production for migration issues.
+        // Log the full exception and rethrow only in Development so startup fails fast there.
+        try
+        {
+            Log.Logger?.Error(ex, "Database migration or seed failed during startup");
+        }
+        catch { }
+
+        if (app.Environment.IsDevelopment())
+        {
+            // In development we want to see and fail fast so issues are addressed early
+            Console.WriteLine(ex.ToString());
+            throw;
+        }
+
+        // In non-development environments log and continue so the host/shutdown process can surface
     }
 }
 
@@ -340,7 +441,19 @@ app.UseSwaggerUI(c =>
 //app.UseHttpsRedirection();
 app.UseStaticFiles();
 
+
+var forwardedOptions = new ForwardedHeadersOptions
+{
+    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedHost | ForwardedHeaders.XForwardedProto
+};
+// Optionally add known proxies/networks or clear them if your proxy IPs vary:
+// forwardedOptions.KnownProxies.Add(IPAddress.Parse("1.2.3.4"));
+app.UseForwardedHeaders(forwardedOptions);
+
+// then early: app.UseMiddleware<HybridTenantMiddleware>();
 // tenant middleware must run early to set query filter context
+// Insert request diagnostics (logs incoming headers/body samples and unsuccessful responses)
+app.UseMiddleware<HMS.API.Middleware.RequestDiagnosticsMiddleware>();
 
 if (!app.Environment.IsEnvironment("Migration"))
 {

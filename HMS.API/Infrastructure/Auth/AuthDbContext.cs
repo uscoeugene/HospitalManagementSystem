@@ -20,6 +20,7 @@ namespace HMS.API.Infrastructure.Auth
         public DbSet<Role> Roles { get; set; } = null!;
         public DbSet<Permission> Permissions { get; set; } = null!;
         public DbSet<UserRole> UserRoles { get; set; } = null!;
+        public DbSet<UserDepartment> UserDepartments { get; set; } = null!;
         public DbSet<RolePermission> RolePermissions { get; set; } = null!;
         public DbSet<AuthAudit> AuthAudits { get; set; } = null!;
         public DbSet<RefreshToken> RefreshTokens { get; set; } = null!;
@@ -46,6 +47,7 @@ namespace HMS.API.Infrastructure.Auth
 
                 b.HasMany(u => u.UserRoles).WithOne(ur => ur.User).HasForeignKey(ur => ur.UserId);
                 b.HasMany(u => u.RefreshTokens).WithOne(rt => rt.User).HasForeignKey(rt => rt.UserId);
+                b.HasMany(u => u.UserDepartments).WithOne(ud => ud.User).HasForeignKey(ud => ud.UserId);
             });
 
             modelBuilder.Entity<Role>(b =>
@@ -54,6 +56,14 @@ namespace HMS.API.Infrastructure.Auth
                 b.Property(r => r.Name).IsRequired().HasMaxLength(100);
                 b.HasMany(r => r.UserRoles).WithOne(ur => ur.Role).HasForeignKey(ur => ur.RoleId);
                 b.HasMany(r => r.RolePermissions).WithOne(rp => rp.Role).HasForeignKey(rp => rp.RoleId);
+            });
+
+            modelBuilder.Entity<UserDepartment>(b =>
+            {
+                b.HasKey(ud => ud.Id);
+                b.HasOne(ud => ud.User).WithMany(u => u.UserDepartments).HasForeignKey(ud => ud.UserId).OnDelete(Microsoft.EntityFrameworkCore.DeleteBehavior.Cascade);
+                b.HasOne(ud => ud.Department).WithMany().HasForeignKey(ud => ud.DepartmentId).OnDelete(Microsoft.EntityFrameworkCore.DeleteBehavior.Cascade);
+                b.HasIndex(ud => new { ud.UserId, ud.DepartmentId }).IsUnique();
             });
 
             modelBuilder.Entity<Permission>(b =>

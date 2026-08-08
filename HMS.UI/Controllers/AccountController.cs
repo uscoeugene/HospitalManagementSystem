@@ -54,7 +54,7 @@ namespace HMS.UI.Controllers
                     {
                         var t = await _api.GetAsync<object>($"/tenants/{resolvedTid.Value}");
                         if (t is System.Text.Json.JsonElement te && te.TryGetProperty("name", out var n)) tenantName = n.GetString() ?? string.Empty;
-                        TempData["Info"] = "Tenant information loaded from API based on resolved tenant id.";
+                        //TempData["Info"] = "Hospital information loaded from API based on resolved tenant id.";
 
                         // ensure cookies are set for subsequent requests
                         try
@@ -69,7 +69,7 @@ namespace HMS.UI.Controllers
                     }
                     catch
                     {
-                        TempData["Error"] = "Unable to read tenant information. Please ensure the application is properly configured.";
+                        TempData["Error"] = "Unable to read Hospital information. Please ensure the application is properly configured.";
                     }
                 }
 

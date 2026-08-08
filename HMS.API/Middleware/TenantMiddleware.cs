@@ -21,10 +21,17 @@ namespace HMS.API.Middleware
         {
             try
             {
+                var logger = context.RequestServices.GetService(typeof(Microsoft.Extensions.Logging.ILogger<TenantMiddleware>)) as Microsoft.Extensions.Logging.ILogger<TenantMiddleware>;
+
                 var tid = context.Request.Headers["X-Tenant-Id"].ToString();
                 if (Guid.TryParse(tid, out var g))
                 {
                     CurrentTenantAccessor.CurrentTenantId = g;
+                    logger?.LogDebug("TenantMiddleware: X-Tenant-Id header set current tenant {TenantId}", g);
+                }
+                else if (!string.IsNullOrWhiteSpace(tid))
+                {
+                    logger?.LogWarning("TenantMiddleware: invalid X-Tenant-Id header value: {Value}", tid);
                 }
             }
             catch { }

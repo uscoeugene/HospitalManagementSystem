@@ -97,6 +97,7 @@ namespace HMS.UI.Controllers
                     {
                         i.InventoryItemId,
                         MedicationName = i.MedicationName,
+                        i.ChargeSeparately,
                         i.Dosage,
                         i.Frequency,
                         i.Quantity
@@ -132,6 +133,59 @@ namespace HMS.UI.Controllers
                 model = await RehydrateCreatePrescriptionViewModelAsync(model);
                 return View(model);
             }
+        }
+
+        [HMS.UI.Security.HasPermission("pharmacy.dispense")]
+        public async Task<IActionResult> ChargePrescription(Guid id)
+        {
+            try
+            {
+                var prescription = await _api.GetAsync<PrescriptionViewModel>($"/pharmacy/prescriptions/{id}");
+                if (prescription == null) return NotFound();
+
+                // build a small viewmodel for charging (reuse prescription view)
+                return View(prescription);
+            }
+            catch (Exception ex)
+            {
+                TempData["Error"] = ex.Message;
+                return RedirectToAction(nameof(Prescriptions));
+            }
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        [HMS.UI.Security.HasPermission("pharmacy.dispense")]
+        public async Task<IActionResult> ChargePrescription(Guid id, bool allowOnCredit = false, string? creditReason = null)
+        {
+            try
+            {
+                // create grouped invoice for prescription via billing endpoint
+                var payload = new
+                {
+                    PatientId = (await _api.GetAsync<PrescriptionViewModel>($"/pharmacy/prescriptions/{id}"))?.PatientId,
+                    VisitId = (await _api.GetAsync<PrescriptionViewModel>($"/pharmacy/prescriptions/{id}"))?.VisitId,
+                    Items = (await _api.GetAsync<PrescriptionViewModel>($"/pharmacy/prescriptions/{id}"))?.Items.Where(i => !i.IsSubstituted).Select(i => new { Description = i.MedicationName, UnitPrice = i.Price, Quantity = i.Quantity, SourceId = id, SourceType = "prescription" }).ToArray(),
+                    AllowOnCredit = allowOnCredit,
+                    CreditReason = creditReason
+                };
+
+                var resp = await _api.PostRawAsync("/billing", payload);
+                if (!resp.IsSuccessStatusCode)
+                {
+                    TempData["Error"] = await resp.Content.ReadAsStringAsync();
+                }
+                else
+                {
+                    TempData["Success"] = "Prescription charged (invoice created).";
+                }
+            }
+            catch (Exception ex)
+            {
+                TempData["Error"] = ex.Message;
+            }
+
+            return RedirectToAction(nameof(PrescriptionDetails), new { id = id });
         }
 
         public async Task<IActionResult> PrescriptionDetails(Guid id)

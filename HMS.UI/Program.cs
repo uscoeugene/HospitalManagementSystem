@@ -2,6 +2,7 @@ using HMS.UI.Services;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using System.IdentityModel.Tokens.Jwt;
@@ -12,9 +13,18 @@ var builder = WebApplication.CreateBuilder(args);
 // Configuration
 var apiBase = builder.Configuration["Api:BaseUrl"] ?? "https://localhost:7142/";
 
+builder.Services.AddScoped<ICurrentUiContextService, CurrentUiContextService>();
+builder.Services.AddScoped<HMS.UI.Filters.CurrentUiContextViewDataFilter>();
+
 // Add both Razor Pages and MVC controllers with views so we can use either approach
-builder.Services.AddRazorPages().AddRazorRuntimeCompilation();
-builder.Services.AddControllersWithViews().AddRazorRuntimeCompilation();
+builder.Services.AddRazorPages(options =>
+{
+    options.Conventions.ConfigureFilter(new ServiceFilterAttribute(typeof(HMS.UI.Filters.CurrentUiContextViewDataFilter)));
+}).AddRazorRuntimeCompilation();
+builder.Services.AddControllersWithViews(options =>
+{
+    options.Filters.AddService<HMS.UI.Filters.CurrentUiContextViewDataFilter>();
+}).AddRazorRuntimeCompilation();
 builder.Services.AddHttpContextAccessor();
 // register antiforgery provider so we can support authenticated identities without Name claim
 builder.Services.AddSingleton<Microsoft.AspNetCore.Antiforgery.IAntiforgeryAdditionalDataProvider, HMS.UI.Services.AntiforgeryAdditionalDataProvider>();
@@ -56,7 +66,7 @@ builder.Services.AddScoped<HMS.UI.Services.StaticDataService>();
     })
 .AddCookie(options =>
 {
-    options.LoginPath = "/Account/Login";
+    options.LoginPath = "/Login";
     options.AccessDeniedPath = "/Error/403";
 
     options.Events = new CookieAuthenticationEvents
@@ -68,7 +78,7 @@ builder.Services.AddScoped<HMS.UI.Services.StaticDataService>();
             if (string.IsNullOrWhiteSpace(token))
             {
                 context.RejectPrincipal();
-                context.Response.Redirect("/Account/Login");
+                context.Response.Redirect("/Login");
                 return Task.CompletedTask;
             }
 
@@ -81,13 +91,13 @@ builder.Services.AddScoped<HMS.UI.Services.StaticDataService>();
                 if (jwt.ValidTo < DateTime.UtcNow)
                 {
                     context.RejectPrincipal();
-                    context.Response.Redirect("/Account/Login");
+                    context.Response.Redirect("/Login");
                 }
             }
             catch
             {
                 context.RejectPrincipal();
-                context.Response.Redirect("/Account/Login");
+                context.Response.Redirect("/Login");
             }
 
             return Task.CompletedTask;
@@ -168,7 +178,7 @@ app.MapGet("/", async context =>
     }
     else
     {
-        context.Response.Redirect("/Account/Login");
+        context.Response.Redirect("/Login");
     }
 
     await Task.CompletedTask;

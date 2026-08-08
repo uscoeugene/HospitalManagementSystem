@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using System.Threading.Tasks;
+using System.Net;
 using HMS.API.Infrastructure.Auth;
 using HMS.API.Infrastructure.Persistence;
 using HMS.API.Domain.Common;
@@ -32,20 +33,102 @@ namespace HMS.API.Controllers
         [HttpGet("diagnostics/tenant-resolve")]
         public async Task<IActionResult> ResolveTenantDiagnostic()
         {
-            // Returns information about how the tenant would be resolved for this request
-            var host = Request.Host.Host;
-            var resolver = HttpContext.RequestServices.GetService(typeof(ITenantResolver)) as ITenantResolver;
+            // Returns detailed information about how the tenant would be resolved for this request
+            var svcProvider = HttpContext.RequestServices;
+            var resolver = svcProvider.GetService(typeof(ITenantResolver)) as ITenantResolver;
+            var cfg = svcProvider.GetService(typeof(Microsoft.Extensions.Configuration.IConfiguration)) as Microsoft.Extensions.Configuration.IConfiguration;
+
+            string hostHeaderRaw = Request.Headers.ContainsKey("Host") ? Request.Headers["Host"].ToString() : string.Empty;
+            string xTenantHost = Request.Headers.ContainsKey("X-Tenant-Host") ? Request.Headers["X-Tenant-Host"].ToString() : string.Empty;
+            string xOriginalHost = Request.Headers.ContainsKey("X-Original-Host") ? Request.Headers["X-Original-Host"].ToString() : string.Empty;
+            string xForwardedHost = Request.Headers.ContainsKey("X-Forwarded-Host") ? Request.Headers["X-Forwarded-Host"].ToString() : string.Empty;
+            string xTenantIdHdr = Request.Headers.ContainsKey("X-Tenant-Id") ? Request.Headers["X-Tenant-Id"].ToString() : string.Empty;
+            string xTenantCodeHdr = Request.Headers.ContainsKey("X-Tenant-Code") ? Request.Headers["X-Tenant-Code"].ToString() : string.Empty;
+
+            string host = Request.Host.Host;
+            try
+            {
+                // mirror middleware logic
+                if (!string.IsNullOrWhiteSpace(xTenantHost)) host = xTenantHost.Split(',')[0].Trim();
+                else if (!string.IsNullOrWhiteSpace(xOriginalHost)) host = xOriginalHost.Split(',')[0].Trim();
+                else if (!string.IsNullOrWhiteSpace(xForwardedHost)) host = xForwardedHost.Split(',')[0].Trim();
+                else if (!string.IsNullOrWhiteSpace(hostHeaderRaw)) host = hostHeaderRaw.Split(',')[0].Trim();
+            }
+            catch { }
+
+            // normalize
+            if (!string.IsNullOrWhiteSpace(host))
+            {
+                var ci = host.IndexOf(':');
+                if (ci > 0) host = host.Substring(0, ci).Trim();
+                host = host.Trim();
+            }
+
             Guid? resolved = null;
             if (resolver != null)
             {
-                resolved = await resolver.ResolveTenantIdFromHostAsync(host);
+                try { resolved = await resolver.ResolveTenantIdFromHostAsync(host); } catch { /* swallow for diagnostics */ }
             }
 
-            // also include middleware-item if present
+            // middleware resolved tenant (if middleware ran earlier in pipeline)
             Guid? middleware = null;
             if (HttpContext.Items.TryGetValue("TenantId", out var tv) && tv is Guid g) middleware = g;
 
-            return Ok(new { host, resolvedFromResolver = resolved, resolvedByMiddleware = middleware });
+            // current tenant accessor
+            var currentTenant = HMS.API.Application.Common.CurrentTenantAccessor.CurrentTenantId;
+
+            // platform domain list
+            var platformList = cfg?.GetSection("PlatformDomains").Get<string[]>() ?? Array.Empty<string>();
+            bool isPlatformDomain = Array.Exists(platformList, d => string.Equals(d, host, StringComparison.OrdinalIgnoreCase));
+
+            // Attempt to lookup tenant by domain and subdomain behavior for diagnostics
+            object? tenantDomainRecord = null;
+            try
+            {
+                if (resolver != null)
+                {
+                    // We don't have direct DB access here; attempt to call resolver internal logic if available
+                    // Also attempt DNS resolution for host
+                    try
+                    {
+                        var addrs = await Dns.GetHostAddressesAsync(host);
+                        tenantDomainRecord = addrs.Select(a => a.ToString()).ToArray();
+                    }
+                    catch (Exception dex)
+                    {
+                        tenantDomainRecord = new { dnsError = dex.Message };
+                    }
+                }
+            }
+            catch { }
+
+            var result = new
+            {
+                request = new
+                {
+                    scheme = Request.Scheme,
+                    isHttps = Request.IsHttps,
+                    path = Request.Path.Value,
+                    hostHeaderRaw,
+                    xTenantHost,
+                    xOriginalHost,
+                    xForwardedHost,
+                    remoteIp = HttpContext.Connection.RemoteIpAddress?.ToString(),
+                    xTenantIdHdr,
+                    xTenantCodeHdr
+                },
+                normalizedHost = host,
+                isPlatformDomain,
+                resolvedFromResolver = resolved,
+                resolvedByMiddleware = middleware,
+                currentTenantAccessor = currentTenant,
+                dns = tenantDomainRecord,
+                notes = new {
+                    message = "If resolvedByMiddleware is null but resolvedFromResolver has a value, middleware may not be running or host header may be stripped by the proxy. If both are null, ensure tenant domain record exists in DB or send X-Tenant-Code header as a workaround."
+                }
+            };
+
+            return Ok(result);
         }
 
         [HttpPost("{id}/set-local-default")]

@@ -1,6 +1,6 @@
 @model HMS.UI.Models.CreateConsultationViewModel
 @{
-    Layout = "~/Pages/_Layout.cshtml";
+    
     var providers = ViewBag.Providers as IEnumerable<HMS.UI.Models.Profile.ProviderViewModel> ?? Enumerable.Empty<HMS.UI.Models.Profile.ProviderViewModel>();
     var doctorOptions = providers.Any(p => p.IsDoctor) ? providers.Where(p => p.IsDoctor) : providers;
     var currentDoctor = ViewBag.CurrentDoctor as HMS.UI.Models.Profile.ProviderViewModel;

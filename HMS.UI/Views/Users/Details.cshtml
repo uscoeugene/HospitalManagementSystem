@@ -1,6 +1,6 @@
 @model HMS.UI.Models.Users.UserListItemViewModel
 @{
-    Layout = "~/Pages/_Layout.cshtml";
+    
     ViewData["Title"] = "User Details";
     var initials = (string.IsNullOrWhiteSpace(Model.Username) ? "U" : Model.Username.Substring(0, 1)).ToUpperInvariant();
 }

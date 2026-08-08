@@ -1,6 +1,6 @@
 @model HMS.UI.Models.Users.UserEditViewModel
 @{
-    Layout = "~/Pages/_Layout.cshtml";
+    
     ViewData["Title"] = "Manage User";
     var roles = Model.Roles ?? Array.Empty<HMS.UI.Models.Users.RoleViewModel>();
     var assigned = Model.AssignedRoleIds ?? Array.Empty<Guid>();

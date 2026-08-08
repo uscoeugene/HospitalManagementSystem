@@ -146,12 +146,42 @@ namespace HMS.API.Application.Pharmacy
                 throw new InvalidOperationException("No inventory item is linked. Pharmacist should reconcile or substitute before dispensing.");
             }
 
-            if (inventory.Stock < req.Quantity)
+            // Authorization: ensure user has inventory.dispense permission
+            if (!_currentUserService.HasPermission("inventory.dispense"))
+            {
+                throw new UnauthorizedAccessException("User does not have permission to dispense inventory.");
+            }
+
+            // Allocate from batches (FEFO) across stores if necessary
+            var batches = await _db.InventoryBatches
+                .Where(b => b.ItemId == inventory.Id && b.AvailableQty > 0)
+                .Include(b => b.Store)
+                .OrderBy(b => b.ExpiryDate.HasValue ? b.ExpiryDate.Value : DateOnly.MaxValue)
+                .ThenByDescending(b => b.AvailableQty)
+                .ToListAsync();
+
+            // Department membership check: allow dispensing from any batch where user belongs to that store's department
+            var userDeptIds = _currentUserService.DepartmentIds?.ToHashSet() ?? new System.Collections.Generic.HashSet<Guid>();
+            var hasGlobalManage = _currentUserService.HasPermission("inventory.manage");
+            if (!hasGlobalManage)
+            {
+                var allowedBatches = batches.Where(b => b.Store != null && b.Store.DepartmentId.HasValue && userDeptIds.Contains(b.Store.DepartmentId.Value)).ToList();
+                if (!allowedBatches.Any())
+                {
+                    throw new UnauthorizedAccessException("User is not a member of the department that owns any available inventory batches for this item.");
+                }
+
+                // restrict batches to allowed set (so the allocation only consumes from department-owned batches)
+                batches = allowedBatches;
+            }
+
+            var totalAvailable = batches.Sum(b => b.AvailableQty);
+            if (totalAvailable < req.Quantity)
             {
                 item.InventoryItemId = inventory.Id;
                 item.InventoryItem = inventory;
                 item.FulfillmentStatus = PrescriptionItemStatus.OUT_OF_STOCK;
-                item.ShortageReason = $"Only {inventory.Stock} unit(s) available for {inventory.Name}.";
+                item.ShortageReason = $"Only {totalAvailable} unit(s) available for {inventory.Name}.";
                 await _db.SaveChangesAsync();
                 throw new InvalidOperationException("Insufficient stock for this dispense quantity.");
             }
@@ -172,7 +202,47 @@ namespace HMS.API.Application.Pharmacy
                 item.SubstituteMedicationName = item.IsSubstituted ? dispensedMedicationName : null;
                 item.ShortageReason = null;
 
-                inventory.Stock -= req.Quantity;
+                // consume from batches
+                var remaining = req.Quantity;
+                foreach (var batchToUse in batches)
+                {
+                    if (remaining <= 0) break;
+                    var take = Math.Min(batchToUse.AvailableQty, remaining);
+                    if (take <= 0) continue;
+
+                    // reduce batch available qty
+                    batchToUse.AvailableQty -= take;
+
+                    // create stock transaction (negative quantity for removal)
+                    var st = new StockTransaction
+                    {
+                        ItemId = inventory.Id,
+                        BatchId = batchToUse.Id,
+                        StoreId = batchToUse.StoreId,
+                        TransactionType = StockTransactionType.DISPENSE,
+                        Quantity = -take,
+                        UnitCost = batchToUse.PurchasePrice,
+                        ReferenceType = "prescription",
+                        ReferenceId = item.Id,
+                        CreatedBy = _currentUserService.UserId ?? Guid.Empty
+                    };
+                    _db.StockTransactions.Add(st);
+
+                    // record a dispense transaction per batch used
+                    var dt = new DispenseTransaction
+                    {
+                        PrescriptionItemId = item.Id,
+                        BatchId = batchToUse.Id,
+                        Quantity = take,
+                        DispensedBy = _currentUserService.UserId ?? Guid.Empty
+                    };
+                    _db.DispenseTransactions.Add(dt);
+
+                    remaining -= take;
+                }
+
+                // update inventory aggregate stock and dispensed quantity
+                inventory.Stock = Math.Max(0, inventory.Stock - req.Quantity);
                 item.DispensedQuantity += req.Quantity;
 
                 if (!string.IsNullOrWhiteSpace(req.Note))

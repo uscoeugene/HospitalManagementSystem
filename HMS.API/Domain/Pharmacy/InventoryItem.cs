@@ -17,6 +17,17 @@ namespace HMS.API.Domain.Pharmacy
         public Guid? CategoryId { get; set; }
         public InventoryCategory? Category { get; set; }
 
+        // backward-compatible free-text unit (kept for UI compatibility)
         public string? Unit { get; set; } // e.g., box, piece, vial
+
+        // New structured inventory model fields
+        // Reference to canonical base unit for the item (optional)
+        public Guid? BaseUnitId { get; set; }
+        public UnitOfMeasure? BaseUnit { get; set; }
+
+        // Tracking flags
+        public bool IsBatchTracked { get; set; } = false;
+        public bool IsExpiryTracked { get; set; } = false;
+        public bool IsActive { get; set; } = true;
     }
 }

@@ -51,6 +51,14 @@ namespace HMS.API.Infrastructure.Auth
 
             db.Permissions.AddRange(permPharmView, permPharmManage, permPharmInventory, permPharmDelete, permPharmCreate, permPharmDispense);
 
+            // Generic inventory/stock permissions (department-scoped in authorization checks)
+            var permInventoryView = new Permission { Code = "inventory.view", Description = "View inventory and stock across stores" };
+            var permInventoryManage = new Permission { Code = "inventory.manage", Description = "Manage inventory (receive/adjust)" };
+            var permInventoryReceive = new Permission { Code = "inventory.receive", Description = "Receive purchase orders and create batches" };
+            var permInventoryDispense = new Permission { Code = "inventory.dispense", Description = "Dispense items from inventory (department scoped)" };
+
+            db.Permissions.AddRange(permInventoryView, permInventoryManage, permInventoryReceive, permInventoryDispense);
+
             // profile permissions
             var permProfileRead = new Permission { Code = "PROFILE.READ", Description = "Read user profiles" };
             var permProfileUpdate = new Permission { Code = "PROFILE.UPDATE", Description = "Update user profiles" };
@@ -132,6 +140,11 @@ namespace HMS.API.Infrastructure.Auth
             // grant lab role credit permission
             db.RolePermissions.Add(new RolePermission { Role = labRole, Permission = permLabChargeOnCredit });
 
+            // lab staff should be able to manage their department inventory (Lab store) but not pharmacy-wide inventory
+            db.RolePermissions.Add(new RolePermission { Role = labRole, Permission = permInventoryView });
+            db.RolePermissions.Add(new RolePermission { Role = labRole, Permission = permInventoryManage });
+            db.RolePermissions.Add(new RolePermission { Role = labRole, Permission = permInventoryDispense });
+
             // assign permissions to pharmacist role
             db.RolePermissions.Add(new RolePermission { Role = pharmRole, Permission = permPharmView });
             db.RolePermissions.Add(new RolePermission { Role = pharmRole, Permission = permPharmCreate });
@@ -141,6 +154,12 @@ namespace HMS.API.Infrastructure.Auth
             db.RolePermissions.Add(new RolePermission { Role = pharmRole, Permission = permPharmDelete });
             // grant pharmacist credit permission
             db.RolePermissions.Add(new RolePermission { Role = pharmRole, Permission = permPharmDispenseOnCredit });
+
+            // pharmacists should have generic inventory permissions as well (for cross-department operations if needed)
+            db.RolePermissions.Add(new RolePermission { Role = pharmRole, Permission = permInventoryView });
+            db.RolePermissions.Add(new RolePermission { Role = pharmRole, Permission = permInventoryManage });
+            db.RolePermissions.Add(new RolePermission { Role = pharmRole, Permission = permInventoryReceive });
+            db.RolePermissions.Add(new RolePermission { Role = pharmRole, Permission = permInventoryDispense });
 
             await db.SaveChangesAsync();
 

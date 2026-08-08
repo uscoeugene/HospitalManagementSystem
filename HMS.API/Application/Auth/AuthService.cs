@@ -104,7 +104,10 @@ namespace HMS.API.Application.Auth
 
             var permissions = user.UserRoles.SelectMany(ur => ur.Role.RolePermissions).Select(rp => rp.Permission.Code).Distinct().ToArray();
 
-            var token = BuildJwtToken(user.Id, user.Username, permissions, user.TenantId);
+            // collect department memberships to include in JWT
+            var deptIds = _db.UserDepartments.AsNoTracking().Where(ud => ud.UserId == user.Id).Select(ud => ud.DepartmentId).ToArray();
+
+            var token = BuildJwtToken(user.Id, user.Username, permissions, user.TenantId, deptIds);
             var (refreshPlain, refreshEntity) = await CreateRefreshToken(user);
 
             var audit = new Domain.Auth.AuthAudit
@@ -231,7 +234,8 @@ namespace HMS.API.Application.Auth
                 displayName = request.Username;
             }
 
-            var token = BuildJwtToken(user.Id, user.Username, permissions, user.TenantId);
+            var deptIdsReg = _db.UserDepartments.AsNoTracking().Where(ud => ud.UserId == user.Id).Select(ud => ud.DepartmentId).ToArray();
+            var token = BuildJwtToken(user.Id, user.Username, permissions, user.TenantId, deptIdsReg);
             var (refreshPlain, refreshEntity) = await CreateRefreshToken(user);
 
             var audit = new Domain.Auth.AuthAudit
@@ -274,7 +278,7 @@ namespace HMS.API.Application.Auth
             return (plain, rt);
         }
 
-        private (string tokenString, DateTimeOffset expiresAt) BuildJwtToken(Guid userId, string username, IEnumerable<string> permissions, Guid? tenantId = null)
+        private (string tokenString, DateTimeOffset expiresAt) BuildJwtToken(Guid userId, string username, IEnumerable<string> permissions, Guid? tenantId = null, IEnumerable<Guid>? departmentIds = null)
         {
             var key = _config["Jwt:Key"] ?? throw new InvalidOperationException("Jwt:Key not configured");
             var issuer = _config["Jwt:Issuer"] ?? "hms";
@@ -295,6 +299,24 @@ namespace HMS.API.Application.Auth
             }
 
             claims.AddRange(permissions.Select(p => new Claim("permission", p)));
+
+            // include departments as a JSON array claim for easier parsing by clients
+            if (departmentIds != null)
+            {
+                try
+                {
+                    var arr = System.Text.Json.JsonSerializer.Serialize(departmentIds);
+                    claims.Add(new Claim("departments", arr));
+                }
+                catch
+                {
+                    // fallback to individual claims if serialization fails
+                    foreach (var d in departmentIds)
+                    {
+                        claims.Add(new Claim("department_id", d.ToString()));
+                    }
+                }
+            }
 
             // Ensure key is at least 256 bits for HS256. If configured key is shorter, derive a 256-bit key using SHA256.
             var keyBytes = Encoding.UTF8.GetBytes(key);
@@ -336,7 +358,8 @@ namespace HMS.API.Application.Auth
 
             var user = rt.User;
             var permissions = user.UserRoles.SelectMany(ur => ur.Role.RolePermissions).Select(rp => rp.Permission.Code).Distinct().ToArray();
-            var token = BuildJwtToken(user.Id, user.Username, permissions, user.TenantId);
+            var deptIds = _db.UserDepartments.AsNoTracking().Where(ud => ud.UserId == user.Id).Select(ud => ud.DepartmentId).ToArray();
+            var token = BuildJwtToken(user.Id, user.Username, permissions, user.TenantId, deptIds);
 
             // rotate refresh token
             rt.IsRevoked = true;

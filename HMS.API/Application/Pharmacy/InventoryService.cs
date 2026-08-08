@@ -19,6 +19,8 @@ namespace HMS.API.Application.Pharmacy
         Task UpdateAsync(Guid id, UpdateInventoryItemRequest req);
         Task DeleteAsync(Guid id);
         Task AdjustStockAsync(Guid id, int delta);
+        Task<InventoryBatch[]> ListBatchesAsync(Guid? itemId = null);
+        Task<InventoryBatch> CreateBatchAsync(CreateInventoryBatchRequest req);
     }
 
     public class InventoryService : IInventoryService
@@ -140,6 +142,53 @@ namespace HMS.API.Application.Pharmacy
             await _db.SaveChangesAsync();
             _db.InventoryAudits.Add(new InventoryAudit { InventoryItemId = it.Id, ChangeType = "StockAdjusted", Details = $"Delta: {delta}, Before: {before}, After: {it.Stock}", PerformedBy = _currentUserService.UserId ?? Guid.Empty });
             await _db.SaveChangesAsync();
+        }
+
+        public async Task<InventoryBatch[]> ListBatchesAsync(Guid? itemId = null)
+        {
+            var q = _db.InventoryBatches.AsNoTracking().Include(b => b.Item).Include(b => b.Store).Where(b => !b.IsDeleted);
+            if (itemId.HasValue) q = q.Where(b => b.ItemId == itemId.Value);
+            return await q.ToArrayAsync();
+        }
+
+        public async Task<InventoryBatch> CreateBatchAsync(CreateInventoryBatchRequest req)
+        {
+            var item = await _db.InventoryItems.SingleOrDefaultAsync(i => i.Id == req.ItemId);
+            if (item == null) throw new InvalidOperationException("Item not found");
+            var store = await _db.Stores.SingleOrDefaultAsync(s => s.Id == req.StoreId);
+            if (store == null) throw new InvalidOperationException("Store not found");
+
+            var batch = new InventoryBatch
+            {
+                ItemId = req.ItemId,
+                StoreId = req.StoreId,
+                BatchNumber = req.BatchNumber ?? string.Empty,
+                ExpiryDate = req.ExpiryDate,
+                ManufactureDate = req.ManufactureDate,
+                PurchasePrice = req.PurchasePrice,
+                SellingPrice = req.SellingPrice,
+                ReceivedQty = req.Quantity,
+                AvailableQty = req.Quantity
+            };
+            _db.InventoryBatches.Add(batch);
+
+            var tx = new StockTransaction
+            {
+                ItemId = req.ItemId,
+                Batch = batch,
+                StoreId = req.StoreId,
+                TransactionType = StockTransactionType.PURCHASE,
+                Quantity = req.Quantity,
+                UnitCost = req.PurchasePrice,
+                ReferenceType = "batch_create",
+                ReferenceId = null,
+                CreatedBy = _currentUserService.UserId ?? Guid.Empty
+            };
+            _db.StockTransactions.Add(tx);
+
+            item.Stock += req.Quantity;
+            await _db.SaveChangesAsync();
+            return batch;
         }
     }
 }

@@ -210,10 +210,22 @@ public class UserManagementService : IUserManagementService
         _authDb.Users.Add(user);
         await _authDb.SaveChangesAsync();
 
-        foreach (var role in roles)
-        {
-            _authDb.UserRoles.Add(new Domain.Auth.UserRole { UserId = user.Id, RoleId = role.Id });
-        }
+            foreach (var role in roles)
+            {
+                _authDb.UserRoles.Add(new Domain.Auth.UserRole { UserId = user.Id, RoleId = role.Id });
+            }
+
+            // assign departments if provided
+            var createReq = request as HMS.API.Application.Auth.DTOs.CreateUserRequest;
+            if (createReq != null && createReq.DepartmentIds != null)
+            {
+                foreach (var did in createReq.DepartmentIds.Distinct())
+                {
+                    _authDb.UserDepartments.Add(new Domain.Auth.UserDepartment { UserId = user.Id, DepartmentId = did, TenantId = user.TenantId });
+                }
+            }
+
+            
 
         _authDb.AuthAudits.Add(new Domain.Auth.AuthAudit
         {
@@ -303,6 +315,17 @@ public class UserManagementService : IUserManagementService
             {
                 _authDb.UserRoles.Add(new Domain.Auth.UserRole { UserId = userId, RoleId = roleId });
             }
+        }
+
+        // Update department memberships if provided
+        if (request.DepartmentIds != null)
+        {
+            var existing = await _authDb.UserDepartments.Where(ud => ud.UserId == userId).ToListAsync();
+            var toRemove = existing.Where(e => !request.DepartmentIds.Contains(e.DepartmentId)).ToList();
+            var toAdd = request.DepartmentIds.Where(d => !existing.Any(e => e.DepartmentId == d)).Distinct().ToList();
+
+            if (toRemove.Any()) _authDb.UserDepartments.RemoveRange(toRemove);
+            foreach (var d in toAdd) _authDb.UserDepartments.Add(new Domain.Auth.UserDepartment { UserId = userId, DepartmentId = d, TenantId = user.TenantId });
         }
 
         await _authDb.SaveChangesAsync();

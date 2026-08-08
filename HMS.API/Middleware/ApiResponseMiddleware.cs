@@ -65,7 +65,9 @@ namespace HMS.API.Middleware
                 catch { }
             }
 
-            var apiResp = ApiResponse<object>.ForError(code, message, status);
+            // Build structured error with optional detail
+            var detail = _env.IsDevelopment() ? ex.ToString() : ex.Message;
+            var apiResp = ApiResponse<object>.ForError(code, ex.Message, status, detail);
 
             context.Response.StatusCode = status;
             context.Response.ContentType = "application/json";

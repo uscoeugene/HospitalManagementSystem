@@ -11,8 +11,13 @@ namespace HMS.API.Middleware
     public class ApiResponseWrappingMiddleware
     {
         private readonly RequestDelegate _next;
+        private readonly ILogger<ApiResponseWrappingMiddleware> _logger;
 
-        public ApiResponseWrappingMiddleware(RequestDelegate next) => _next = next;
+        public ApiResponseWrappingMiddleware(RequestDelegate next, ILogger<ApiResponseWrappingMiddleware> logger)
+        {
+            _next = next;
+            _logger = logger;
+        }
 
         public async Task InvokeAsync(HttpContext context)
         {
@@ -65,7 +70,27 @@ namespace HMS.API.Middleware
 
             var status = context.Response.StatusCode;
             var wrappedType = typeof(ApiResponse<object>);
-            var wrapped = ApiResponse<object>.ForSuccess(payload, status);
+            // Ensure success responses follow standard envelope
+            object? dataObj = payload;
+            // If payload already looks like { items: ... } keep as-is, otherwise wrap into { items = payload }
+            try
+            {
+                if (payload is System.Text.Json.JsonElement je && je.ValueKind == System.Text.Json.JsonValueKind.Object && je.TryGetProperty("items", out _))
+                {
+                    dataObj = payload;
+                }
+                else if (payload is System.Text.Json.JsonElement je2 && je2.ValueKind == System.Text.Json.JsonValueKind.Array)
+                {
+                    dataObj = new { items = je2 };
+                }
+                else if (payload is System.Collections.IEnumerable && !(payload is string))
+                {
+                    dataObj = new { items = payload };
+                }
+            }
+            catch { }
+
+            var wrapped = ApiResponse<object>.ForSuccess(dataObj, status);
 
             context.Response.ContentType = "application/json";
             context.Response.Body = originalBody;

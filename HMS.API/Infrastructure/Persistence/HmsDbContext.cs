@@ -58,9 +58,24 @@ namespace HMS.API.Infrastructure.Persistence
         public DbSet<HMS.API.Domain.Pharmacy.InventoryItem> InventoryItems { get; set; } = null!;
         public DbSet<HMS.API.Domain.Pharmacy.InventoryCategory> InventoryCategories { get; set; } = null!;
         public DbSet<HMS.API.Domain.Pharmacy.InventoryAudit> InventoryAudits { get; set; } = null!;
+        public DbSet<HMS.API.Domain.Pharmacy.UnitOfMeasure> Units { get; set; } = null!;
+        public DbSet<HMS.API.Domain.Pharmacy.ItemUnitConversion> ItemUnitConversions { get; set; } = null!;
+        public DbSet<HMS.API.Domain.Pharmacy.Store> Stores { get; set; } = null!;
+        public DbSet<HMS.API.Domain.Organization.Department> Departments { get; set; } = null!;
+        public DbSet<HMS.API.Domain.Pharmacy.InventoryBatch> InventoryBatches { get; set; } = null!;
+        public DbSet<HMS.API.Domain.Pharmacy.StockTransaction> StockTransactions { get; set; } = null!;
+        public DbSet<HMS.API.Domain.Pharmacy.Supplier> Suppliers { get; set; } = null!;
+        public DbSet<HMS.API.Domain.Pharmacy.PurchaseOrder> PurchaseOrders { get; set; } = null!;
+        public DbSet<HMS.API.Domain.Pharmacy.PurchaseOrderLine> PurchaseOrderLines { get; set; } = null!;
+        public DbSet<HMS.API.Domain.Pharmacy.DispenseTransaction> DispenseTransactions { get; set; } = null!;
+        public DbSet<HMS.API.Domain.Pharmacy.Service> Services { get; set; } = null!;
+        public DbSet<HMS.API.Domain.Pharmacy.ServiceItem> ServiceItems { get; set; } = null!;
+        public DbSet<HMS.API.Domain.Pharmacy.StockBalance> StockBalances { get; set; } = null!;
 
         // Profiles - integrated into the main HMS DB
         public DbSet<UserProfile> UserProfiles { get; set; } = null!;
+        // Serilog log entries
+        public DbSet<HMS.API.Domain.Common.LogEntry> Logs { get; set; } = null!;
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -131,6 +146,25 @@ namespace HMS.API.Infrastructure.Persistence
                 b.HasIndex(p => p.MedicalRecordNumber).IsUnique(false);
 
                 b.HasIndex(p => new { p.TenantId, p.MedicalRecordNumber });
+            });
+
+            // Serilog log entries mapping - allow querying Logs table via EF
+            modelBuilder.Entity<HMS.API.Domain.Common.LogEntry>(b =>
+            {
+                b.HasKey(l => l.Id);
+                // Convert DateTimeOffset <-> DateTime for compatibility with existing Log table column types
+                var dtoConverter = new Microsoft.EntityFrameworkCore.Storage.ValueConversion.ValueConverter<DateTimeOffset, DateTime>(
+                    v => v.UtcDateTime,
+                    v => DateTime.SpecifyKind(v, DateTimeKind.Utc));
+
+                b.Property(l => l.TimeStamp).HasConversion(dtoConverter).IsRequired();
+                b.Property(l => l.Level).HasMaxLength(128);
+                b.Property(l => l.Message).HasColumnType("nvarchar(max)");
+                b.Property(l => l.Exception).HasColumnType("nvarchar(max)");
+                b.Property(l => l.Properties).HasColumnType("nvarchar(max)");
+                b.Property(l => l.LogEvent).HasColumnType("nvarchar(max)");
+                b.HasIndex(l => l.TimeStamp);
+                b.HasIndex(l => l.Level);
             });
 
             modelBuilder.Entity<Visit>(b =>
@@ -320,6 +354,7 @@ namespace HMS.API.Infrastructure.Persistence
                 b.HasIndex(i => i.Code);
                 b.HasIndex(i => i.CategoryId);
                 b.HasOne(i => i.Category).WithMany(c => c.Items).HasForeignKey(i => i.CategoryId).OnDelete(Microsoft.EntityFrameworkCore.DeleteBehavior.SetNull);
+                b.HasOne(i => i.BaseUnit).WithMany().HasForeignKey(i => i.BaseUnitId).OnDelete(Microsoft.EntityFrameworkCore.DeleteBehavior.SetNull);
             });
 
             modelBuilder.Entity<HMS.API.Domain.Pharmacy.InventoryCategory>(b =>
@@ -336,6 +371,111 @@ namespace HMS.API.Infrastructure.Persistence
                 b.Property(a => a.ChangeType).HasMaxLength(50);
                 b.Property(a => a.Details).HasMaxLength(2000);
                 b.HasIndex(a => a.InventoryItemId);
+            });
+
+            modelBuilder.Entity<HMS.API.Domain.Pharmacy.UnitOfMeasure>(b =>
+            {
+                b.HasKey(u => u.Id);
+                b.Property(u => u.Code).IsRequired().HasMaxLength(50);
+                b.Property(u => u.Name).IsRequired().HasMaxLength(200);
+                b.HasIndex(u => u.Code).IsUnique(false);
+            });
+
+            modelBuilder.Entity<HMS.API.Domain.Pharmacy.ItemUnitConversion>(b =>
+            {
+                b.HasKey(c => c.Id);
+                b.HasOne(c => c.Item).WithMany().HasForeignKey(c => c.ItemId).OnDelete(Microsoft.EntityFrameworkCore.DeleteBehavior.Cascade);
+                b.HasOne(c => c.Unit).WithMany().HasForeignKey(c => c.UnitId).OnDelete(Microsoft.EntityFrameworkCore.DeleteBehavior.Cascade);
+                b.Property(c => c.BaseUnitQty).IsRequired();
+            });
+
+            modelBuilder.Entity<HMS.API.Domain.Pharmacy.Store>(b =>
+            {
+                b.HasKey(s => s.Id);
+                b.Property(s => s.StoreName).IsRequired().HasMaxLength(200);
+                b.Property(s => s.StoreType).HasMaxLength(100);
+                b.HasOne(s => s.Department).WithMany().HasForeignKey(s => s.DepartmentId).OnDelete(Microsoft.EntityFrameworkCore.DeleteBehavior.SetNull);
+            });
+
+            modelBuilder.Entity<HMS.API.Domain.Organization.Department>(b =>
+            {
+                b.HasKey(d => d.Id);
+                b.Property(d => d.Code).HasMaxLength(100);
+                b.Property(d => d.Name).IsRequired().HasMaxLength(200);
+                b.Property(d => d.Description).HasMaxLength(1000);
+                b.HasIndex(d => d.Code).IsUnique(false);
+            });
+
+            modelBuilder.Entity<HMS.API.Domain.Pharmacy.InventoryBatch>(b =>
+            {
+                b.HasKey(bi => bi.Id);
+                b.HasOne(bi => bi.Item).WithMany().HasForeignKey(bi => bi.ItemId).OnDelete(Microsoft.EntityFrameworkCore.DeleteBehavior.Cascade);
+                b.HasOne(bi => bi.Store).WithMany().HasForeignKey(bi => bi.StoreId).OnDelete(Microsoft.EntityFrameworkCore.DeleteBehavior.Cascade);
+                b.Property(bi => bi.BatchNumber).HasMaxLength(200);
+                b.HasIndex(bi => bi.BatchNumber);
+            });
+
+            modelBuilder.Entity<HMS.API.Domain.Pharmacy.Supplier>(b =>
+            {
+                b.HasKey(s => s.Id);
+                b.Property(s => s.SupplierName).IsRequired().HasMaxLength(300);
+                b.Property(s => s.ContactInfo).HasMaxLength(2000);
+            });
+
+            modelBuilder.Entity<HMS.API.Domain.Pharmacy.PurchaseOrder>(b =>
+            {
+                b.HasKey(p => p.Id);
+                b.HasOne(p => p.Supplier).WithMany(s => s.PurchaseOrders).HasForeignKey(p => p.SupplierId).OnDelete(Microsoft.EntityFrameworkCore.DeleteBehavior.Restrict);
+                b.Property(p => p.OrderDate).IsRequired();
+            });
+
+            modelBuilder.Entity<HMS.API.Domain.Pharmacy.PurchaseOrderLine>(b =>
+            {
+                b.HasKey(l => l.Id);
+                b.HasOne(l => l.PurchaseOrder).WithMany(p => p.Items).HasForeignKey(l => l.PurchaseOrderId).OnDelete(Microsoft.EntityFrameworkCore.DeleteBehavior.Cascade);
+                b.HasOne(l => l.Item).WithMany().HasForeignKey(l => l.ItemId).OnDelete(Microsoft.EntityFrameworkCore.DeleteBehavior.Restrict);
+                b.HasOne(l => l.Unit).WithMany().HasForeignKey(l => l.UnitId).OnDelete(Microsoft.EntityFrameworkCore.DeleteBehavior.Restrict);
+            });
+
+            modelBuilder.Entity<HMS.API.Domain.Pharmacy.DispenseTransaction>(b =>
+            {
+                b.HasKey(d => d.Id);
+                b.HasOne<HMS.API.Domain.Pharmacy.InventoryBatch>().WithMany().HasForeignKey(d => d.BatchId).OnDelete(Microsoft.EntityFrameworkCore.DeleteBehavior.SetNull);
+                b.Property(d => d.DispensedAt).IsRequired();
+            });
+
+            modelBuilder.Entity<HMS.API.Domain.Pharmacy.Service>(b =>
+            {
+                b.HasKey(s => s.Id);
+                b.Property(s => s.ServiceCode).HasMaxLength(100);
+                b.Property(s => s.ServiceName).IsRequired().HasMaxLength(300);
+                b.Property(s => s.Price).HasColumnType("decimal(18,2)");
+            });
+
+            modelBuilder.Entity<HMS.API.Domain.Pharmacy.ServiceItem>(b =>
+            {
+                b.HasKey(si => si.Id);
+                b.HasOne(si => si.Service).WithMany(s => s.Items).HasForeignKey(si => si.ServiceId).OnDelete(Microsoft.EntityFrameworkCore.DeleteBehavior.Cascade);
+                b.HasOne(si => si.Item).WithMany().HasForeignKey(si => si.ItemId).OnDelete(Microsoft.EntityFrameworkCore.DeleteBehavior.Restrict);
+                b.HasOne(si => si.Unit).WithMany().HasForeignKey(si => si.UnitId).OnDelete(Microsoft.EntityFrameworkCore.DeleteBehavior.Restrict);
+            });
+
+            // Keyless entity mapped to a view (client must create view or we can materialize via query)
+            modelBuilder.Entity<HMS.API.Domain.Pharmacy.StockBalance>(b =>
+            {
+                b.HasNoKey();
+                b.ToView("StockBalances");
+            });
+
+            modelBuilder.Entity<HMS.API.Domain.Pharmacy.StockTransaction>(b =>
+            {
+                b.HasKey(st => st.Id);
+                // Prevent cascade delete paths that can cause SQL Server multiple cascade path errors
+                b.HasOne(st => st.Item).WithMany().HasForeignKey(st => st.ItemId).OnDelete(Microsoft.EntityFrameworkCore.DeleteBehavior.Restrict);
+                b.HasOne(st => st.Batch).WithMany().HasForeignKey(st => st.BatchId).OnDelete(Microsoft.EntityFrameworkCore.DeleteBehavior.SetNull);
+                b.HasOne(st => st.Store).WithMany().HasForeignKey(st => st.StoreId).OnDelete(Microsoft.EntityFrameworkCore.DeleteBehavior.Restrict);
+                b.Property(st => st.TransactionType).HasConversion<string>().HasMaxLength(50);
+                b.HasIndex(st => st.Date);
             });
 
             modelBuilder.Entity<HMS.API.Domain.Pharmacy.Prescription>(b =>

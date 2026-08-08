@@ -59,6 +59,8 @@ public class CreateUserRequest
     public string? JobTitle { get; set; }
     public Guid? TenantId { get; set; }
     public IReadOnlyCollection<Guid> RoleIds { get; set; } = Array.Empty<Guid>();
+    // Optional: initial department memberships
+    public IReadOnlyCollection<Guid>? DepartmentIds { get; set; }
 }
 
 public class UpdateUserRequest
@@ -75,6 +77,7 @@ public class UpdateUserRequest
     public string? JobTitle { get; set; }
     public bool? IsLocked { get; set; }
     public IReadOnlyCollection<Guid>? RoleIds { get; set; }
+    public IReadOnlyCollection<Guid>? DepartmentIds { get; set; }
 }
 
 public class PasswordRecoveryRequest

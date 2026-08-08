@@ -1,6 +1,6 @@
 @model HMS.UI.Models.Pharmacy.EditPrescriptionViewModel
 @{
-    Layout = "~/Pages/_Layout.cshtml";
+    
     ViewData["Title"] = "Edit Prescription";
     var rows = (Model.Prescription.Items ?? Array.Empty<HMS.UI.Models.Pharmacy.PrescriptionItemViewModel>())
         .Select(item => new HMS.UI.Models.Pharmacy.CreatePrescriptionItemViewModel

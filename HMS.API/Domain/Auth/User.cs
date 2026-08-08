@@ -20,5 +20,7 @@ namespace HMS.API.Domain.Auth
         public ICollection<UserRole> UserRoles { get; set; } = new List<UserRole>();
 
         public ICollection<RefreshToken> RefreshTokens { get; set; } = new List<RefreshToken>();
+        // support membership in multiple departments (stored as associations)
+        public ICollection<UserDepartment>? UserDepartments { get; set; } = new List<UserDepartment>();
     }
 }

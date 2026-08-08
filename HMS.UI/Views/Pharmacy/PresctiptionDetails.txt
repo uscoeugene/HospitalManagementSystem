@@ -1,6 +1,6 @@
 ﻿@model HMS.UI.Models.Pharmacy.PrescriptionViewModel
 @{
-    Layout = "~/Pages/_Layout.cshtml";
+    
     ViewData["Title"] = "Prescription";
     var inventoryItems = ViewBag.AvailableInventoryItems as HMS.UI.Models.Pharmacy.InventoryItemViewModel[] ?? Array.Empty<HMS.UI.Models.Pharmacy.InventoryItemViewModel>();
 }

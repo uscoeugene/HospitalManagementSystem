@@ -39,6 +39,29 @@ namespace HMS.API.Application.Common
             }
         }
 
+        public System.Collections.Generic.IEnumerable<Guid> DepartmentIds
+        {
+            get
+            {
+                var user = _httpContextAccessor.HttpContext?.User;
+                if (user == null) return System.Array.Empty<Guid>();
+                // Prefer JSON array claim `departments` if present
+                var deptClaim = user.Claims.FirstOrDefault(c => string.Equals(c.Type, "departments", System.StringComparison.OrdinalIgnoreCase));
+                if (deptClaim != null && !string.IsNullOrWhiteSpace(deptClaim.Value))
+                {
+                    try
+                    {
+                        var arr = System.Text.Json.JsonSerializer.Deserialize<Guid[]>(deptClaim.Value);
+                        if (arr != null) return arr.Distinct();
+                    }
+                    catch { }
+                }
+
+                var ids = user.Claims.Where(c => string.Equals(c.Type, "department_id", System.StringComparison.OrdinalIgnoreCase)).Select(c => { if (Guid.TryParse(c.Value, out var g)) return g; return Guid.Empty; }).Where(g => g != Guid.Empty).Distinct();
+                return ids;
+            }
+        }
+
         public bool HasPermission(string permission)
         {
             var user = _httpContextAccessor.HttpContext?.User;

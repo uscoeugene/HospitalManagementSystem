@@ -323,6 +323,58 @@ namespace HMS.API.Infrastructure.Auth.Migrations
                     b.ToTable("Users");
                 });
 
+            modelBuilder.Entity("HMS.API.Domain.Auth.UserDepartment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset?>("DeletedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid?>("DeletedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("DepartmentId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsSynced")
+                        .HasColumnType("bit");
+
+                    b.Property<long>("SyncVersion")
+                        .HasColumnType("bigint");
+
+                    b.Property<Guid?>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DepartmentId");
+
+                    b.HasIndex("UserId", "DepartmentId")
+                        .IsUnique();
+
+                    b.ToTable("UserDepartments");
+                });
+
             modelBuilder.Entity("HMS.API.Domain.Auth.UserRole", b =>
                 {
                     b.Property<Guid>("UserId")
@@ -651,6 +703,116 @@ namespace HMS.API.Infrastructure.Auth.Migrations
                     b.ToTable("TenantSubscription");
                 });
 
+            modelBuilder.Entity("HMS.API.Domain.Organization.Department", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset?>("DeletedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid?>("DeletedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsSynced")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<Guid?>("ParentDepartmentId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<long>("SyncVersion")
+                        .HasColumnType("bigint");
+
+                    b.Property<Guid?>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ParentDepartmentId");
+
+                    b.ToTable("Department");
+                });
+
+            modelBuilder.Entity("HMS.API.Domain.Pharmacy.Store", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset?>("DeletedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid?>("DeletedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("DepartmentId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsSynced")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("StoreName")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("StoreType")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<long>("SyncVersion")
+                        .HasColumnType("bigint");
+
+                    b.Property<Guid?>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DepartmentId");
+
+                    b.ToTable("Store");
+                });
+
             modelBuilder.Entity("HMS.API.Domain.Auth.RefreshToken", b =>
                 {
                     b.HasOne("HMS.API.Domain.Auth.User", "User")
@@ -681,6 +843,25 @@ namespace HMS.API.Infrastructure.Auth.Migrations
                     b.Navigation("Role");
                 });
 
+            modelBuilder.Entity("HMS.API.Domain.Auth.UserDepartment", b =>
+                {
+                    b.HasOne("HMS.API.Domain.Organization.Department", "Department")
+                        .WithMany()
+                        .HasForeignKey("DepartmentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("HMS.API.Domain.Auth.User", "User")
+                        .WithMany("UserDepartments")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Department");
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("HMS.API.Domain.Auth.UserRole", b =>
                 {
                     b.HasOne("HMS.API.Domain.Auth.Role", "Role")
@@ -700,6 +881,24 @@ namespace HMS.API.Infrastructure.Auth.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("HMS.API.Domain.Organization.Department", b =>
+                {
+                    b.HasOne("HMS.API.Domain.Organization.Department", "ParentDepartment")
+                        .WithMany()
+                        .HasForeignKey("ParentDepartmentId");
+
+                    b.Navigation("ParentDepartment");
+                });
+
+            modelBuilder.Entity("HMS.API.Domain.Pharmacy.Store", b =>
+                {
+                    b.HasOne("HMS.API.Domain.Organization.Department", "Department")
+                        .WithMany("Stores")
+                        .HasForeignKey("DepartmentId");
+
+                    b.Navigation("Department");
+                });
+
             modelBuilder.Entity("HMS.API.Domain.Auth.Permission", b =>
                 {
                     b.Navigation("RolePermissions");
@@ -716,7 +915,14 @@ namespace HMS.API.Infrastructure.Auth.Migrations
                 {
                     b.Navigation("RefreshTokens");
 
+                    b.Navigation("UserDepartments");
+
                     b.Navigation("UserRoles");
+                });
+
+            modelBuilder.Entity("HMS.API.Domain.Organization.Department", b =>
+                {
+                    b.Navigation("Stores");
                 });
 #pragma warning restore 612, 618
         }

@@ -90,12 +90,7 @@ public class ApiClient
         req.Content = JsonContent.Create(payload);
         try
         {
-            var incomingHost = GetIncomingHostWithoutPort();
-            if (!string.IsNullOrWhiteSpace(incomingHost))
-            {
-                req.Headers.Host = incomingHost;
-                if (!req.Headers.Contains("X-Forwarded-Host")) req.Headers.TryAddWithoutValidation("X-Forwarded-Host", incomingHost);
-            }
+            AddTenantHostHeaders(req);
         }
         catch (Exception ex)
         {
@@ -116,12 +111,7 @@ public class ApiClient
 
         try
         {
-            var incomingHost = GetIncomingHostWithoutPort();
-            if (!string.IsNullOrWhiteSpace(incomingHost))
-            {
-                req.Headers.Host = incomingHost;
-                if (!req.Headers.Contains("X-Forwarded-Host")) req.Headers.TryAddWithoutValidation("X-Forwarded-Host", incomingHost);
-            }
+            AddTenantHostHeaders(req);
         }
         catch (Exception ex)
         {
@@ -177,12 +167,7 @@ public class ApiClient
         // Propagate original request host so API can resolve tenant based on client host
         try
         {
-            var incomingHost = GetIncomingHostWithoutPort();
-            if (!string.IsNullOrWhiteSpace(incomingHost))
-            {
-                req.Headers.Host = incomingHost;
-                if (!req.Headers.Contains("X-Forwarded-Host")) req.Headers.TryAddWithoutValidation("X-Forwarded-Host", incomingHost);
-            }
+            AddTenantHostHeaders(req);
         }
         catch (Exception ex)
         {
@@ -210,12 +195,7 @@ public class ApiClient
         var req = new HttpRequestMessage(HttpMethod.Delete, path);
         try
         {
-            var incomingHost = GetIncomingHostWithoutPort();
-            if (!string.IsNullOrWhiteSpace(incomingHost))
-            {
-                req.Headers.Host = incomingHost;
-                if (!req.Headers.Contains("X-Forwarded-Host")) req.Headers.TryAddWithoutValidation("X-Forwarded-Host", incomingHost);
-            }
+            AddTenantHostHeaders(req);
         }
         catch (Exception ex)
         {
@@ -236,13 +216,7 @@ public class ApiClient
         var req = new HttpRequestMessage(HttpMethod.Get, path);
         try
         {
-            var incomingHost = GetIncomingHostWithoutPort();
-            if (!string.IsNullOrWhiteSpace(incomingHost))
-            {
-                req.Headers.Host = incomingHost;
-                // also forward X-Forwarded-Host for servers that read it
-                if (!req.Headers.Contains("X-Forwarded-Host")) req.Headers.TryAddWithoutValidation("X-Forwarded-Host", incomingHost);
-            }
+            AddTenantHostHeaders(req);
         }
         catch (Exception ex)
         {
@@ -302,12 +276,7 @@ public class ApiClient
         req.Content = JsonContent.Create(payload);
         try
         {
-            var incomingHost = GetIncomingHostWithoutPort();
-            if (!string.IsNullOrWhiteSpace(incomingHost))
-            {
-                req.Headers.Host = incomingHost;
-                if (!req.Headers.Contains("X-Forwarded-Host")) req.Headers.TryAddWithoutValidation("X-Forwarded-Host", incomingHost);
-            }
+            AddTenantHostHeaders(req);
         }
         catch (Exception ex)
         {
@@ -334,7 +303,35 @@ public class ApiClient
             client.DefaultRequestHeaders.Authorization =
                 new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
         }
-        
+        // Propagate the UI request host with explicit tenant headers. Do not set the HTTP Host header here;
+        // IIS/Plesk route the API request by its configured API host.
+        try
+        {
+            var incomingHost = GetIncomingHostWithoutPort();
+
+            if (!string.IsNullOrWhiteSpace(incomingHost))
+            {
+                if (!client.DefaultRequestHeaders.Contains("X-Tenant-Host"))
+                    client.DefaultRequestHeaders.TryAddWithoutValidation("X-Tenant-Host", incomingHost);
+                if (!client.DefaultRequestHeaders.Contains("X-Original-Host"))
+                    client.DefaultRequestHeaders.TryAddWithoutValidation("X-Original-Host", incomingHost);
+                if (!client.DefaultRequestHeaders.Contains("X-Forwarded-Host"))
+                    client.DefaultRequestHeaders.TryAddWithoutValidation("X-Forwarded-Host", incomingHost);
+                // also propagate the original protocol
+                try
+                {
+                    var proto = _ctx.HttpContext?.Request?.Scheme ?? null;
+                    if (!string.IsNullOrWhiteSpace(proto) && !client.DefaultRequestHeaders.Contains("X-Forwarded-Proto"))
+                        client.DefaultRequestHeaders.TryAddWithoutValidation("X-Forwarded-Proto", proto);
+                }
+                catch { }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Failed to propagate incoming host headers on HttpClient");
+        }
+
         // Prefer server-resolved tenant id from middleware (HttpContext.Items) and send as header.
         try
         {
@@ -394,6 +391,32 @@ public class ApiClient
             _logger.LogDebug(ex, "Failed to read incoming host from current request");
             return null;
         }
+    }
+
+    private void AddTenantHostHeaders(HttpRequestMessage req)
+    {
+        var incomingHost = GetIncomingHostWithoutPort();
+        if (string.IsNullOrWhiteSpace(incomingHost)) return;
+
+        if (!req.Headers.Contains("X-Tenant-Host"))
+            req.Headers.TryAddWithoutValidation("X-Tenant-Host", incomingHost);
+        if (!req.Headers.Contains("X-Original-Host"))
+            req.Headers.TryAddWithoutValidation("X-Original-Host", incomingHost);
+        if (!req.Headers.Contains("X-Forwarded-Host"))
+            req.Headers.TryAddWithoutValidation("X-Forwarded-Host", incomingHost);
+    }
+
+    private void AddTenantHostHeaders(HttpClient client)
+    {
+        var incomingHost = GetIncomingHostWithoutPort();
+        if (string.IsNullOrWhiteSpace(incomingHost)) return;
+
+        if (!client.DefaultRequestHeaders.Contains("X-Tenant-Host"))
+            client.DefaultRequestHeaders.TryAddWithoutValidation("X-Tenant-Host", incomingHost);
+        if (!client.DefaultRequestHeaders.Contains("X-Original-Host"))
+            client.DefaultRequestHeaders.TryAddWithoutValidation("X-Original-Host", incomingHost);
+        if (!client.DefaultRequestHeaders.Contains("X-Forwarded-Host"))
+            client.DefaultRequestHeaders.TryAddWithoutValidation("X-Forwarded-Host", incomingHost);
     }
 
     private async Task CaptureDebugRequestAsync(HttpRequestMessage req, object? payload)
@@ -483,12 +506,7 @@ public class ApiClient
         req.Content = JsonContent.Create(payload);
         try
         {
-            var incomingHost = GetIncomingHostWithoutPort();
-            if (!string.IsNullOrWhiteSpace(incomingHost))
-            {
-                req.Headers.Host = incomingHost;
-                if (!req.Headers.Contains("X-Forwarded-Host")) req.Headers.TryAddWithoutValidation("X-Forwarded-Host", incomingHost);
-            }
+            AddTenantHostHeaders(req);
         }
         catch (Exception ex)
         {
@@ -552,6 +570,26 @@ public class ApiClient
                     if (root.TryGetProperty("data", out var data))
                     {
                         var dataJson = NormalizeJsonUrls(data.GetRawText());
+
+                        // If the data payload is an object that contains an `items` array (common envelope),
+                        // and the caller expects a collection, deserialize the items array instead of the wrapper.
+                        try
+                        {
+                            using var dataDoc = System.Text.Json.JsonDocument.Parse(dataJson);
+                            var dataRoot = dataDoc.RootElement;
+                            if (dataRoot.ValueKind == System.Text.Json.JsonValueKind.Object && dataRoot.TryGetProperty("items", out var itemsEl))
+                            {
+                                var targetType = typeof(T);
+                                var expectsArray = targetType.IsArray;
+                                var expectsEnumerable = typeof(System.Collections.IEnumerable).IsAssignableFrom(targetType) && targetType != typeof(string);
+                                if (expectsArray || expectsEnumerable)
+                                {
+                                    return System.Text.Json.JsonSerializer.Deserialize<T>(itemsEl.GetRawText(), new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                                }
+                            }
+                        }
+                        catch { /* ignore and fall back to direct deserialize below */ }
+
                         return System.Text.Json.JsonSerializer.Deserialize<T>(dataJson, new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
                     }
 
@@ -587,12 +625,7 @@ public class ApiClient
         // Propagate original request host so API can resolve tenant based on client host
         try
         {
-            var incomingHost = GetIncomingHostWithoutPort();
-            if (!string.IsNullOrWhiteSpace(incomingHost))
-            {
-                req.Headers.Host = incomingHost;
-                if (!req.Headers.Contains("X-Forwarded-Host")) req.Headers.TryAddWithoutValidation("X-Forwarded-Host", incomingHost);
-            }
+            AddTenantHostHeaders(req);
         }
         catch (Exception ex)
         {
@@ -616,12 +649,7 @@ public class ApiClient
         // Propagate original request host so API can resolve tenant based on client host
         try
         {
-            var incomingHost = GetIncomingHostWithoutPort();
-            if (!string.IsNullOrWhiteSpace(incomingHost))
-            {
-                req.Headers.Host = incomingHost;
-                if (!req.Headers.Contains("X-Forwarded-Host")) req.Headers.TryAddWithoutValidation("X-Forwarded-Host", incomingHost);
-            }
+            AddTenantHostHeaders(req);
         }
         catch (Exception ex)
         {
@@ -747,12 +775,7 @@ public class ApiClient
                     // Propagate original incoming host so API can resolve tenant by host when needed
                     try
                     {
-                        var incomingHost = GetIncomingHostWithoutPort();
-                        if (!string.IsNullOrWhiteSpace(incomingHost))
-                        {
-                            client.DefaultRequestHeaders.Host = incomingHost;
-                            if (!client.DefaultRequestHeaders.Contains("X-Forwarded-Host")) client.DefaultRequestHeaders.TryAddWithoutValidation("X-Forwarded-Host", incomingHost);
-                        }
+                        AddTenantHostHeaders(client);
                     }
                     catch (Exception ex)
                     {

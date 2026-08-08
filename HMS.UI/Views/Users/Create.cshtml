@@ -1,6 +1,6 @@
 @model HMS.UI.Models.Users.UserEditViewModel
 @{
-    Layout = "~/Pages/_Layout.cshtml";
+    
     ViewData["Title"] = "Create User";
     var roles = ViewBag.Roles as HMS.UI.Models.Users.RoleViewModel[] ?? Array.Empty<HMS.UI.Models.Users.RoleViewModel>();
     var tenants = ViewBag.Tenants as HMS.UI.Models.TenantItem[] ?? Array.Empty<HMS.UI.Models.TenantItem>();
