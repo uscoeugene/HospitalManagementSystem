@@ -98,6 +98,29 @@ Troubleshooting
 - Error: missing developer HTTPS certificate: either trust the certificate (dotnet dev-certs https --trust) or run the app with HTTP only (Program.cs handles HTTPS gracefully).
 - EF tools errors: install dotnet-ef tool and ensure environment PATH includes the tool location.
 
+Deployment mode (Bootstrap / Online / OnPrem)
+
+The application exposes a runtime "deployment mode" which controls tenant resolution and some UI banners. There are three effective places the system reads deployment mode from (in precedence order):
+
+1) System:DeploymentMode in the Auth DB (AppSettings table) — authoritative at runtime and editable via Admin UI or API. This is the recommended place for production so operators can change mode without redeploying.
+2) Deployment:Mode in HMS.API configuration (appsettings.json / environment) — used as a fallback when the DB key is missing.
+3) HMS.UI configuration (Deployment:Mode or System:DeploymentMode) — UI-only fallback when API health check cannot be reached.
+
+How this repo sets the default
+
+- The auth DB seeding now ensures a default System:DeploymentMode key is created with value "Bootstrap" when the database is empty. This makes a fresh local install show the Bootstrap banner until you switch it.
+
+How to change deployment mode
+
+- Using the UI: Login as an admin and go to Admin -> App Settings. Change "Deployment Mode" and save.
+- Using the API: POST to /AppSettings/upsert with JSON body { "key": "System:DeploymentMode", "value": "Online" }
+
+Example curl (while the API is running and you have an admin auth cookie or token):
+
+curl -X POST "https://localhost:7142/AppSettings/upsert" -H "Content-Type: application/json" -d '{"key":"System:DeploymentMode","value":"Online"}'
+
+If you cannot reach the API from the UI during install, set Deployment:Mode in HMS.API/appsettings.Development.json to the desired value or update HMS.UI/appsettings.Development.json with a fallback value until the API is reachable.
+
 Next recommended steps
 
 - Secure production secrets (use environment variables or a secrets manager).

@@ -17,6 +17,9 @@ namespace HMS.API.Infrastructure.Auth
             var permissions = await EnsureBuiltInPermissionsAsync(db);
             var roles = await EnsureBuiltInRolesAsync(db);
 
+            // ensure app settings exist (System:DeploymentMode, PlatformContext:Hosts)
+            await EnsureAppSettingsAsync(db);
+
             await GrantRolePermissionsAsync(db, roles.User, permissions.ProfileRead, permissions.ProfileUpdate);
             await GrantRolePermissionsAsync(db, roles.SystemAdministrator,
                 permissions.ProfileRead,
@@ -400,6 +403,29 @@ namespace HMS.API.Infrastructure.Auth
                 db.Set<HMS.API.Domain.Common.TenantSubscription>().AddRange(subA, subB);
                 await db.SaveChangesAsync();
             }
+
+        // Ensure some critical app settings exist so the UI and runtime can resolve deployment mode reliably
+        private static async Task EnsureAppSettingsAsync(AuthDbContext db)
+        {
+            // Add System:DeploymentMode if missing so health endpoints and UI can read an authoritative value
+            var key = "System:DeploymentMode";
+            var existing = await db.AppSettings.SingleOrDefaultAsync(x => x.Key == key);
+            if (existing == null)
+            {
+                db.AppSettings.Add(new HMS.API.Domain.Common.AppSetting { Key = key, Value = "Bootstrap" });
+            }
+
+            // Add a default PlatformContext:Hosts entry if missing (used for host-based tenant resolution)
+            var hostsKey = "PlatformContext:Hosts";
+            var hostsExisting = await db.AppSettings.SingleOrDefaultAsync(x => x.Key == hostsKey);
+            if (hostsExisting == null)
+            {
+                // default empty array (JSON) - UI/tenant middleware will ignore when empty
+                db.AppSettings.Add(new HMS.API.Domain.Common.AppSetting { Key = hostsKey, Value = "[]" });
+            }
+
+            await db.SaveChangesAsync();
+        }
         }
 
         public static async Task EnsurePermissionCatalogAsync(AuthDbContext db)
