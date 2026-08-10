@@ -51,6 +51,7 @@ else
 }
 
 builder.Services.AddScoped<HMS.UI.Services.ApiClient>();
+builder.Services.AddScoped<HMS.UI.Services.IDeploymentModeService, HMS.UI.Services.DeploymentModeService>();
 // Static data service depends on ApiClient (scoped) so register as scoped as well
 builder.Services.AddScoped<HMS.UI.Services.StaticDataService>();
 

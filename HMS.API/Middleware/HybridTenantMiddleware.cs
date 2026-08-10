@@ -1,7 +1,8 @@
+﻿using System;
+using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
 using HMS.API.Application.Common;
-using System;
 using Microsoft.EntityFrameworkCore;
 
 namespace HMS.API.Middleware
@@ -22,14 +23,13 @@ namespace HMS.API.Middleware
                 var modeResolver = context.RequestServices.GetService(typeof(IDeploymentModeResolver)) as IDeploymentModeResolver;
                 var tenantResolver = context.RequestServices.GetService(typeof(ITenantResolver)) as ITenantResolver;
                 var logger = context.RequestServices.GetService(typeof(Microsoft.Extensions.Logging.ILogger<HybridTenantMiddleware>)) as Microsoft.Extensions.Logging.ILogger<HybridTenantMiddleware>;
+                var appSettings = context.RequestServices.GetService(typeof(IAppSettingsService)) as IAppSettingsService;
+                var config = context.RequestServices.GetService(typeof(Microsoft.Extensions.Configuration.IConfiguration)) as Microsoft.Extensions.Configuration.IConfiguration;
 
                 var mode = DeploymentMode.Online;
                 if (modeResolver != null) mode = await modeResolver.GetModeAsync();
                 logger?.LogDebug("HybridTenantMiddleware resolving mode={mode}", mode);
 
-                // Platform domain bypass
-                var platformDomains = context.RequestServices.GetService(typeof(Microsoft.Extensions.Configuration.IConfiguration)) as Microsoft.Extensions.Configuration.IConfiguration;
-                // Prefer several common proxy headers in order of reliability, then fall back to Host
                 string? host = null;
                 try
                 {
@@ -46,12 +46,9 @@ namespace HMS.API.Middleware
                         return null;
                     }
 
-                    // Prefer explicit tenant host values from the UI before proxy-managed headers.
                     host = GetHeaderValue("X-Tenant-Host", "X-Original-Host", "X-Forwarded-Host", "X-Host", "X-Forwarded-Server", "Host");
-
                     if (string.IsNullOrWhiteSpace(host)) host = context.Request.Host.Host;
 
-                    // Strip port if present (e.g. "example.com:5000" -> "example.com")
                     if (!string.IsNullOrWhiteSpace(host))
                     {
                         var colonIndex = host.IndexOf(':');
@@ -65,22 +62,27 @@ namespace HMS.API.Middleware
                     logger?.LogWarning(ex, "Failed to normalize request host for tenant resolution");
                     host = context.Request.Host.Host;
                 }
-                var platformList = platformDomains?.GetSection("PlatformDomains").Get<string[]>() ?? Array.Empty<string>();
-                var isPlatformDomain = Array.Exists(platformList, d => string.Equals(d, host, StringComparison.OrdinalIgnoreCase));
+
+                var platformList = await GetPlatformHostsAsync(appSettings, config);
+                var normalizedHost = NormalizeHost(host ?? string.Empty);
+                var isPlatformDomain = platformList.Any(d => string.Equals(NormalizeHost(d), normalizedHost, StringComparison.OrdinalIgnoreCase));
 
                 if (isPlatformDomain)
                 {
-                    // Platform context - no tenant resolution
                     CurrentTenantAccessor.CurrentTenantId = null;
                     context.Items["TenantId"] = null;
                     logger?.LogDebug("Platform domain matched ({host}), skipping tenant resolution", host);
                 }
+                else if (mode == DeploymentMode.Bootstrap)
+                {
+                    CurrentTenantAccessor.CurrentTenantId = null;
+                    context.Items["TenantId"] = null;
+                    logger?.LogDebug("Bootstrap mode active; skipping tenant resolution for host {Host}", host);
+                }
                 else if (mode == DeploymentMode.Online)
                 {
-                    // In Online mode resolve tenant by host (or X-Debug-Tenant in Development)
                     Guid? tid = null;
 
-                    // Allow explicit X-Tenant-Id header as an override (useful for API clients/UI). Honor if valid GUID.
                     try
                     {
                         var hdr = context.Request.Headers["X-Tenant-Id"].ToString();
@@ -94,7 +96,6 @@ namespace HMS.API.Middleware
                         logger?.LogWarning(ex, "Failed to parse X-Tenant-Id header for tenant resolution");
                     }
 
-                    // Development debug header override
                     var env = context.RequestServices.GetService(typeof(Microsoft.Extensions.Hosting.IHostEnvironment)) as Microsoft.Extensions.Hosting.IHostEnvironment;
                     if (env != null && env.IsDevelopment())
                     {
@@ -104,11 +105,10 @@ namespace HMS.API.Middleware
                         }
                     }
 
-                    // Log headers helpful for diagnosing host/tenant resolution
                     try
                     {
                         var hf = context.Request.Headers;
-                        logger?.LogDebug("Tenant resolution headers: Host={HostHeader}, X-Tenant-Host={XTenantHost}, X-Original-Host={XOriginalHost}, X-Forwarded-Host={XForwardedHost}, RemoteIp={RemoteIp}", hf.ContainsKey("Host") ? hf["Host"].ToString() : "", hf.ContainsKey("X-Tenant-Host") ? hf["X-Tenant-Host"].ToString() : "", hf.ContainsKey("X-Original-Host") ? hf["X-Original-Host"].ToString() : "", hf.ContainsKey("X-Forwarded-Host") ? hf["X-Forwarded-Host"].ToString() : "", context.Connection.RemoteIpAddress?.ToString());
+                        logger?.LogDebug("Tenant resolution headers: Host={HostHeader}, X-Tenant-Host={XTenantHost}, X-Original-Host={XOriginalHost}, X-Forwarded-Host={XForwardedHost}, RemoteIp={RemoteIp}", hf.ContainsKey("Host") ? hf["Host"].ToString() : string.Empty, hf.ContainsKey("X-Tenant-Host") ? hf["X-Tenant-Host"].ToString() : string.Empty, hf.ContainsKey("X-Original-Host") ? hf["X-Original-Host"].ToString() : string.Empty, hf.ContainsKey("X-Forwarded-Host") ? hf["X-Forwarded-Host"].ToString() : string.Empty, context.Connection.RemoteIpAddress?.ToString());
                     }
                     catch { }
 
@@ -116,7 +116,7 @@ namespace HMS.API.Middleware
                     {
                         try
                         {
-                            tid = await tenantResolver.ResolveTenantIdFromHostAsync(host);
+                            tid = await tenantResolver.ResolveTenantIdFromHostAsync(host ?? string.Empty);
                         }
                         catch (Exception ex)
                         {
@@ -130,13 +130,11 @@ namespace HMS.API.Middleware
                         CurrentTenantAccessor.CurrentTenantId = tid.Value;
                         context.Items["TenantId"] = tid.Value;
                         logger?.LogInformation("Online mode: resolved tenant {TenantId} from host {Host}", tid, host);
-                        // Set tenant cookies so UI can read resolved tenant without extra API call.
                         try
                         {
                             var cookieOptions = new Microsoft.AspNetCore.Http.CookieOptions { HttpOnly = false, Secure = context.Request.IsHttps, SameSite = Microsoft.AspNetCore.Http.SameSiteMode.Lax, Path = "/" };
                             context.Response.Cookies.Append("HmsTenantId", tid.Value.ToString(), cookieOptions);
 
-                            // attempt to lookup tenant name from auth DB
                             try
                             {
                                 var db = context.RequestServices.GetService(typeof(HMS.API.Infrastructure.Auth.AuthDbContext)) as HMS.API.Infrastructure.Auth.AuthDbContext;
@@ -161,12 +159,11 @@ namespace HMS.API.Middleware
                     }
                     else
                     {
-                        logger?.LogWarning("Online mode: no tenant resolved from host {Host}. Headers: Host={HostHeader} X-Tenant-Host={XTenantHost} X-Original-Host={XOriginalHost} X-Fwd={XForwardedHost}", host, context.Request.Headers.ContainsKey("Host") ? context.Request.Headers["Host"].ToString() : "", context.Request.Headers.ContainsKey("X-Tenant-Host") ? context.Request.Headers["X-Tenant-Host"].ToString() : "", context.Request.Headers.ContainsKey("X-Original-Host") ? context.Request.Headers["X-Original-Host"].ToString() : "", context.Request.Headers.ContainsKey("X-Forwarded-Host") ? context.Request.Headers["X-Forwarded-Host"].ToString() : "");
+                        logger?.LogWarning("Online mode: no tenant resolved from host {Host}. Headers: Host={HostHeader} X-Tenant-Host={XTenantHost} X-Original-Host={XOriginalHost} X-Fwd={XForwardedHost}", host, context.Request.Headers.ContainsKey("Host") ? context.Request.Headers["Host"].ToString() : string.Empty, context.Request.Headers.ContainsKey("X-Tenant-Host") ? context.Request.Headers["X-Tenant-Host"].ToString() : string.Empty, context.Request.Headers.ContainsKey("X-Original-Host") ? context.Request.Headers["X-Original-Host"].ToString() : string.Empty, context.Request.Headers.ContainsKey("X-Forwarded-Host") ? context.Request.Headers["X-Forwarded-Host"].ToString() : string.Empty);
                     }
                 }
                 else
                 {
-                    // OnPrem mode - resolve from AppSettings or config
                     if (tenantResolver != null)
                     {
                         var tid = await tenantResolver.ResolveTenantIdAsync();
@@ -178,10 +175,9 @@ namespace HMS.API.Middleware
                         }
                         else
                         {
-                            // Fallback: attempt host-based resolution even in OnPrem to support domain-scoped setups
                             try
                             {
-                                var hostTid = await tenantResolver.ResolveTenantIdFromHostAsync(host);
+                                var hostTid = await tenantResolver.ResolveTenantIdFromHostAsync(host ?? string.Empty);
                                 if (hostTid.HasValue)
                                 {
                                     CurrentTenantAccessor.CurrentTenantId = hostTid.Value;
@@ -203,7 +199,6 @@ namespace HMS.API.Middleware
             }
             catch (Exception ex)
             {
-                // never break pipeline; leave TenantId absent if resolution fails
                 var logger = context.RequestServices.GetService(typeof(Microsoft.Extensions.Logging.ILogger<HybridTenantMiddleware>)) as Microsoft.Extensions.Logging.ILogger<HybridTenantMiddleware>;
                 logger?.LogError(ex, "Hybrid tenant resolution failed; continuing without tenant context");
             }
@@ -216,6 +211,52 @@ namespace HMS.API.Middleware
             {
                 CurrentTenantAccessor.Clear();
             }
+        }
+
+        private static async Task<string[]> GetPlatformHostsAsync(IAppSettingsService? appSettings, Microsoft.Extensions.Configuration.IConfiguration? config)
+        {
+            if (appSettings != null)
+            {
+                var dbValue = await appSettings.GetAsync("PlatformContext:Hosts");
+                if (!string.IsNullOrWhiteSpace(dbValue)) return SplitHosts(dbValue);
+
+                dbValue = await appSettings.GetAsync("PlatformHosts");
+                if (!string.IsNullOrWhiteSpace(dbValue)) return SplitHosts(dbValue);
+
+                dbValue = await appSettings.GetAsync("PlatformDomains");
+                if (!string.IsNullOrWhiteSpace(dbValue)) return SplitHosts(dbValue);
+            }
+
+            if (config == null) return Array.Empty<string>();
+
+            var preferred = config.GetSection("PlatformContext:Hosts").Get<string[]>();
+            if (preferred != null && preferred.Length > 0) return preferred;
+
+            var legacy = config.GetSection("PlatformHosts").Get<string[]>();
+            if (legacy != null && legacy.Length > 0) return legacy;
+
+            return config.GetSection("PlatformDomains").Get<string[]>() ?? Array.Empty<string>();
+        }
+
+        private static string[] SplitHosts(string value)
+        {
+            return value
+                .Split(new[] { ',', ';', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
+                .Select(x => x.Trim())
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .ToArray();
+        }
+
+        private static string NormalizeHost(string host)
+        {
+            var value = (host ?? string.Empty).Trim().ToLowerInvariant();
+            var colonIndex = value.IndexOf(':');
+            if (colonIndex > 0)
+            {
+                value = value.Substring(0, colonIndex);
+            }
+
+            return value;
         }
     }
 }

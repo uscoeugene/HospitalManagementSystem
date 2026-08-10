@@ -49,6 +49,8 @@ namespace HMS.API.Application.Pharmacy.DTOs
         public Guid PatientId { get; set; }
         public Guid? VisitId { get; set; }
         public string Status { get; set; } = string.Empty;
+        public DateTimeOffset CreatedAt { get; set; }
+        public DateTimeOffset? UpdatedAt { get; set; }
         public IEnumerable<PrescriptionItemDto> Items { get; set; } = Array.Empty<PrescriptionItemDto>();
     }
 

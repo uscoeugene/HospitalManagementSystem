@@ -1,0 +1,417 @@
+﻿@model HMS.UI.Models.PatientChartViewModel
+
+@{
+    var patient = Model.Patient;
+    var selectedVisit = Model.SelectedVisit;
+
+    string Display(string? value) => string.IsNullOrWhiteSpace(value) ? "-" : value;
+    string VisitLabel(HMS.UI.Models.VisitViewModel visit) => $"{visit.VisitType} - {visit.VisitAt.ToLocalTime():yyyy-MM-dd HH:mm}";
+    string FullName = string.Join(" ", new[] { patient.FirstName, patient.MiddleName, patient.LastName }.Where(x => !string.IsNullOrWhiteSpace(x)));
+}
+
+<div class="page-content patient-chart-shell">
+    <div class="portal-card shadow-soft mb-3">
+        <div class="portal-card-body d-flex flex-column flex-xl-row justify-content-between gap-3 align-items-xl-center">
+            <partial name="_PatientHeader" model="patient" />
+
+            <div class="d-flex flex-wrap gap-2 chart-page-quick-actions">
+                <a asp-action="Details" asp-route-id="@patient.Id" class="btn btn-outline-primary btn-sm">
+                    <i class="bi bi-person-badge me-1"></i> Profile
+                </a>
+                <a asp-action="Visits" asp-route-id="@patient.Id" class="btn btn-outline-primary btn-sm">
+                    <i class="bi bi-journal-text me-1"></i> Visits
+                </a>
+                @if (selectedVisit != null)
+                {
+                    <a asp-action="VisitDetails" asp-route-id="@selectedVisit.Id" class="btn btn-primary-custom btn-sm">
+                        <i class="bi bi-clipboard2-pulse me-1"></i> Open Visit
+                    </a>
+                }
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-3">
+        <div class="col-12 col-xl-4">
+            <div class="portal-card h-100">
+                <div class="portal-card-header">
+                    <i class="bi bi-calendar2-heart me-2"></i>
+                    Visit Switcher
+                </div>
+                <div class="portal-card-body">
+                    @if (Model.Visits.Length > 0)
+                    {
+                        <form asp-action="Chart" method="get" class="vstack gap-2">
+                            <input type="hidden" name="id" value="@patient.Id" />
+                            <div class="visit-switcher-summary">
+                                <div class="small text-muted-custom">Selected visit</div>
+                                <div class="fw-semibold text-truncate">@(selectedVisit != null ? VisitLabel(selectedVisit) : "Latest visit")</div>
+                            </div>
+                            <div>
+                                <label class="form-label small text-muted-custom mb-1">Jump to visit</label>
+                                <select name="visitId" class="form-select form-select-sm">
+                                    <option value="">Latest visit</option>
+                                    @foreach (var visit in Model.Visits)
+                                    {
+                                        if (selectedVisit?.Id == visit.Id)
+                                        {
+                                            <option value="@visit.Id" selected>@VisitLabel(visit)</option>
+                                        }
+                                        else
+                                        {
+                                            <option value="@visit.Id">@VisitLabel(visit)</option>
+                                        }
+                                    }
+                                </select>
+                            </div>
+                            <div class="d-grid">
+                                <button class="btn btn-sm btn-primary-custom text-white">
+                                    <i class="bi bi-arrow-right-circle me-1"></i> Open Visit
+                                </button>
+                            </div>
+                            <div class="small text-muted-custom">Records found: @Model.Visits.Length</div>
+                        </form>
+                    }
+                    else
+                    {
+                        <div class="text-muted-custom">No visits have been recorded for this patient yet.</div>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <div class="col-12 col-xl-8">
+            <div class="portal-card bg-light chart-workspace-card">
+                <div class="portal-card-header d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-2">
+                    <div>
+                        <div class="fw-semibold">Chart Overview</div>
+                        <small class="text-muted-custom">Clinical workflow, history, and linked records</small>
+                    </div>
+                </div>
+
+                <div class="portal-card-body">
+                    <div class="chart-topbar mb-3">
+                        <div class="chart-topbar-copy">
+                            <div class="small text-muted-custom">Selected visit</div>
+                            <div class="fw-semibold">@((selectedVisit != null) ? VisitLabel(selectedVisit) : "Latest visit")</div>
+                        </div>
+
+                        <div class="chart-topbar-actions">
+                            @if (selectedVisit != null)
+                            {
+                                <a asp-action="EnterVitals" asp-route-id="@selectedVisit.Id" class="btn btn-sm btn-primary-custom text-white">
+                                    <i class="bi bi-activity"></i>
+                                    <span class="d-none d-xl-inline ms-1">Vitals</span>
+                                </a>
+                                <a asp-action="CreateConsultation" asp-route-visitId="@selectedVisit.Id" class="btn btn-sm btn-primary-custom text-white">
+                                    <i class="bi bi-chat-square-text"></i>
+                                    <span class="d-none d-xl-inline ms-1">Consult</span>
+                                </a>
+                                <a asp-controller="Lab" asp-action="Request" asp-route-patientId="@patient.Id" asp-route-visitId="@selectedVisit.Id" class="btn btn-sm btn-primary-custom text-white">
+                                    <i class="bi bi-flask"></i>
+                                    <span class="d-none d-xl-inline ms-1">Lab</span>
+                                </a>
+                                <a asp-controller="Pharmacy" asp-action="CreatePrescription" asp-route-patientId="@patient.Id" asp-route-visitId="@selectedVisit.Id" class="btn btn-sm btn-primary-custom text-white">
+                                    <i class="bi bi-prescription2"></i>
+                                    <span class="d-none d-xl-inline ms-1">Rx</span>
+                                </a>
+                            }
+                            else
+                            {
+                                <span class="text-muted-custom small">Select a visit to unlock actions.</span>
+                            }
+                        </div>
+                    </div>
+
+                    <div class="d-md-none mb-3">
+                        <label class="form-label small text-muted-custom mb-1">Jump to section</label>
+                        <select class="form-select" data-chart-section-select>
+                            <option value="chart-workflow" selected>Workflow</option>
+                            <option value="chart-timeline">Timeline</option>
+                            <option value="chart-vitals">Vitals</option>
+                            <option value="chart-notes">Clinical Notes</option>
+                            <option value="chart-medications">Medications</option>
+                            <option value="chart-lab">Laboratory</option>
+                            <option value="chart-billing">Billing</option>
+                            <option value="chart-diagnoses">Diagnoses</option>
+                            <option value="chart-allergies">Allergies</option>
+                            <option value="chart-imaging">Imaging</option>
+                            <option value="chart-procedures">Procedures</option>
+                            <option value="chart-orders">Orders</option>
+                            <option value="chart-admissions">Admissions</option>
+                            <option value="chart-appointments">Appointments</option>
+                            <option value="chart-documents">Documents</option>
+                            <option value="chart-audit">Audit</option>
+                        </select>
+                    </div>
+
+                    <div class="chart-tabs-wrap mb-2">
+                        <button type="button" class="chart-tabs-edge" data-chart-tabs-scroll="prev" aria-label="Scroll tabs left">
+                            <i class="bi bi-chevron-left"></i>
+                        </button>
+                        <div class="chart-tabs-scroll">
+                            <ul class="nav nav-tabs chart-tabs flex-nowrap" role="tablist">
+                                <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#chart-workflow" type="button">Workflow</button></li>
+                                <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#chart-timeline" type="button">Timeline</button></li>
+                                <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#chart-vitals" type="button">Vitals</button></li>
+                                <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#chart-notes" type="button">Clinical Notes</button></li>
+                                <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#chart-medications" type="button">Medications</button></li>
+                                <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#chart-lab" type="button">Laboratory</button></li>
+                                <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#chart-billing" type="button">Billing</button></li>
+                                <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#chart-diagnoses" type="button">Diagnoses</button></li>
+                                <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#chart-allergies" type="button">Allergies</button></li>
+                                <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#chart-imaging" type="button">Imaging</button></li>
+                                <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#chart-procedures" type="button">Procedures</button></li>
+                                <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#chart-orders" type="button">Orders</button></li>
+                                <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#chart-admissions" type="button">Admissions</button></li>
+                                <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#chart-appointments" type="button">Appointments</button></li>
+                                <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#chart-documents" type="button">Documents</button></li>
+                                <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#chart-audit" type="button">Audit</button></li>
+                            </ul>
+                        </div>
+                        <button type="button" class="chart-tabs-edge" data-chart-tabs-scroll="next" aria-label="Scroll tabs right">
+                            <i class="bi bi-chevron-right"></i>
+                        </button>
+                    </div>
+
+                    <div class="tab-content pt-3">
+                        <div class="tab-pane fade show active" id="chart-workflow">
+                            <div class="workflow-shell">
+                                <div class="workflow-summary-card workflow-summary-card-primary">
+                                    <div class="small text-muted-custom">Patient Snapshot</div>
+                                    <div class="fw-semibold">@FullName</div>
+                                    <div class="small text-muted-custom">MRN: @patient.MedicalRecordNumber</div>
+                                    <div class="small text-muted-custom">Gender: @Display(patient.Gender)</div>
+                                    <div class="small text-muted-custom">DOB: @patient.DateOfBirth.ToString("yyyy-MM-dd")</div>
+                                </div>
+
+                                <div class="workflow-summary-card workflow-summary-card-success">
+                                    <div class="small text-muted-custom">Active Visit</div>
+                                    <div class="fw-semibold">@(selectedVisit != null ? selectedVisit.VisitType : "No active visit")</div>
+                                    <div class="small text-muted-custom">@((selectedVisit != null) ? selectedVisit.VisitAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm") : "Choose a visit to continue")</div>
+                                    <div class="small text-muted-custom text-truncate">@(selectedVisit != null ? Display(selectedVisit.Notes) : "Visit context will appear here.")</div>
+                                </div>
+
+                                <div class="workflow-summary-card workflow-summary-card-warning">
+                                    <div class="small text-muted-custom">Record Counts</div>
+                                    <div class="small text-muted-custom">Visits: @Model.Visits.Length</div>
+                                    <div class="small text-muted-custom">Vitals: @Model.RecentVitals.Length</div>
+                                    <div class="small text-muted-custom">Consultations: @Model.Consultations.Length</div>
+                                    <div class="small text-muted-custom">Labs: @Model.LabRequests.Length</div>
+                                    <div class="small text-muted-custom">Rx: @Model.Prescriptions.Length</div>
+                                    <div class="small text-muted-custom">Bills: @Model.Invoices.Length</div>
+                                </div>
+
+                                <div class="workflow-actions-card">
+                                    <div class="fw-semibold mb-2">Today's Workflow</div>
+                                    <div class="d-grid gap-2">
+                                        @if (selectedVisit != null)
+                                        {
+                                            <a asp-action="EnterVitals" asp-route-id="@selectedVisit.Id" class="btn btn-sm btn-outline-primary workflow-action-btn">
+                                                <i class="bi bi-activity me-1"></i> Record Vitals
+                                            </a>
+                                            <a asp-action="CreateConsultation" asp-route-visitId="@selectedVisit.Id" class="btn btn-sm btn-outline-primary workflow-action-btn">
+                                                <i class="bi bi-chat-square-text me-1"></i> Start Consultation
+                                            </a>
+                                            <a asp-controller="Lab" asp-action="Request" asp-route-patientId="@patient.Id" asp-route-visitId="@selectedVisit.Id" class="btn btn-sm btn-outline-primary workflow-action-btn">
+                                                <i class="bi bi-flask me-1"></i> Request Lab
+                                            </a>
+                                            <a asp-controller="Pharmacy" asp-action="CreatePrescription" asp-route-patientId="@patient.Id" asp-route-visitId="@selectedVisit.Id" class="btn btn-sm btn-outline-primary workflow-action-btn">
+                                                <i class="bi bi-prescription2 me-1"></i> Write Prescription
+                                            </a>
+                                            <a asp-controller="Billing" asp-action="Invoices" asp-route-patientId="@patient.Id" asp-route-visitId="@selectedVisit.Id" class="btn btn-sm btn-outline-primary workflow-action-btn">
+                                                <i class="bi bi-receipt me-1"></i> Open Billing
+                                            </a>
+                                        }
+                                        else
+                                        {
+                                            <div class="text-muted-custom">Select a visit to enable the care workflow.</div>
+                                        }
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="tab-pane fade" id="chart-timeline" role="tabpanel">
+                            <partial name="_PatientTimelinePanel" model="Model" />
+                        </div>
+                        <div class="tab-pane fade" id="chart-vitals">
+                            @if (selectedVisit == null)
+                            {
+                                <div class="border rounded-3 p-4 text-muted-custom">Select a visit to view vitals and to add new measurements.</div>
+                            }
+                            else if (Model.RecentVitals.Length == 0)
+                            {
+                                <div class="border rounded-3 p-4 text-muted-custom">No vitals have been recorded for this visit yet.</div>
+                            }
+                            else
+                            {
+                                <div class="row g-3">
+                                    @foreach (var item in Model.RecentVitals.OrderByDescending(x => x.RecordedAt))
+                                    {
+                                        <div class="col-12 col-md-6">
+                                            <div class="border rounded-3 p-3 h-100 bg-info-subtle">
+                                                <div class="fw-semibold">@item.RecordedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</div>
+                                                <div class="small text-muted-custom">Temp: @(item.Temperature.HasValue ? item.Temperature.Value.ToString("F1") + " C" : "-")</div>
+                                                <div class="small text-muted-custom">Pulse: @(item.PulseRate.HasValue ? item.PulseRate.Value + " bpm" : "-")</div>
+                                                <div class="small text-muted-custom">Resp: @(item.RespiratoryRate.HasValue ? item.RespiratoryRate.Value + " /min" : "-")</div>
+                                                <div class="small text-muted-custom">BP: @((item.SystolicBP.HasValue ? item.SystolicBP.Value.ToString() : "-") + " / " + (item.DiastolicBP.HasValue ? item.DiastolicBP.Value.ToString() : "-"))</div>
+                                                <div class="small text-muted-custom">O2: @(item.OxygenSaturation.HasValue ? item.OxygenSaturation.Value + " %" : "-")</div>
+                                                <div class="small text-muted-custom">BMI: @(item.BMI.HasValue ? item.BMI.Value.ToString("F2") : "-")</div>
+                                            </div>
+                                        </div>
+                                    }
+                                </div>
+                            }
+                        </div>
+
+                        <div class="tab-pane fade" id="chart-notes">
+                            @if (selectedVisit == null)
+                            {
+                                <div class="border rounded-3 p-4 text-muted-custom">Select a visit to review consultation notes.</div>
+                            }
+                            else if (Model.Consultations.Length == 0)
+                            {
+                                <div class="border rounded-3 p-4 text-muted-custom">No consultation notes available yet.</div>
+                            }
+                            else
+                            {
+                                <div class="list-group">
+                                    @foreach (var consultation in Model.Consultations.OrderByDescending(x => x.ConsultationAt))
+                                    {
+                                        <div class="list-group-item">
+                                            <div class="d-flex justify-content-between gap-3">
+                                                <div>
+                                                    <div class="fw-semibold">@Display(consultation.ChiefComplaint)</div>
+                                                    <div class="small text-muted-custom">@consultation.ConsultationAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</div>
+                                                    <div class="small text-muted-custom">@Display(consultation.Notes)</div>
+                                                </div>
+                                                <a asp-action="ConsultationDetails" asp-route-id="@consultation.Id" class="btn btn-sm btn-outline-primary">View</a>
+                                            </div>
+                                        </div>
+                                    }
+                                </div>
+                            }
+                        </div>
+
+                        <div class="tab-pane fade" id="chart-medications">
+                            @if (Model.Prescriptions.Length == 0)
+                            {
+                                <div class="border rounded-3 p-4 text-muted-custom">No prescriptions are available yet.</div>
+                            }
+                            else
+                            {
+                                <div class="list-group">
+                                    @foreach (var prescription in Model.Prescriptions.OrderByDescending(x => x.CreatedAt))
+                                    {
+                                        <div class="list-group-item">
+                                            <div class="d-flex justify-content-between gap-3">
+                                                <div>
+                                                    <div class="fw-semibold">@prescription.Status</div>
+                                                    <div class="small text-muted-custom">@prescription.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</div>
+                                                    <div class="small text-muted-custom">@string.Join(", ", (prescription.Items ?? Array.Empty<HMS.UI.Models.Pharmacy.PrescriptionItemViewModel>()).Take(3).Select(item => item.MedicationName))</div>
+                                                </div>
+                                                <a asp-controller="Pharmacy" asp-action="PrescriptionDetails" asp-route-id="@prescription.Id" class="btn btn-sm btn-outline-primary">View</a>
+                                            </div>
+                                        </div>
+                                    }
+                                </div>
+                            }
+                        </div>
+
+                        <div class="tab-pane fade" id="chart-lab">
+                            @if (selectedVisit == null)
+                            {
+                                <div class="border rounded-3 p-4 text-muted-custom">Select a visit to review lab requests.</div>
+                            }
+                            else if (Model.LabRequests.Length == 0)
+                            {
+                                <div class="border rounded-3 p-4 text-muted-custom">No laboratory requests are available yet.</div>
+                            }
+                            else
+                            {
+                                <div class="list-group">
+                                    @foreach (var lab in Model.LabRequests.OrderByDescending(x => x.CreatedAt ?? DateTimeOffset.MinValue))
+                                    {
+                                        <div class="list-group-item">
+                                            <div class="d-flex justify-content-between gap-3">
+                                                <div>
+                                                    <div class="fw-semibold">@Display(lab.RequestNumber)</div>
+                                                    <div class="small text-muted-custom">@((lab.CreatedAt ?? DateTimeOffset.MinValue).ToLocalTime().ToString("yyyy-MM-dd HH:mm"))</div>
+                                                    <div class="small text-muted-custom">Status: @Display(lab.Status)</div>
+                                                    <div class="small text-muted-custom">Results: @Display(lab.ResultsStatus)</div>
+                                                </div>
+                                                <a asp-controller="Lab" asp-action="Details" asp-route-id="@lab.Id" class="btn btn-sm btn-outline-primary">View</a>
+                                            </div>
+                                        </div>
+                                    }
+                                </div>
+                            }
+                        </div>
+
+                        <div class="tab-pane fade" id="chart-billing">
+                            @if (Model.Invoices.Length == 0)
+                            {
+                                <div class="border rounded-3 p-4 text-muted-custom">No invoices are available yet.</div>
+                            }
+                            else
+                            {
+                                <div class="list-group">
+                                    @foreach (var invoice in Model.Invoices.OrderByDescending(x => x.CreatedAt))
+                                    {
+                                        <div class="list-group-item">
+                                            <div class="d-flex justify-content-between gap-3">
+                                                <div>
+                                                    <div class="fw-semibold">@invoice.InvoiceNumber</div>
+                                                    <div class="small text-muted-custom">@invoice.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</div>
+                                                    <div class="small text-muted-custom">@invoice.Status - @invoice.TotalAmount.ToString("0.##") @invoice.Currency</div>
+                                                </div>
+                                                <a asp-controller="Billing" asp-action="Details" asp-route-id="@invoice.Id" class="btn btn-sm btn-outline-primary">View</a>
+                                            </div>
+                                        </div>
+                                    }
+                                </div>
+                            }
+                        </div>
+
+                        <div class="tab-pane fade" id="chart-diagnoses">
+                            <div class="border rounded-3 p-4 text-muted-custom">Not yet implemented. Diagnosis tracking will be introduced with the longitudinal problem list module.</div>
+                        </div>
+
+                        <div class="tab-pane fade" id="chart-allergies">
+                            <div class="border rounded-3 p-4 text-muted-custom">Not yet implemented. Allergy records will be added with the clinical history module.</div>
+                        </div>
+
+                        <div class="tab-pane fade" id="chart-imaging">
+                            <div class="border rounded-3 p-4 text-muted-custom">Not yet implemented. Imaging worklists and results are not yet implemented.</div>
+                        </div>
+
+                        <div class="tab-pane fade" id="chart-procedures">
+                            <div class="border rounded-3 p-4 text-muted-custom">Not yet implemented. Procedure tracking is not yet implemented.</div>
+                        </div>
+
+                        <div class="tab-pane fade" id="chart-orders">
+                            <div class="border rounded-3 p-4 text-muted-custom">Not yet implemented. Orders will be introduced as a unified clinical queue.</div>
+                        </div>
+
+                        <div class="tab-pane fade" id="chart-admissions">
+                            <div class="border rounded-3 p-4 text-muted-custom">Not yet implemented. Admissions will be built from scratch.</div>
+                        </div>
+
+                        <div class="tab-pane fade" id="chart-appointments">
+                            <div class="border rounded-3 p-4 text-muted-custom">Not yet implemented. Appointments will be built from scratch.</div>
+                        </div>
+
+                        <div class="tab-pane fade" id="chart-documents">
+                            <div class="border rounded-3 p-4 text-muted-custom">Not yet implemented. Patient documents and attachments will surface here.</div>
+                        </div>
+
+                        <div class="tab-pane fade" id="chart-audit">
+                            <div class="border rounded-3 p-4 text-muted-custom">Not yet implemented. Audit history is not yet implemented.</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

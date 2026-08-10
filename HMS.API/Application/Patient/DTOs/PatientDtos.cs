@@ -119,6 +119,8 @@ namespace HMS.API.Application.Patient.DTOs
         public string? Occupation { get; set; }
         public string? PhotoUrl { get; set; }
         public bool IsActive { get; set; }
+        public DateTimeOffset CreatedAt { get; set; }
+        public DateTimeOffset? UpdatedAt { get; set; }
     }
 
     public class AddVisitRequest

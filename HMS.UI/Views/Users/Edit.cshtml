@@ -163,6 +163,10 @@
                                                     <input class="form-check-input" type="checkbox" name="AssignedRoleIds" value="@role.Id"
                                                            @(assigned.Contains(role.Id) ? "checked" : null) />
                                                     <span class="fw-semibold ms-2">@role.Name</span>
+                                                    @if (role.IsSystem)
+                                                    {
+                                                        <span class="badge-soft-secondary ms-2">System</span>
+                                                    }
                                                 </div>
                                                 <p class="text-muted small mt-2 mb-0">@role.Description</p>
                                             </div>

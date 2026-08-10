@@ -12,6 +12,21 @@
             <div class="mb-3 mb-md-0">
                 <partial name="_PatientHeader" model="Model.Patient" />
             </div>
+            @if (Model.Patient != null && Model.Visit != null)
+            {
+                <div class="d-flex flex-wrap gap-2 align-items-center">
+                    <div class="border rounded-3 px-3 py-2 bg-body-tertiary">
+                        <div class="small text-muted-custom">Clinical workspace</div>
+                        <div class="fw-semibold">@Model.Visit.VisitType</div>
+                    </div>
+                    <a asp-action="Chart" asp-route-id="@Model.Patient.Id" asp-route-visitId="@Model.Visit.Id" class="btn btn-success btn-sm">
+                        <i class="bi bi-clipboard2-pulse me-1"></i> Open Chart
+                    </a>
+                    <a asp-action="EnterVitals" asp-route-id="@Model.Visit.Id" class="btn btn-outline-primary btn-sm">
+                        <i class="bi bi-activity me-1"></i> Vitals
+                    </a>
+                </div>
+            }
 
 @* hidden antiforgery token to clone into modal forms *@
 <div id="af-token" style="display:none">@Html.AntiForgeryToken()</div>
@@ -89,6 +104,12 @@ document.addEventListener('DOMContentLoaded', function(){
                 <a asp-action="VisitEdit" asp-route-id="@Model.Visit?.Id" class="btn btn-primary-custom btn-sm me-2">
                     <i class="bi bi-pencil"></i> Edit
                 </a>
+                @if (Model.Patient != null)
+                {
+                    <a asp-action="Chart" asp-route-id="@Model.Patient.Id" asp-route-visitId="@Model.Visit?.Id" class="btn btn-outline-success btn-sm me-2">
+                        <i class="bi bi-clipboard2-pulse me-1"></i> Patient Chart
+                    </a>
+                }
                         @* Request Lab button only when patient present *@
                         @if(Model.Patient != null)
                         {
@@ -328,3 +349,4 @@ document.addEventListener('DOMContentLoaded', function(){
     </div>
 
 </div>
+

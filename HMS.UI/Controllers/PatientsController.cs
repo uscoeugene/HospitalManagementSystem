@@ -1,11 +1,11 @@
-using System;
+﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
 using HMS.UI.Services;
 using System.Text.Json;
 using HMS.UI.Models;
-using HMS.UI.Models.Lab;
 using HMS.UI.Models.Lab;
 using System.Net.Http.Json;
 using HMS.UI.Security;
@@ -30,98 +30,113 @@ namespace HMS.UI.Controllers
         {
             try
             {
-                // id is visit id
-                var v = await _api.GetAsync<HMS.UI.Models.VisitViewModel>($"/patients/visits/{id}");
-                if (v == null) return NotFound();
+                var visit = await _api.GetAsync<HMS.UI.Models.VisitViewModel>($"/patients/visits/{id}");
+                if (visit == null) return NotFound();
 
-                // fetch patient
-                var p = await _api.GetAsync<PatientDetailsViewModel>($"/patients/{v.PatientId}");
-
-                // fetch recent vitals for visit (API returns ApiResponse wrapper -> use GetAsync on array type via client)
-                var vitals = await _api.GetAsync<HMS.UI.Models.VitalSignViewModel[]>($"/patients/visits/{v.Id}/vitals");
-                var consultations = await _api.GetAsync<HMS.UI.Models.ConsultationViewModel[]>($"/patients/visits/{v.Id}/consultations");
-
-                // load providers (medical staff)
-                try
-                {
-                    var providers = await _api.GetAsync<HMS.UI.Models.Profile.ProviderViewModel[]>($"/api/profile/providers");
-                    var providerMap = new System.Collections.Generic.Dictionary<Guid, HMS.UI.Models.Profile.ProviderViewModel>();
-                    if (providers != null)
-                    {
-                        foreach (var prov in providers) providerMap[prov.UserId] = prov;
-                    }
-                    ViewBag.ProvidersMap = providerMap;
-                }
-                catch { ViewBag.ProvidersMap = null; }
-                var vm = new HMS.UI.Models.VisitDetailsViewModel
-                {
-                    Visit = v,
-                    Patient = p,
-                    RecentVitals = (vitals ?? Array.Empty<HMS.UI.Models.VitalSignViewModel>()).Select(x => new HMS.UI.Models.VitalSignListItem
-                    {
-                        Id = x.GetType().GetProperty("Id") != null ? (Guid)x.GetType().GetProperty("Id").GetValue(x)! : Guid.Empty,
-                        PatientId = x.PatientId,
-                        VisitId = x.VisitId,
-                        RecordedAt = x.RecordedAt,
-                        Temperature = x.Temperature,
-                        PulseRate = x.PulseRate,
-                        RespiratoryRate = x.RespiratoryRate,
-                        SystolicBP = x.SystolicBP,
-                        DiastolicBP = x.DiastolicBP,
-                        OxygenSaturation = x.OxygenSaturation,
-                        WeightKg = x.WeightKg,
-                        HeightCm = x.HeightCm,
-                        BMI = x.BMI,
-                        BloodSugar = x.BloodSugar,
-                        Notes = x.Notes,
-                        RecordedByUserId = x.GetType().GetProperty("RecordedByUserId") != null ? (Guid?)x.GetType().GetProperty("RecordedByUserId").GetValue(x) : null
-                    }).ToArray(),
-                Consultations = consultations ?? Array.Empty<HMS.UI.Models.ConsultationViewModel>()
-                };
-
-                // load invoices for this visit so UI can display them in invoices tab
-                try
-                {
-                    var invoicePage = await _api.GetAsync<PagedResult<HMS.UI.Models.Billing.InvoiceViewModel>>($"/billing?visitId={v.Id}&page=1&pageSize=50");
-                    vm.Invoices = invoicePage?.Items ?? Array.Empty<HMS.UI.Models.Billing.InvoiceViewModel>();
-                }
-                catch { vm.Invoices = Array.Empty<HMS.UI.Models.Billing.InvoiceViewModel>(); }
-
-                try
-                {
-                    var labPage = await _api.GetAsync<PagedResult<HMS.UI.Models.Lab.LabRequestViewModel>>($"/lab/requests?visitId={v.Id}&page=1&pageSize=50");
-                    var items = labPage?.Items ?? Array.Empty<HMS.UI.Models.Lab.LabRequestViewModel>();
-
-                    // Enhance display metadata where possible
-                    foreach (var lr in items)
-                    {
-                        lr.ItemsCount = lr.Items != null ? lr.Items.Count() : 0;
-                        lr.ResultsStatus = lr.Items != null && lr.Items.Any(i => !string.Equals(i.ResultStatus, "PENDING", StringComparison.OrdinalIgnoreCase)) ? "Has Results" : "Pending";
-                        // use invoice summary returned by API when available
-                        lr.InvoiceStatus = lr.InvoiceSummary != null ? lr.InvoiceSummary.Status : (lr.Items?.Any(i => i.ChargeInvoiceItemId.HasValue) == true ? "CHARGED" : "UNPAID");
-                        lr.PatientName = vm.Patient != null ? (vm.Patient.FirstName + " " + vm.Patient.LastName).Trim() : lr.PatientName;
-                    }
-
-                    vm.LabRequests = items;
-                }
-                catch { vm.LabRequests = Array.Empty<HMS.UI.Models.Lab.LabRequestViewModel>(); }
-
-                try
-                {
-                    var prescriptionPage = await _api.GetAsync<PagedResult<HMS.UI.Models.Pharmacy.PrescriptionViewModel>>($"/pharmacy/prescriptions?visitId={v.Id}&page=1&pageSize=100");
-                    vm.Prescriptions = prescriptionPage?.Items ?? Array.Empty<HMS.UI.Models.Pharmacy.PrescriptionViewModel>();
-                }
-                catch
-                {
-                    vm.Prescriptions = Array.Empty<HMS.UI.Models.Pharmacy.PrescriptionViewModel>();
-                }
-
-                return View(vm);
+                return RedirectToAction(nameof(Chart), new { id = visit.PatientId, visitId = visit.Id });
             }
             catch (Exception ex)
             {
                 TempData["Error"] = ex.Message;
                 return RedirectToAction("Index");
+            }
+        }
+
+        [HasPermission("patients.view")]
+        public async Task<IActionResult> Chart(Guid id, Guid? visitId = null, string? timelineCategory = null, string? timelineSort = null, int timelinePage = 1, int timelinePageSize = 6, string? panel = null)
+        {
+            try
+            {
+                var patient = await _api.GetAsync<PatientDetailsViewModel>($"/patients/{id}");
+                if (patient == null) return NotFound();
+
+                var visits = await _api.GetAsync<VisitViewModel[]>($"/patients/{id}/visits") ?? Array.Empty<VisitViewModel>();
+                var orderedVisits = visits.OrderByDescending(v => v.VisitAt).ToArray();
+                var selectedVisit = visitId.HasValue
+                    ? orderedVisits.FirstOrDefault(v => v.Id == visitId.Value)
+                    : orderedVisits.FirstOrDefault();
+                selectedVisit ??= orderedVisits.FirstOrDefault();
+
+                VitalSignListItem[] recentVitals = Array.Empty<VitalSignListItem>();
+                ConsultationViewModel[] consultations = Array.Empty<ConsultationViewModel>();
+                if (selectedVisit != null)
+                {
+                    try
+                    {
+                        var vitals = await _api.GetAsync<VitalSignViewModel[]>($"/patients/visits/{selectedVisit.Id}/vitals") ?? Array.Empty<VitalSignViewModel>();
+                        recentVitals = vitals.Select(x => new VitalSignListItem
+                        {
+                            Id = x.Id,
+                            PatientId = x.PatientId,
+                            VisitId = x.VisitId,
+                            RecordedAt = x.RecordedAt,
+                            Temperature = x.Temperature,
+                            PulseRate = x.PulseRate,
+                            RespiratoryRate = x.RespiratoryRate,
+                            SystolicBP = x.SystolicBP,
+                            DiastolicBP = x.DiastolicBP,
+                            OxygenSaturation = x.OxygenSaturation,
+                            WeightKg = x.WeightKg,
+                            HeightCm = x.HeightCm,
+                            BMI = x.BMI,
+                            BloodSugar = x.BloodSugar,
+                            Notes = x.Notes,
+                            RecordedByUserId = x.RecordedByUserId
+                        }).ToArray();
+                    }
+                    catch
+                    {
+                        recentVitals = Array.Empty<VitalSignListItem>();
+                    }
+
+                    try
+                    {
+                        consultations = await _api.GetAsync<ConsultationViewModel[]>($"/patients/visits/{selectedVisit.Id}/consultations") ?? Array.Empty<ConsultationViewModel>();
+                    }
+                    catch
+                    {
+                        consultations = Array.Empty<ConsultationViewModel>();
+                    }
+                }
+
+                PagedResult<HMS.UI.Models.Billing.InvoiceViewModel>? invoicePage = null;
+                PagedResult<HMS.UI.Models.Lab.LabRequestViewModel>? labPage = null;
+                PagedResult<HMS.UI.Models.Pharmacy.PrescriptionViewModel>? prescriptionPage = null;
+
+                try { invoicePage = await _api.GetAsync<PagedResult<HMS.UI.Models.Billing.InvoiceViewModel>>($"/billing?patientId={id}&page=1&pageSize=50"); } catch { }
+                try { labPage = await _api.GetAsync<PagedResult<HMS.UI.Models.Lab.LabRequestViewModel>>($"/lab/requests?patientId={id}&page=1&pageSize=50"); } catch { }
+                try { prescriptionPage = await _api.GetAsync<PagedResult<HMS.UI.Models.Pharmacy.PrescriptionViewModel>>($"/pharmacy/prescriptions?patientId={id}&page=1&pageSize=50"); } catch { }
+
+                var chart = new HMS.UI.Models.PatientChartViewModel
+                {
+                    Patient = patient,
+                    Visits = orderedVisits,
+                    SelectedVisit = selectedVisit,
+                    RecentVitals = recentVitals,
+                    Consultations = consultations,
+                    Invoices = invoicePage?.Items ?? Array.Empty<HMS.UI.Models.Billing.InvoiceViewModel>(),
+                    LabRequests = labPage?.Items ?? Array.Empty<HMS.UI.Models.Lab.LabRequestViewModel>(),
+                    Prescriptions = prescriptionPage?.Items ?? Array.Empty<HMS.UI.Models.Pharmacy.PrescriptionViewModel>()
+                };
+
+                chart.Timeline = BuildPatientTimeline(chart);
+                chart.TimelineCategory = string.IsNullOrWhiteSpace(timelineCategory) ? "All" : timelineCategory.Trim();
+                chart.TimelineSort = NormalizeTimelineSort(timelineSort);
+                chart.TimelinePageNumber = Math.Max(1, timelinePage);
+                chart.TimelinePageSize = NormalizeTimelinePageSize(timelinePageSize);
+                chart.TimelinePage = BuildTimelinePage(chart.Timeline, chart.TimelineCategory, chart.TimelineSort, chart.TimelinePageNumber, chart.TimelinePageSize);
+
+                if (string.Equals(panel, "timeline", StringComparison.OrdinalIgnoreCase))
+                {
+                    return PartialView("_PatientTimelinePanel", chart);
+                }
+
+                return View(chart);
+            }
+            catch (Exception ex)
+            {
+                TempData["Error"] = ex.Message;
+                return RedirectToAction("Details", new { id });
             }
         }
 
@@ -527,12 +542,185 @@ namespace HMS.UI.Controllers
             {
                 var p = await _api.GetAsync<PatientDetailsViewModel>($"/patients/{id}");
                 if (p == null) return NotFound();
-                return View(p);
+                return RedirectToAction(nameof(Chart), new { id = p.Id });
             }
             catch
             {
                 return NotFound();
             }
+        }
+
+        private static PatientTimelineEntryViewModel[] BuildPatientTimeline(PatientChartViewModel chart)
+        {
+            var entries = new List<PatientTimelineEntryViewModel>();
+
+            entries.Add(new PatientTimelineEntryViewModel
+            {
+                Timestamp = chart.Patient.CreatedAt,
+                Category = "Registration",
+                Title = "Patient profile created",
+                Summary = chart.Patient.MedicalRecordNumber,
+                Status = chart.Patient.IsActive ? "Active" : "Inactive",
+                BadgeClass = chart.Patient.IsActive ? "badge-soft-success" : "badge-soft-danger",
+                IconClass = "bi-person-badge"
+            });
+
+            foreach (var visit in chart.Visits)
+            {
+                entries.Add(new PatientTimelineEntryViewModel
+                {
+                    Timestamp = visit.VisitAt,
+                    Category = "Visit",
+                    Title = visit.VisitType,
+                    Summary = visit.Notes,
+                    Status = "Visit recorded",
+                    BadgeClass = "badge-soft-primary",
+                    IconClass = "bi-calendar2-heart",
+                    LinkUrl = $"/Patients/VisitDetails/{visit.Id}",
+                    LinkLabel = "Open visit"
+                });
+            }
+
+            foreach (var v in chart.RecentVitals)
+            {
+                entries.Add(new PatientTimelineEntryViewModel
+                {
+                    Timestamp = v.RecordedAt,
+                    Category = "Vitals",
+                    Title = "Vitals recorded",
+                    Summary = BuildVitalsSummary(v),
+                    Status = "Clinical measurement",
+                    BadgeClass = "badge-soft-info",
+                    IconClass = "bi-activity",
+                    LinkUrl = $"/Patients/VisitDetails/{v.VisitId}",
+                    LinkLabel = "Open visit"
+                });
+            }
+
+            foreach (var consultation in chart.Consultations)
+            {
+                entries.Add(new PatientTimelineEntryViewModel
+                {
+                    Timestamp = consultation.ConsultationAt,
+                    Category = "Consultation",
+                    Title = consultation.ChiefComplaint ?? "Consultation",
+                    Summary = consultation.DiagnosisCodes ?? consultation.Notes,
+                    Status = consultation.Status,
+                    BadgeClass = "badge-soft-warning",
+                    IconClass = "bi-chat-square-text",
+                    LinkUrl = $"/Patients/ConsultationDetails/{consultation.Id}",
+                    LinkLabel = "Open consultation"
+                });
+            }
+
+            foreach (var invoice in chart.Invoices)
+            {
+                entries.Add(new PatientTimelineEntryViewModel
+                {
+                    Timestamp = invoice.CreatedAt,
+                    Category = "Billing",
+                    Title = invoice.InvoiceNumber,
+                    Summary = $"{invoice.Status} - {invoice.TotalAmount:0.##} {invoice.Currency}",
+                    Status = invoice.Balance > 0 ? "Balance due" : "Settled",
+                    BadgeClass = invoice.Balance > 0 ? "badge-soft-warning" : "badge-soft-success",
+                    IconClass = "bi-receipt",
+                    LinkUrl = $"/Billing/Details/{invoice.Id}",
+                    LinkLabel = "Open invoice"
+                });
+            }
+
+            foreach (var lab in chart.LabRequests)
+            {
+                entries.Add(new PatientTimelineEntryViewModel
+                {
+                    Timestamp = lab.CreatedAt ?? DateTimeOffset.MinValue,
+                    Category = "Laboratory",
+                    Title = lab.RequestNumber,
+                    Summary = lab.Status,
+                    Status = lab.ResultsStatus ?? lab.InvoiceStatus,
+                    BadgeClass = "badge-soft-primary",
+                    IconClass = "bi-flask",
+                    LinkUrl = $"/Lab/Details/{lab.Id}",
+                    LinkLabel = "Open request"
+                });
+            }
+
+            foreach (var rx in chart.Prescriptions)
+            {
+                entries.Add(new PatientTimelineEntryViewModel
+                {
+                    Timestamp = rx.CreatedAt,
+                    Category = "Pharmacy",
+                    Title = rx.Status,
+                    Summary = string.Join(", ", (rx.Items ?? Array.Empty<HMS.UI.Models.Pharmacy.PrescriptionItemViewModel>()).Take(3).Select(i => i.MedicationName)),
+                    Status = rx.UpdatedAt.HasValue ? $"Updated {rx.UpdatedAt.Value.ToLocalTime():yyyy-MM-dd HH:mm}" : "New prescription",
+                    BadgeClass = "badge-soft-success",
+                    IconClass = "bi-prescription2",
+                    LinkUrl = $"/Pharmacy/PrescriptionDetails/{rx.Id}",
+                    LinkLabel = "Open prescription"
+                });
+            }
+
+            return entries
+                .OrderByDescending(x => x.Timestamp)
+                .ToArray();
+        }
+
+        private static PagedResult<PatientTimelineEntryViewModel> BuildTimelinePage(
+            PatientTimelineEntryViewModel[] timeline,
+            string category,
+            string sort,
+            int page,
+            int pageSize)
+        {
+            IEnumerable<PatientTimelineEntryViewModel> query = timeline;
+            pageSize = NormalizeTimelinePageSize(pageSize);
+
+            if (!string.Equals(category, "All", StringComparison.OrdinalIgnoreCase))
+            {
+                query = query.Where(x => string.Equals(x.Category, category, StringComparison.OrdinalIgnoreCase));
+            }
+
+            query = sort.Equals("oldest", StringComparison.OrdinalIgnoreCase)
+                ? query.OrderBy(x => x.Timestamp)
+                : query.OrderByDescending(x => x.Timestamp);
+
+            var totalCount = query.Count();
+            var totalPages = Math.Max(1, (int)Math.Ceiling(totalCount / (double)pageSize));
+            var currentPage = Math.Min(Math.Max(1, page), totalPages);
+            var items = query
+                .Skip((currentPage - 1) * pageSize)
+                .Take(pageSize)
+                .ToArray();
+
+            return new PagedResult<PatientTimelineEntryViewModel>
+            {
+                Items = items,
+                TotalCount = totalCount,
+                Page = currentPage,
+                PageSize = pageSize
+            };
+        }
+
+        private static string NormalizeTimelineSort(string? sort)
+        {
+            return string.Equals(sort, "oldest", StringComparison.OrdinalIgnoreCase) ? "oldest" : "recent";
+        }
+
+        private static int NormalizeTimelinePageSize(int? pageSize)
+        {
+            var allowed = new[] { 6, 10, 20, 50 };
+            var resolved = pageSize.GetValueOrDefault(6);
+            return allowed.Contains(resolved) ? resolved : 6;
+        }
+
+        private static string BuildVitalsSummary(VitalSignListItem vitals)
+        {
+            var parts = new List<string>();
+            if (vitals.Temperature.HasValue) parts.Add($"Temp {vitals.Temperature.Value:F1} C");
+            if (vitals.PulseRate.HasValue) parts.Add($"Pulse {vitals.PulseRate.Value} bpm");
+            if (vitals.SystolicBP.HasValue || vitals.DiastolicBP.HasValue) parts.Add($"BP {vitals.SystolicBP?.ToString() ?? "-"} / {vitals.DiastolicBP?.ToString() ?? "-"}");
+            return parts.Count > 0 ? string.Join(" | ", parts) : "Clinical observation recorded";
         }
 
         [HasPermission("patients.view")]

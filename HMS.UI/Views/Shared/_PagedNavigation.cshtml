@@ -1,0 +1,42 @@
+@using Microsoft.AspNetCore.Routing
+@model HMS.UI.Models.PagedNavigationViewModel
+
+@functions {
+    string BuildUrl(int page)
+    {
+        var routeValues = new RouteValueDictionary(Model.RouteValues);
+        routeValues[Model.PageParameterName] = page;
+        return Url.Action(Model.Action, Model.Controller, routeValues) ?? "#";
+    }
+}
+
+@{
+    var ajaxAttrs = Model.UseAjax
+        ? $"data-ajax-target=\"{Model.AjaxTarget ?? string.Empty}\" data-ajax-swap=\"{(string.IsNullOrWhiteSpace(Model.AjaxSwap) ? "outerHTML" : Model.AjaxSwap)}\" data-ajax-extra-query=\"{Model.AjaxExtraQuery ?? string.Empty}\""
+        : string.Empty;
+}
+
+@if (Model.TotalPages > 1)
+{
+    <div class="paged-navigation d-flex flex-column flex-sm-row justify-content-between align-items-sm-center gap-2">
+        <small class="text-muted-custom">
+            @Model.SummaryLabel @(Math.Min((Model.CurrentPage - 1) * Model.PageSize + 1, Model.TotalCount)) to @Math.Min(Model.CurrentPage * Model.PageSize, Model.TotalCount) of @Model.TotalCount
+        </small>
+        <nav aria-label="Pagination">
+            <ul class="pagination pagination-sm mb-0">
+                <li class="page-item @(Model.CurrentPage <= 1 ? "disabled" : "")">
+                    <a class="page-link" href="@BuildUrl(Model.CurrentPage - 1)" @Html.Raw(ajaxAttrs)>&lsaquo;</a>
+                </li>
+                @for (var pageNumber = 1; pageNumber <= Model.TotalPages; pageNumber++)
+                {
+                    <li class="page-item @(pageNumber == Model.CurrentPage ? "active" : "")">
+                        <a class="page-link" href="@BuildUrl(pageNumber)" @Html.Raw(ajaxAttrs)>@pageNumber</a>
+                    </li>
+                }
+                <li class="page-item @(Model.CurrentPage >= Model.TotalPages ? "disabled" : "")">
+                    <a class="page-link" href="@BuildUrl(Model.CurrentPage + 1)" @Html.Raw(ajaxAttrs)>&rsaquo;</a>
+                </li>
+            </ul>
+        </nav>
+    </div>
+}

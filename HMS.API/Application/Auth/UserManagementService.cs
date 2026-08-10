@@ -193,7 +193,8 @@ public class UserManagementService : IUserManagementService
             throw new InvalidOperationException("One or more selected roles do not exist.");
         }
 
-        var defaultUserRole = await ScopedRolesQuery().SingleOrDefaultAsync(r => r.Name == "User");
+        var defaultUserRole = await ScopedRolesQuery().SingleOrDefaultAsync(r =>
+            r.Name == RoleCatalog.PatientPortalUser || r.Name == "User");
         if (defaultUserRole != null && roles.All(r => r.Id != defaultUserRole.Id))
         {
             roles.Add(defaultUserRole);

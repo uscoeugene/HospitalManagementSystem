@@ -44,6 +44,78 @@ namespace HMS.UI.Models
         public PrescriptionViewModel[] Prescriptions { get; set; } = Array.Empty<PrescriptionViewModel>();
     }
 
+    public class PatientTimelineEntryViewModel
+    {
+        public DateTimeOffset Timestamp { get; set; }
+        public string Category { get; set; } = string.Empty;
+        public string Title { get; set; } = string.Empty;
+        public string? Summary { get; set; }
+        public string? Status { get; set; }
+        public string? BadgeClass { get; set; }
+        public string? IconClass { get; set; }
+        public string? LinkUrl { get; set; }
+        public string? LinkLabel { get; set; }
+    }
+
+    public class ListQueryControlsViewModel
+    {
+        public string Action { get; set; } = string.Empty;
+        public string? Controller { get; set; }
+        public Dictionary<string, string?> HiddenFields { get; set; } = new();
+        public string? FilterLabel { get; set; }
+        public string? FilterName { get; set; }
+        public string? SelectedFilter { get; set; }
+        public string[] FilterOptions { get; set; } = Array.Empty<string>();
+        public string? SortLabel { get; set; }
+        public string? SortName { get; set; }
+        public string? SelectedSort { get; set; }
+        public string[] SortOptions { get; set; } = Array.Empty<string>();
+        public string? PageSizeLabel { get; set; }
+        public string? PageSizeName { get; set; }
+        public int SelectedPageSize { get; set; }
+        public int[] PageSizeOptions { get; set; } = Array.Empty<int>();
+        public string SubmitText { get; set; } = "Apply";
+        public bool UseAjax { get; set; }
+        public string? AjaxTarget { get; set; }
+        public string AjaxSwap { get; set; } = "outerHTML";
+        public string? AjaxExtraQuery { get; set; }
+    }
+
+    public class PagedNavigationViewModel
+    {
+        public string Action { get; set; } = string.Empty;
+        public string? Controller { get; set; }
+        public Dictionary<string, string?> RouteValues { get; set; } = new();
+        public string PageParameterName { get; set; } = "page";
+        public int CurrentPage { get; set; }
+        public int TotalPages { get; set; }
+        public int TotalCount { get; set; }
+        public int PageSize { get; set; }
+        public string SummaryLabel { get; set; } = "Showing";
+        public bool UseAjax { get; set; }
+        public string? AjaxTarget { get; set; }
+        public string AjaxSwap { get; set; } = "outerHTML";
+        public string? AjaxExtraQuery { get; set; }
+    }
+
+    public class PatientChartViewModel
+    {
+        public PatientDetailsViewModel Patient { get; set; } = new PatientDetailsViewModel();
+        public VisitViewModel[] Visits { get; set; } = Array.Empty<VisitViewModel>();
+        public VisitViewModel? SelectedVisit { get; set; }
+        public VitalSignListItem[] RecentVitals { get; set; } = Array.Empty<VitalSignListItem>();
+        public ConsultationViewModel[] Consultations { get; set; } = Array.Empty<ConsultationViewModel>();
+        public HMS.UI.Models.Billing.InvoiceViewModel[] Invoices { get; set; } = Array.Empty<HMS.UI.Models.Billing.InvoiceViewModel>();
+        public LabRequestViewModel[] LabRequests { get; set; } = Array.Empty<LabRequestViewModel>();
+        public PrescriptionViewModel[] Prescriptions { get; set; } = Array.Empty<PrescriptionViewModel>();
+        public PatientTimelineEntryViewModel[] Timeline { get; set; } = Array.Empty<PatientTimelineEntryViewModel>();
+        public PagedResult<PatientTimelineEntryViewModel> TimelinePage { get; set; } = new PagedResult<PatientTimelineEntryViewModel>();
+        public string TimelineCategory { get; set; } = "All";
+        public string TimelineSort { get; set; } = "recent";
+        public int TimelinePageNumber { get; set; } = 1;
+        public int TimelinePageSize { get; set; } = 6;
+    }
+
     public class EnterVitalsPageViewModel
     {
         public VitalSignViewModel Form { get; set; } = new VitalSignViewModel();
@@ -119,7 +191,8 @@ namespace HMS.UI.Models
         public string? Occupation { get; set; }
         public string? PhotoUrl { get; set; }
         public string? MaritalStatus { get; set; }
-       
+        public DateTimeOffset CreatedAt { get; set; }
+        public DateTimeOffset? UpdatedAt { get; set; }
         public bool IsActive { get; set; }
     }
 

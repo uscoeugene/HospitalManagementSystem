@@ -1,4 +1,4 @@
-@inherits Microsoft.AspNetCore.Mvc.Razor.RazorPage<dynamic>
+﻿@inherits Microsoft.AspNetCore.Mvc.Razor.RazorPage<dynamic>
 @using System.Security.Claims
 @{
     var currentPath = Context.Request.Path.Value ?? string.Empty;
@@ -75,6 +75,11 @@
                 <span>Dashboard</span>
             </a>
 
+            <a class="sidebar-link @(currentPath.StartsWith("/Queues", StringComparison.OrdinalIgnoreCase) ? "active" : string.Empty)" href="/Queues">
+                <i class="bi bi-list-task"></i>
+                <span>Queues</span>
+            </a>
+
             @if (User.Identity?.IsAuthenticated ?? false)
             {
                 <a class="sidebar-link @(currentPath.StartsWith("/Patients", StringComparison.OrdinalIgnoreCase) ? "active" : string.Empty)" href="/Patients">
@@ -132,6 +137,14 @@
                     <span>Roles & Permissions</span>
                 </a>
 
+                @if (User.HasClaim("permission", "system.maintenance.manage"))
+                {
+                    <a class="sidebar-link @(currentPath.StartsWith("/SystemMaintenance", StringComparison.OrdinalIgnoreCase) ? "active" : string.Empty)" href="/SystemMaintenance">
+                        <i class="bi bi-tools"></i>
+                        <span>System Maintenance</span>
+                    </a>
+                }
+
                 <a class="sidebar-link @(currentPath.StartsWith("/Admin/LocalTenant", StringComparison.OrdinalIgnoreCase) ? "active" : string.Empty)" href="/Admin/LocalTenant">
                     <i class="bi bi-building-gear"></i>
                     <span>Local Tenant</span>
@@ -172,7 +185,7 @@
                 <!-- LEFT -->
                 <div class="d-flex align-items-center gap-3">
 
-                    <button type="button" class="btn btn-light rounded-circle shadow-sm d-lg-none"
+                    <button type="button" class="btn btn-light rounded-circle shadow-sm"
                             data-sidebar-toggle
                             aria-label="Open menu">
                         <i class="bi bi-list"></i>
@@ -225,6 +238,7 @@
         <!-- CONTENT -->
         <main class="page-content">
             <div class="">
+                @await Component.InvokeAsync("DeploymentMode")
                 @RenderBody()
             </div>
         </main>
@@ -307,3 +321,5 @@
     @await RenderSectionAsync("Scripts", required: false)
 </body>
 </html>
+
+

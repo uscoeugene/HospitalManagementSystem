@@ -30,15 +30,30 @@
                 @foreach (var r in Model)
                 {
                     <tr>
-                        <td>@r.Name</td>
+                        <td>
+                            <div class="d-flex align-items-center gap-2">
+                                <span>@r.Name</span>
+                                @if (r.IsSystem)
+                                {
+                                    <span class="badge-soft-secondary">System</span>
+                                }
+                            </div>
+                        </td>
                         <td>@r.Description</td>
                         <td>@string.Join(", ", r.Permissions)</td>
                         <td>
-                            <a class="btn btn-sm btn-secondary" href="/Roles/Edit/@r.Id">Edit</a>
-                            <form method="post" action="/Roles/Delete/@r.Id" style="display:inline" onsubmit="return confirm('Delete role?');">
-                                @Html.AntiForgeryToken()
-                                <button class="btn btn-sm btn-danger">Delete</button>
-                            </form>
+                            @if (r.IsSystem)
+                            {
+                                <span class="text-muted small">Locked</span>
+                            }
+                            else
+                            {
+                                <a class="btn btn-sm btn-secondary" href="/Roles/Edit/@r.Id">Edit</a>
+                                <form method="post" action="/Roles/Delete/@r.Id" style="display:inline" onsubmit="return confirm('Delete role?');">
+                                    @Html.AntiForgeryToken()
+                                    <button class="btn btn-sm btn-danger">Delete</button>
+                                </form>
+                            }
                         </td>
                     </tr>
                 }

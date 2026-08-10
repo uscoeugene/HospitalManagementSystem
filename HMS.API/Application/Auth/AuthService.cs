@@ -191,8 +191,9 @@ namespace HMS.API.Application.Auth
 
             _db.Users.Add(user);
 
-            // Optionally assign a default role if exists by name "User"
-            var defaultRole = await _db.Roles.SingleOrDefaultAsync(r => r.Name == "User");
+            // Optionally assign a default patient portal role if it exists.
+            var defaultRole = await _db.Roles.SingleOrDefaultAsync(r =>
+                r.Name == RoleCatalog.PatientPortalUser || r.Name == "User");
             if (defaultRole != null)
             {
                 _db.UserRoles.Add(new Domain.Auth.UserRole { User = user, Role = defaultRole });

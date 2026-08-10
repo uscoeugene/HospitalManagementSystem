@@ -1,0 +1,45 @@
+@model HMS.UI.Models.DashboardCardViewModel[]
+
+@if (Model != null && Model.Length > 0)
+{
+    <div class="row g-3">
+        @foreach (var card in Model)
+        {
+            <div class="col-12 col-md-6 col-xl-4">
+                <div class="portal-card module-card h-100">
+                    <div class="portal-card-body d-flex flex-column h-100">
+                        <div class="d-flex justify-content-between align-items-start gap-2 mb-3">
+                            <div class="module-icon bg-primary-subtle text-primary">
+                                <i class="@card.IconClass"></i>
+                            </div>
+                            @if (!string.IsNullOrWhiteSpace(card.BadgeText))
+                            {
+                                <span class="@card.BadgeClass">@card.BadgeText</span>
+                            }
+                        </div>
+
+                        <h5 class="mb-1">@card.Title</h5>
+                        <p class="text-muted mb-3">@card.Description</p>
+
+                        @if (!string.IsNullOrWhiteSpace(card.CountText))
+                        {
+                            <div class="fw-semibold mb-3">@card.CountText waiting</div>
+                        }
+
+                        @if (!string.IsNullOrWhiteSpace(card.Footnote))
+                        {
+                            <div class="small text-muted mb-3">@card.Footnote</div>
+                        }
+
+                        @if (!string.IsNullOrWhiteSpace(card.LinkUrl))
+                        {
+                            <a href="@card.LinkUrl" class="btn btn-primary-custom mt-auto">
+                                @card.LinkText
+                            </a>
+                        }
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+}

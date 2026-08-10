@@ -1,7 +1,9 @@
+using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
 using System.Security.Claims;
+using HMS.API.Infrastructure.Auth;
 
 namespace HMS.API.Hubs
 {
@@ -24,9 +26,20 @@ namespace HMS.API.Hubs
             var user = Context.User;
             if (user == null) { await base.OnConnectedAsync(); return; }
 
-            if (user.IsInRole("Admin")) await Groups.AddToGroupAsync(Context.ConnectionId, "admin");
-            if (user.IsInRole("LabTech")) await Groups.AddToGroupAsync(Context.ConnectionId, "lab");
-            if (user.IsInRole("Pharmacist")) await Groups.AddToGroupAsync(Context.ConnectionId, "pharmacy");
+            if (RoleCatalog.HasAnyRole(user.Claims.Where(c => c.Type == ClaimTypes.Role).Select(c => c.Value), RoleCatalog.SystemAdministrator, RoleCatalog.HospitalAdministrator, "Admin"))
+            {
+                await Groups.AddToGroupAsync(Context.ConnectionId, "admin");
+            }
+
+            if (RoleCatalog.HasAnyRole(user.Claims.Where(c => c.Type == ClaimTypes.Role).Select(c => c.Value), RoleCatalog.LaboratoryStaff, "LabTech", "Lab"))
+            {
+                await Groups.AddToGroupAsync(Context.ConnectionId, "lab");
+            }
+
+            if (RoleCatalog.HasAnyRole(user.Claims.Where(c => c.Type == ClaimTypes.Role).Select(c => c.Value), RoleCatalog.Pharmacist))
+            {
+                await Groups.AddToGroupAsync(Context.ConnectionId, "pharmacy");
+            }
 
             // subscribe to patient-specific group if claim present
             var patientClaim = user.FindFirst("patient_id") ?? user.FindFirst(ClaimTypes.NameIdentifier);

@@ -15,16 +15,19 @@
 <body>
     <div class="container login-wrapper d-flex align-items-center">
         <div class="row align-items-center w-100">
-            <div class="col-lg-6 mb-5 mb-lg-0">
-                <div class="brand-panel">
-                    <div class="tenant-badge">
-                        <i class="bi bi-diagram-3-fill"></i>
-                        Multi-Tenant HMS Platform
-                    </div>
-                    <h1 class="brand-title mb-4">
-                        <i class="bi bi-hospital-fill"></i>
-                        HMS Cloud
-                    </h1>
+                <div class="col-lg-6 mb-5 mb-lg-0">
+                    <div class="brand-panel">
+                        <div class="tenant-badge">
+                            <i class="bi bi-diagram-3-fill"></i>
+                            Multi-Tenant HMS Platform
+                        </div>
+                        <div class="mt-3">
+                            @await Component.InvokeAsync("DeploymentMode")
+                        </div>
+                        <h1 class="brand-title mb-4">
+                            <i class="bi bi-hospital-fill"></i>
+                            HMS Cloud
+                        </h1>
                     <p class="brand-subtitle mb-4">
                         Secure, enterprise-grade hospital management for clinical operations, pharmacy,
                         laboratory workflows, billing, and tenant-isolated administration.

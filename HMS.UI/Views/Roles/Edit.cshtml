@@ -1,61 +1,159 @@
 @model HMS.UI.Models.Roles.RoleEditViewModel
 @{
-    
     ViewData["Title"] = "Edit Role";
 }
+
 <div class="container py-4">
-    <h3>Edit Role</h3>
-
-    @if (TempData["Error"] != null) { <div class="alert alert-danger">@TempData["Error"]</div> }
-    @if (TempData["Success"] != null) { <div class="alert alert-success">@TempData["Success"]</div> }
-
-    <form method="post">
-        @Html.AntiForgeryToken()
-        <div class="mb-3">
-            <label class="form-label">Name</label>
-            <input name="Name" value="@Model.Name" class="form-control" />
-        </div>
-        <div class="mb-3">
-            <label class="form-label">Description</label>
-            <input name="Description" value="@Model.Description" class="form-control" />
-        </div>
-        <button class="btn btn-primary">Save</button>
-    </form>
-
-    <h4 class="mt-4">Permissions</h4>
-    <form method="post" action="/Roles/AddPermission/@Model.Id">
-        @Html.AntiForgeryToken()
-        <div class="row">
-            <div class="col-md-5">
-                <input name="code" placeholder="permission.code" class="form-control" />
+    <div class="portal-card mb-4">
+        <div class="portal-card-body d-flex flex-column flex-lg-row justify-content-between gap-3 align-items-lg-center">
+            <div>
+                <div class="small text-muted-custom">Role administration</div>
+                <h3 class="mb-1">Edit Role</h3>
+                <div class="text-muted">Update the role description and attach existing permissions from the catalog.</div>
             </div>
-            <div class="col-md-5">
-                <input name="description" placeholder="description" class="form-control" />
-            </div>
-            <div class="col-md-2">
-                <button class="btn btn-secondary">Add</button>
+            <div>
+                @if (Model.IsSystem)
+                {
+                    <span class="badge-soft-secondary">Built-in role</span>
+                }
             </div>
         </div>
-    </form>
+    </div>
 
-    <table class="table mt-3">
-        <thead>
-            <tr><th>Code</th><th></th></tr>
-        </thead>
-        <tbody>
-            @foreach(var p in Model.Permissions)
-            {
-                <tr>
-                    <td>@p</td>
-                    <td>
-                        <form method="post" action="/Roles/RemovePermission/@Model.Id">
+    @if (TempData["Error"] != null)
+    {
+        <div class="alert alert-danger">@TempData["Error"]</div>
+    }
+    @if (TempData["Success"] != null)
+    {
+        <div class="alert alert-success">@TempData["Success"]</div>
+    }
+
+    <div class="row g-3">
+        <div class="col-12 col-lg-5">
+            <div class="portal-card h-100">
+                <div class="portal-card-body">
+                    <h5 class="mb-3">Role Details</h5>
+                    @if (Model.IsSystem)
+                    {
+                        <div class="alert alert-info">
+                            This is a built-in role. Its name is locked.
+                        </div>
+                    }
+
+                    <form method="post">
+                        @Html.AntiForgeryToken()
+                        <div class="mb-3">
+                            <label class="form-label">Name</label>
+                            <input value="@Model.Name" class="form-control" disabled />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Description</label>
+                            <input name="Description" value="@Model.Description" class="form-control" />
+                        </div>
+                        <input type="hidden" name="Name" value="@Model.Name" />
+                        <button class="btn btn-primary">Save Changes</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-12 col-lg-7">
+            <div class="portal-card mb-3">
+                <div class="portal-card-body">
+                    <div class="d-flex justify-content-between align-items-center gap-3 mb-3">
+                        <div>
+                            <h5 class="mb-1">Permissions</h5>
+                            <div class="text-muted-custom small">Select from the current catalog so role permissions stay aligned with the system.</div>
+                        </div>
+                    </div>
+
+                    @if (!Model.IsSystem)
+                    {
+                        <form method="post" action="/Roles/AddPermission/@Model.Id" class="mb-3">
                             @Html.AntiForgeryToken()
-                            <input type="hidden" name="code" value="@p" />
-                            <button class="btn btn-sm btn-danger">Remove</button>
+                            <div class="row g-2 align-items-end">
+                                <div class="col-md-8">
+                                    <label class="form-label">Existing permission</label>
+                                    <select name="code" class="form-select">
+                                        <option value="">Select permission</option>
+                                        @foreach (var permission in Model.AvailablePermissions)
+                                        {
+                                            <option value="@permission.Code">@(string.IsNullOrWhiteSpace(permission.Description) ? permission.Code : $"{permission.Code} - {permission.Description}")</option>
+                                        }
+                                    </select>
+                                </div>
+                                <div class="col-md-4">
+                                    <button class="btn btn-secondary w-100">Add Permission</button>
+                                </div>
+                            </div>
                         </form>
-                    </td>
-                </tr>
-            }
-        </tbody>
-    </table>
+
+                        @if (Model.CanManagePermissionCatalog)
+                        {
+                            <div class="border-top pt-3 mt-3">
+                                <div class="fw-semibold mb-2">Register New Permission</div>
+                                <div class="text-muted-custom small mb-3">Use this only when the system has been updated and a new built-in permission code has not yet been seeded.</div>
+                                <form method="post" action="/Roles/CreatePermission/@Model.Id">
+                                    @Html.AntiForgeryToken()
+                                    <div class="row g-2">
+                                        <div class="col-md-5">
+                                            <input name="code" placeholder="permission.code" class="form-control" />
+                                        </div>
+                                        <div class="col-md-5">
+                                            <input name="description" placeholder="Short description" class="form-control" />
+                                        </div>
+                                        <div class="col-md-2">
+                                            <button class="btn btn-outline-primary w-100">Register</button>
+                                        </div>
+                                    </div>
+                                </form>
+                            </div>
+                        }
+                    }
+                    else
+                    {
+                        <div class="alert alert-warning mb-0">
+                            Built-in roles are locked. Their permission set is managed centrally through seed data and maintenance screens.
+                        </div>
+                    }
+                </div>
+            </div>
+
+            <div class="portal-card">
+                <div class="portal-card-body">
+                    <h6 class="mb-3">Attached Permissions</h6>
+                    <div class="table-responsive">
+                        <table class="table table-sm align-middle mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Code</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var p in Model.Permissions)
+                                {
+                                    <tr>
+                                        <td>@p</td>
+                                        <td class="text-end">
+                                            @if (!Model.IsSystem)
+                                            {
+                                                <form method="post" action="/Roles/RemovePermission/@Model.Id" class="d-inline">
+                                                    @Html.AntiForgeryToken()
+                                                    <input type="hidden" name="code" value="@p" />
+                                                    <button class="btn btn-sm btn-outline-danger">Remove</button>
+                                                </form>
+                                            }
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
+

@@ -1,0 +1,1995 @@
+HOSPITAL MANAGEMENT SYSTEM (HMS)
+ENTERPRISE UX, USABILITY & ARCHITECTURE REFACTORING REQUIREMENTS
+
+Version: 1.0
+Date: 2026-08-08
+Purpose: Guide AI coding agents and engineering teams in refactoring an existing Hospital Management System into a scalable, usable, safe, role-based enterprise HMS.
+
+======================================================================
+
+1. MISSION
+   ======================================================================
+
+Refactor the existing HMS into a modern, enterprise-grade healthcare
+application that is:
+
+* Easy and fast for healthcare professionals to use.
+* Organized around real hospital workflows rather than backend modules.
+* Patient-centric.
+* Role-specific.
+* Consistent across all modules.
+* Accessible and responsive.
+* Safe for clinical workflows.
+* Auditable.
+* Scalable.
+* Maintainable.
+* Extensible.
+* Suitable for desktop, tablet, and mobile workflows where appropriate.
+
+IMPORTANT:
+
+This is a REFACTORING project, not an automatic rewrite.
+
+Existing working functionality must NOT be removed merely because it is
+implemented differently from the requirements in this document.
+
+Before changing an existing feature:
+
+1. Understand its current behavior.
+2. Identify dependencies.
+3. Preserve business rules unless they are demonstrably incorrect.
+4. Improve the implementation without unnecessarily breaking existing
+   workflows.
+5. Preserve existing data.
+6. Preserve existing APIs unless a migration strategy exists.
+7. Add tests around existing critical behavior before major refactoring.
+
+Coding agents MUST inspect the existing application before making major
+architectural decisions.
+
+======================================================================
+2. PRIMARY PRODUCT PRINCIPLE
+============================
+
+The HMS must be designed around:
+
+```
+USER -> TASK -> PATIENT -> WORKFLOW
+```
+
+and NOT:
+
+```
+DATABASE TABLE -> MODULE -> CRUD SCREEN
+```
+
+The backend may remain modular, but the user experience must feel like
+one coherent hospital system.
+
+A user should not have to understand the internal architecture of the
+software in order to perform a hospital workflow.
+
+======================================================================
+3. NON-NEGOTIABLE UX PRINCIPLES
+===============================
+
+3.1 Patient identity must always be obvious.
+
+3.2 The current patient context should remain visible throughout clinical
+workflows.
+
+3.3 Common workflows must require the minimum reasonable number of steps.
+
+3.4 Critical information must not be hidden behind unnecessary navigation.
+
+3.5 Users must always understand:
+
+```
+- What patient they are viewing.
+- What they are doing.
+- What has happened.
+- What needs attention.
+- What happens next.
+```
+
+3.6 Do not expose backend complexity unnecessarily.
+
+3.7 Do not use color as the only way to communicate status.
+
+3.8 Avoid unnecessary modal dialogs.
+
+3.9 Avoid unnecessary confirmation dialogs.
+
+3.10 Preserve work during interruptions.
+
+3.11 Errors must explain:
+
+```
+- What happened.
+- Why it happened when useful.
+- What the user can do next.
+```
+
+3.12 The system should favor task completion over information display.
+
+3.13 The interface must be consistent across modules.
+
+3.14 Critical clinical workflows must be designed for safety.
+
+3.15 Real healthcare users must be involved in usability validation.
+
+======================================================================
+4. PHASE 0 - EXISTING SYSTEM DISCOVERY
+======================================
+
+Before refactoring, coding agents MUST inspect the existing system.
+
+Produce an internal inventory containing:
+
+4.1 Frontend
+
+* Framework
+* Routing
+* Component architecture
+* State management
+* Forms
+* Validation
+* Tables
+* Modals
+* Notifications
+* Authentication UI
+* Navigation
+* Responsive behavior
+* Accessibility
+* Design system, if any
+
+4.2 Backend
+
+* Framework
+* Services
+* Controllers
+* Domain models
+* Business logic
+* Authentication
+* Authorization
+* Audit logging
+* APIs
+* Background jobs
+* Integrations
+
+4.3 Database
+
+* Database engine
+* Schemas
+* Tables
+* Relationships
+* Indexes
+* Constraints
+* Existing migrations
+* Patient identifiers
+* Clinical data structures
+* Audit structures
+
+4.4 Existing modules
+
+Identify all existing functionality, including but not limited to:
+
+* Authentication
+* Users
+* Roles
+* Patients
+* Registration
+* Appointments
+* Queue management
+* Triage
+* Consultation
+* Clinical notes
+* Diagnoses
+* Problems
+* Medications
+* Prescriptions
+* Pharmacy
+* Laboratory
+* Radiology
+* Procedures
+* Admissions
+* Beds
+* Wards
+* Nursing
+* Discharge
+* Billing
+* Payments
+* Insurance
+* Inventory
+* Procurement
+* Staff
+* Reports
+* Notifications
+* Documents
+* Configuration
+* Audit logs
+
+4.5 Identify technical debt
+
+Document:
+
+* duplicated code
+* inconsistent components
+* inconsistent API patterns
+* duplicated business rules
+* fragile modules
+* security risks
+* missing validation
+* poor error handling
+* inaccessible UI
+* inconsistent naming
+* hardcoded values
+* performance bottlenecks
+* duplicated database structures
+* missing indexes
+* undocumented APIs
+* missing tests
+
+DO NOT immediately refactor everything.
+
+First establish a baseline.
+
+======================================================================
+5. USER ROLES
+=============
+
+The system must support role-specific experiences.
+
+At minimum consider:
+
+* System Administrator
+* Hospital Administrator
+* Doctor / Physician
+* Nurse
+* Receptionist
+* Triage Staff
+* Pharmacist
+* Laboratory Staff
+* Radiology Staff
+* Billing Officer
+* Finance Officer
+* Inventory Officer
+* Records Officer
+* Patient
+* Other configurable hospital roles
+
+The system must NOT assume that every role sees the same dashboard.
+
+Authorization must be enforced at the backend/API level.
+
+Frontend role restrictions are NOT sufficient security.
+
+======================================================================
+6. ROLE-BASED DASHBOARDS
+========================
+
+Create role-specific dashboards.
+
+6.1 Doctor dashboard
+
+Should provide access to:
+
+* My patients
+* Today's appointments
+* Pending results
+* Critical results
+* Unsigned notes
+* Pending orders
+* Tasks
+* Recent patients
+* Alerts
+* Follow-up requirements
+
+6.2 Nurse dashboard
+
+Should provide:
+
+* Assigned patients
+* Medication tasks
+* Observations due
+* Nursing tasks
+* New orders
+* Handover information
+* Critical alerts
+* Pending documentation
+
+6.3 Reception dashboard
+
+Should provide:
+
+* Today's appointments
+* Check-ins
+* Waiting patients
+* Registration
+* Queue
+* Payment/administrative tasks
+
+6.4 Pharmacy dashboard
+
+Should provide:
+
+* Pending prescriptions
+* Verification queue
+* Dispensing queue
+* Stock alerts
+* Expiring stock
+* Rejected/returned prescriptions
+
+6.5 Laboratory dashboard
+
+Should provide:
+
+* Pending lab orders
+* Sample collection
+* Samples received
+* Processing queue
+* Pending results
+* Critical results
+* Validation queue
+
+6.6 Hospital administrator dashboard
+
+Should provide configurable operational KPIs such as:
+
+* Admissions
+* Discharges
+* Occupancy
+* Appointments
+* Patient volume
+* Revenue
+* Outstanding payments
+* Operational alerts
+
+Do not expose unnecessary administrative information to clinical users.
+
+======================================================================
+7. GLOBAL NAVIGATION
+====================
+
+The application must have a consistent navigation system.
+
+Recommended conceptual structure:
+
+GLOBAL SEARCH
+|
++-- Dashboard
++-- Patients
++-- My Work
++-- Appointments
++-- Clinical
++-- Pharmacy
++-- Laboratory
++-- Radiology
++-- Admissions
++-- Billing
++-- Inventory
++-- Reports
++-- Administration
+
+Navigation must be permission-aware.
+
+Users should not see modules they cannot access unless there is a
+specific reason to show them.
+
+======================================================================
+8. GLOBAL SEARCH
+================
+
+Implement a fast global search.
+
+Search should support relevant identifiers including:
+
+* Patient name
+* MRN
+* Phone number
+* Date of birth
+* National/organizational identifier where applicable
+* Appointment
+* Medication
+* Doctor
+* Other configured entities
+
+Patient search results MUST clearly distinguish similar patients.
+
+Example:
+
+```
+John A. Doe
+62M | MRN 0049281
+DOB: 12 Mar 1964
+ICU | Bed 12
+
+John B. Doe
+61M | MRN 0083412
+DOB: 19 Apr 1965
+Outpatient
+```
+
+Never make patient selection ambiguous.
+
+======================================================================
+9. PATIENT 360 / PATIENT CHART
+==============================
+
+The patient chart must become a central experience.
+
+Suggested structure:
+
+```
+PATIENT HEADER
+|
++-- Overview
++-- Timeline
++-- Clinical Notes
++-- Problems / Diagnoses
++-- Medications
++-- Allergies
++-- Vitals
++-- Laboratory
++-- Imaging
++-- Procedures
++-- Orders
++-- Admissions
++-- Appointments
++-- Documents
++-- Billing
++-- Audit / History (permission controlled)
+```
+
+Patient header should prominently display:
+
+* Full name
+* Age
+* Sex where appropriate
+* MRN
+* Date of birth
+* Current location
+* Ward
+* Bed
+* Important allergies
+* Important clinical warnings
+* Relevant status indicators
+
+Patient identity must remain visible during clinical workflows.
+
+======================================================================
+10. PATIENT OVERVIEW
+====================
+
+The patient overview must prioritize information requiring attention.
+
+Include configurable sections such as:
+
+* Current problems
+* Allergies
+* Active medications
+* Recent vitals
+* Recent laboratory results
+* Recent imaging
+* Recent notes
+* Current admission
+* Pending orders
+* Tasks
+* Important alerts
+
+Avoid overwhelming users.
+
+Critical information should be visually prioritized.
+
+======================================================================
+11. PATIENT TIMELINE
+====================
+
+Implement a chronological patient timeline.
+
+Timeline events may include:
+
+* Registration
+* Appointment
+* Triage
+* Consultation
+* Notes
+* Diagnoses
+* Orders
+* Medication administration
+* Laboratory results
+* Imaging
+* Procedures
+* Admission
+* Transfer
+* Discharge
+* Billing events
+* Documents
+
+Provide filters such as:
+
+```
+All
+Clinical
+Notes
+Medication
+Laboratory
+Imaging
+Procedures
+Administrative
+```
+
+Each event should show:
+
+* Timestamp
+* Event type
+* Actor
+* Summary
+* Relevant status
+* Link to details where appropriate
+
+======================================================================
+12. MY WORK / WORK QUEUES
+=========================
+
+Users should not have to navigate the entire system to find work.
+
+Implement task-oriented work queues.
+
+Examples:
+
+DOCTOR:
+
+```
+Patients to review
+Pending results
+Unsigned notes
+Orders requiring attention
+Follow-ups
+```
+
+NURSE:
+
+```
+Medication due
+Observations due
+New orders
+Documentation pending
+Handover
+```
+
+LAB:
+
+```
+Pending samples
+Processing
+Results requiring validation
+Critical results
+```
+
+PHARMACY:
+
+```
+Pending prescriptions
+Verification
+Dispensing
+Stock alerts
+```
+
+Tasks must have clear statuses.
+
+Suggested statuses:
+
+```
+Pending
+In Progress
+Completed
+Cancelled
+Failed
+Overdue
+Requires Attention
+```
+
+======================================================================
+13. CLINICAL WORKFLOW
+=====================
+
+The system must support a coherent workflow:
+
+```
+Registration
+    |
+Appointment / Walk-in
+    |
+Triage
+    |
+Consultation
+    |
+Orders
+    |
+Laboratory / Imaging / Pharmacy
+    |
+Results
+    |
+Clinical Decision
+    |
+Treatment
+    |
+Admission / Discharge / Follow-up
+```
+
+Avoid forcing users to repeatedly navigate between disconnected modules.
+
+======================================================================
+14. CLINICAL NOTES
+==================
+
+Clinical documentation should support:
+
+* Drafts
+* Save
+* Edit according to authorization
+* Sign/finalize
+* Timestamp
+* Author
+* History
+* Audit
+* Templates
+* Search
+* Structured data where appropriate
+
+Do not destroy historical clinical information when editing.
+
+Where legally/clinically required, corrections must preserve history.
+
+======================================================================
+15. DIAGNOSES / PROBLEM LIST
+============================
+
+Support:
+
+* Active problems
+* Historical problems
+* Diagnoses
+* Status
+* Dates
+* Author
+* Relevant notes
+* Search/autocomplete
+* Configurable terminology
+
+Avoid forcing clinicians to repeatedly type information that can be selected
+from standardized terminology.
+
+======================================================================
+16. ALLERGIES
+=============
+
+Allergies must be highly visible within relevant clinical workflows.
+
+Support:
+
+* Substance
+* Reaction
+* Severity
+* Status
+* Verification
+* Date
+* Source
+* Notes
+
+Do not rely exclusively on color to communicate allergy information.
+
+======================================================================
+17. MEDICATION MANAGEMENT
+=========================
+
+Medication workflows must be designed with safety as a priority.
+
+Prescription information should support:
+
+* Medication
+* Dose
+* Route
+* Frequency
+* Duration
+* Start date
+* Indication
+* Instructions
+* Prescriber
+* Status
+
+Where supported by the system's clinical rules, surface relevant warnings such
+as:
+
+* Allergies
+* Duplicate therapy
+* Interactions
+* Contraindications
+* Relevant patient factors
+
+Warnings must be appropriately prioritized to avoid alert fatigue.
+
+Medication administration must be traceable.
+
+======================================================================
+18. LABORATORY
+==============
+
+Laboratory workflow should support:
+
+```
+Order
+  |
+Sample required
+  |
+Sample collection
+  |
+Sample received
+  |
+Processing
+  |
+Result
+  |
+Validation
+  |
+Clinical review
+```
+
+Results should clearly communicate:
+
+* Current value
+* Reference range where applicable
+* Abnormal status
+* Previous result
+* Trend
+* Timestamp
+* Performing laboratory
+* Validation status
+
+Critical results require appropriately designed notification workflows.
+
+======================================================================
+19. RADIOLOGY
+=============
+
+Support:
+
+* Imaging request
+* Scheduling
+* Patient preparation
+* Study status
+* Report
+* Report verification
+* Results visibility
+* Historical studies
+
+Where external imaging systems are integrated, preserve the patient's context
+and provide a clear route to the relevant study.
+
+======================================================================
+20. APPOINTMENTS
+================
+
+Appointment workflows should support:
+
+* Scheduling
+* Rescheduling
+* Cancellation
+* Check-in
+* No-show
+* Waiting
+* Completion
+* Follow-up
+
+Calendar views should support appropriate:
+
+* Day
+* Week
+* Month
+* Provider
+* Department
+* Location
+
+Avoid making scheduling unnecessarily complex.
+
+======================================================================
+21. QUEUE MANAGEMENT
+====================
+
+Support real-world hospital queues.
+
+Examples:
+
+* Registration queue
+* Triage queue
+* Doctor queue
+* Laboratory queue
+* Pharmacy queue
+* Billing queue
+
+Queue states should be explicit.
+
+Users should know:
+
+* Who is waiting
+* How long they have waited where appropriate
+* Priority
+* Current status
+* Assigned staff
+* Next action
+
+======================================================================
+22. ADMISSION / WARD / BED MANAGEMENT
+=====================================
+
+Support:
+
+* Admission
+* Ward assignment
+* Bed assignment
+* Bed availability
+* Transfer
+* Discharge
+* Bed status
+
+Bed status should be clear and consistent.
+
+Example:
+
+```
+Available
+Occupied
+Reserved
+Cleaning
+Maintenance
+Blocked
+```
+
+The system should make patient location easy to understand.
+
+======================================================================
+23. BILLING AND PAYMENTS
+========================
+
+Administrative workflows should remain distinct from clinical workflows where
+appropriate.
+
+Support:
+
+* Charges
+* Invoices
+* Payments
+* Outstanding balances
+* Insurance
+* Discounts/adjustments
+* Receipts
+* Refunds according to authorization
+* Financial audit trail
+
+Do not expose unnecessary financial complexity to clinical users.
+
+======================================================================
+24. INVENTORY
+=============
+
+Support:
+
+* Stock
+* Stock movements
+* Receipts
+* Issues
+* Transfers
+* Adjustments
+* Reorder levels
+* Expiry
+* Batch/lot where required
+* Suppliers
+* Purchase orders
+
+Inventory actions must be auditable.
+
+======================================================================
+25. NOTIFICATIONS
+=================
+
+Create a consistent notification system.
+
+Support notification categories such as:
+
+* Critical
+* Important
+* Informational
+* Task
+* System
+
+Users should be able to identify:
+
+* What happened
+* When it happened
+* Why it matters
+* What action is required
+
+Avoid sending notifications for every minor system event.
+
+======================================================================
+26. ALERTS
+==========
+
+Alerts must have severity.
+
+Suggested hierarchy:
+
+```
+CRITICAL
+IMPORTANT
+WARNING
+INFORMATION
+```
+
+Do not use the same visual treatment for all alerts.
+
+Avoid alert fatigue.
+
+An alert that does not require attention should not interrupt the user.
+
+======================================================================
+27. ERROR HANDLING
+==================
+
+Never expose raw technical errors to end users.
+
+Bad:
+
+```
+500 Internal Server Error
+```
+
+Better:
+
+```
+We couldn't save the prescription.
+
+Your changes have not been submitted.
+Please try again.
+
+[Try Again]
+```
+
+Technical details should be available to logs/engineering tools, not
+unnecessarily exposed to users.
+
+======================================================================
+28. FORM DESIGN
+===============
+
+Forms must:
+
+* Have clear labels
+* Show required fields
+* Validate appropriately
+* Preserve entered data after recoverable errors
+* Provide meaningful validation messages
+* Group related fields
+* Avoid unnecessary fields
+* Support keyboard navigation
+* Avoid unnecessary confirmation dialogs
+
+Do not make users enter information the system already knows.
+
+======================================================================
+29. LOADING STATES
+==================
+
+Every asynchronous workflow should have a meaningful loading state.
+
+Avoid blank screens.
+
+Use:
+
+* Skeletons
+* Progress indicators
+* Loading text
+* Disabled action states where appropriate
+
+Never allow users to wonder whether an action is still processing.
+
+======================================================================
+30. EMPTY STATES
+================
+
+Empty states must explain the situation.
+
+Example:
+
+```
+No pending laboratory orders.
+
+All current orders have been completed.
+```
+
+Avoid generic:
+
+```
+"No data."
+```
+
+======================================================================
+31. INTERRUPTION AND RECOVERY
+=============================
+
+Hospital workflows are interruption-heavy.
+
+The system must support:
+
+* Drafts
+* Auto-save where appropriate
+* Resume functionality
+* Persistent work queues
+* Recently viewed patients
+* Unsaved-work warnings
+* Recovery after connection loss where safe
+
+Users should not lose significant work because they temporarily leave a screen.
+
+======================================================================
+32. RESPONSIVE DESIGN
+=====================
+
+The system must support appropriate experiences for:
+
+DESKTOP:
+
+* Doctors
+* Administrators
+* Finance
+* Reception
+* Pharmacy
+* Laboratory
+
+TABLET:
+
+* Nurses
+* Bedside workflows
+* Ward activities
+
+MOBILE:
+
+* Patient-facing functionality
+* Notifications
+* Appointments
+* Selected staff workflows where appropriate
+
+Do not simply shrink the desktop interface onto mobile.
+
+======================================================================
+33. ACCESSIBILITY
+=================
+
+Accessibility must be built into the design system.
+
+Support:
+
+* Keyboard navigation
+* Visible focus states
+* Screen-reader semantics
+* Proper labels
+* Sufficient contrast
+* Scalable text
+* Accessible controls
+* Appropriate touch target sizes
+* Non-color-only status communication
+
+Follow applicable accessibility standards, preferably WCAG 2.2 AA as a
+baseline.
+
+======================================================================
+34. DESIGN SYSTEM
+=================
+
+Create or refactor toward a centralized design system.
+
+Define:
+
+FOUNDATIONS:
+
+* Typography
+* Colors
+* Spacing
+* Borders
+* Radius
+* Shadows
+* Icons
+* Breakpoints
+
+COMPONENTS:
+
+* Button
+* Input
+* Select
+* Date picker
+* Time picker
+* Search
+* Table
+* Card
+* Tabs
+* Badge
+* Alert
+* Toast
+* Modal
+* Drawer
+* Dropdown
+* Pagination
+* Breadcrumb
+* Tooltip
+* Empty state
+* Loading state
+* Error state
+
+HEALTHCARE COMPONENTS:
+
+* Patient header
+* Patient identity banner
+* Allergy banner
+* Medication list
+* Vital signs
+* Lab result
+* Clinical timeline
+* Diagnosis/problem list
+* Appointment card
+* Queue item
+* Bed card
+* Clinical note
+* Order status
+* Task card
+
+Do not create duplicate versions of the same component without a strong
+reason.
+
+======================================================================
+35. VISUAL CONSISTENCY
+======================
+
+All modules must use consistent:
+
+* Navigation
+* Buttons
+* Typography
+* Forms
+* Tables
+* Status indicators
+* Notifications
+* Spacing
+* Icons
+* Interaction patterns
+
+A user should feel that every module belongs to the same application.
+
+======================================================================
+36. TABLE DESIGN
+================
+
+Tables should be used for comparison and structured data.
+
+Provide where appropriate:
+
+* Sorting
+* Filtering
+* Search
+* Pagination
+* Column configuration
+* Status indicators
+* Row actions
+* Responsive behavior
+
+Do not force users to navigate to a detail page for information that could
+reasonably be shown in a table.
+
+However, do not turn every screen into a spreadsheet.
+
+======================================================================
+37. PERFORMANCE
+===============
+
+The application must remain responsive as data volume grows.
+
+Consider:
+
+* Pagination
+* Server-side filtering
+* Server-side sorting
+* Efficient queries
+* Database indexes
+* Caching where appropriate
+* Lazy loading
+* Code splitting
+* Virtualized lists where necessary
+* Optimized API payloads
+* Background processing
+
+Do not load entire patient histories or large datasets unnecessarily.
+
+======================================================================
+38. API DESIGN
+==============
+
+APIs must be:
+
+* Consistent
+* Validated
+* Authorized
+* Observable
+* Documented
+* Versionable where appropriate
+
+Use consistent conventions for:
+
+* HTTP status codes
+* Error responses
+* Pagination
+* Filtering
+* Sorting
+* Validation
+* Authentication
+* Authorization
+
+Do not move business-critical authorization exclusively into the frontend.
+
+======================================================================
+39. SECURITY
+============
+
+Security is a core product requirement.
+
+Implement/maintain:
+
+* Authentication
+* Role-based access control
+* Permission checks
+* Least privilege
+* Session management
+* Secure password handling
+* MFA where appropriate
+* Audit logging
+* Sensitive-data protection
+* Secure API authorization
+* Input validation
+* Protection against common web vulnerabilities
+
+Clinical and administrative permissions must be enforced server-side.
+
+======================================================================
+40. AUDIT TRAIL
+===============
+
+Important actions must be auditable.
+
+Record where appropriate:
+
+* User
+* Action
+* Entity
+* Patient
+* Timestamp
+* Previous state
+* New state
+* Reason where required
+* Source/context
+
+Examples:
+
+* Patient record changes
+* Clinical note changes
+* Prescription changes
+* Medication administration
+* Billing adjustments
+* Permission changes
+* Record access where required
+* Admission/discharge changes
+
+Audit data must not be casually editable by normal users.
+
+======================================================================
+41. DATA INTEGRITY
+==================
+
+Never compromise existing patient data during refactoring.
+
+Before database migrations:
+
+1. Backup.
+2. Test migration against a copy.
+3. Validate record counts.
+4. Validate relationships.
+5. Validate critical clinical data.
+6. Test rollback/recovery.
+7. Only then deploy.
+
+Never silently delete or overwrite historical clinical information.
+
+======================================================================
+42. DATABASE REFACTORING
+========================
+
+Database changes must be incremental.
+
+Avoid:
+
+* destructive migrations
+* unnecessary table rewrites
+* duplicated sources of truth
+* inconsistent identifiers
+* storing derived data without a reason
+* hardcoded business rules in database structures
+
+Prefer:
+
+* normalized core data where appropriate
+* explicit relationships
+* indexes for high-volume queries
+* immutable/auditable clinical history where required
+* migration scripts
+* rollback strategy
+
+======================================================================
+43. BUSINESS LOGIC
+==================
+
+Business rules should not be duplicated across:
+
+* frontend
+* backend
+* database
+* background jobs
+
+Where practical, centralize important business rules.
+
+Frontend validation improves UX.
+
+Backend validation enforces correctness.
+
+Never rely exclusively on frontend validation.
+
+======================================================================
+44. TESTING REQUIREMENTS
+========================
+
+Refactoring must increase confidence rather than decrease it.
+
+Implement tests appropriate to the existing architecture:
+
+UNIT TESTS:
+
+* Business rules
+* Utilities
+* Validation
+* Critical calculations
+
+INTEGRATION TESTS:
+
+* APIs
+* Database operations
+* Authentication
+* Authorization
+
+END-TO-END TESTS:
+
+At minimum, cover critical workflows such as:
+
+* Patient registration
+* Patient search
+* Appointment creation
+* Check-in
+* Triage
+* Consultation
+* Clinical note
+* Prescription
+* Laboratory order
+* Laboratory result
+* Pharmacy dispensing
+* Admission
+* Transfer
+* Discharge
+* Billing
+* Payment
+
+======================================================================
+45. CRITICAL WORKFLOW ACCEPTANCE TESTS
+======================================
+
+The following scenarios must be executable end-to-end.
+
+SCENARIO A - REGISTER PATIENT
+
+```
+Register patient
+-> Generate/assign patient identifier
+-> Verify identity
+-> Create record
+-> Patient becomes searchable
+```
+
+SCENARIO B - DOCTOR CONSULTATION
+
+```
+Search patient
+-> Open patient
+-> Review overview
+-> Review history
+-> Review vitals
+-> Create consultation note
+-> Record diagnosis/problem
+-> Create orders/prescription
+-> Sign/finalize
+-> Audit event recorded
+```
+
+SCENARIO C - LAB
+
+```
+Create order
+-> Collect sample
+-> Receive sample
+-> Process
+-> Enter result
+-> Validate
+-> Make result available
+-> Notify/requeue appropriately
+```
+
+SCENARIO D - PHARMACY
+
+```
+Prescription created
+-> Prescription enters pharmacy queue
+-> Pharmacist reviews
+-> Pharmacist dispenses
+-> Stock updated
+-> Dispensing recorded
+-> Audit recorded
+```
+
+SCENARIO E - ADMISSION
+
+```
+Admission request
+-> Assign ward
+-> Assign bed
+-> Update patient location
+-> Record admission
+-> Patient appears in ward workflow
+```
+
+SCENARIO F - DISCHARGE
+
+```
+Discharge initiated
+-> Required documentation completed
+-> Orders/relevant tasks resolved
+-> Billing handled as appropriate
+-> Discharge recorded
+-> Bed becomes available
+-> Patient status updated
+```
+
+======================================================================
+46. AGENT REFACTORING RULES
+===========================
+
+Coding agents MUST follow these rules.
+
+RULE 1:
+
+Do not rewrite large parts of the system without first inspecting them.
+
+RULE 2:
+
+Do not delete working functionality without explicit justification.
+
+RULE 3:
+
+Do not change database structures unnecessarily.
+
+RULE 4:
+
+Do not introduce a new framework merely because it is preferred.
+
+RULE 5:
+
+Prefer incremental refactoring.
+
+RULE 6:
+
+Keep commits/changes logically isolated.
+
+RULE 7:
+
+After significant changes, run relevant tests.
+
+RULE 8:
+
+Fix regressions before continuing.
+
+RULE 9:
+
+Do not hide errors to make tests pass.
+
+RULE 10:
+
+Do not hardcode data merely to make UI demonstrations work.
+
+RULE 11:
+
+Do not create fake backend behavior for production workflows.
+
+RULE 12:
+
+Do not bypass authorization for convenience.
+
+RULE 13:
+
+Do not expose sensitive patient data in logs.
+
+RULE 14:
+
+Do not silently alter clinical history.
+
+RULE 15:
+
+Do not create duplicate components when an existing reusable component
+can be improved.
+
+RULE 16:
+
+Prefer reusable abstractions when repetition is genuine.
+
+RULE 17:
+
+Avoid premature abstraction.
+
+RULE 18:
+
+Document architectural decisions that affect future development.
+
+======================================================================
+47. REFACTORING PRIORITY
+========================
+
+Refactoring should generally proceed in this order:
+
+PHASE 1
+Discovery and baseline
+
+PHASE 2
+Design system and application shell
+
+PHASE 3
+Authentication / authorization foundation
+
+PHASE 4
+Global search and patient identity
+
+PHASE 5
+Patient 360 / patient chart
+
+PHASE 6
+Role-based dashboards
+
+PHASE 7
+Work queues
+
+PHASE 8
+Clinical workflows
+
+PHASE 9
+Laboratory / Pharmacy / Radiology
+
+PHASE 10
+Admissions / Ward / Bed management
+
+PHASE 11
+Billing / Finance / Inventory
+
+PHASE 12
+Reporting / Administration
+
+PHASE 13
+Accessibility / performance / polish
+
+Do not attempt to redesign every module simultaneously.
+
+======================================================================
+48. DEFINITION OF DONE
+======================
+
+A refactored feature is NOT considered complete merely because it compiles.
+
+A feature is complete when:
+
+* Existing required functionality still works.
+* New requirements are implemented.
+* Authorization is enforced.
+* Validation exists.
+* Error states exist.
+* Loading states exist.
+* Empty states exist.
+* Responsive behavior is appropriate.
+* Accessibility has been considered.
+* Relevant tests pass.
+* No obvious regression exists.
+* UI follows the design system.
+* Audit requirements are satisfied.
+* Performance is acceptable.
+* Documentation is updated where appropriate.
+
+======================================================================
+49. UX QUALITY GATES
+====================
+
+Before considering a workflow complete, ask:
+
+PATIENT CONTEXT:
+
+```
+Is the patient identity obvious?
+```
+
+EFFICIENCY:
+
+```
+Can a trained user complete the workflow quickly?
+```
+
+COGNITIVE LOAD:
+
+```
+Is unnecessary information hidden?
+```
+
+ERROR PREVENTION:
+
+```
+Does the interface prevent predictable mistakes?
+```
+
+ERROR RECOVERY:
+
+```
+Can the user recover without losing work?
+```
+
+ACCESSIBILITY:
+
+```
+Can users operate the workflow without relying solely on color,
+mouse interaction, or perfect vision?
+```
+
+CONSISTENCY:
+
+```
+Does this behave like the rest of the HMS?
+```
+
+SECURITY:
+
+```
+Can unauthorized users access or modify the data?
+```
+
+AUDIT:
+
+```
+Can important actions be traced?
+```
+
+PERFORMANCE:
+
+```
+Does this remain usable with realistic hospital data volumes?
+```
+
+======================================================================
+50. UX METRICS
+==============
+
+Establish baseline measurements before major refactoring.
+
+Track where possible:
+
+* Time to find a patient
+* Time to complete registration
+* Time to complete consultation
+* Time to create prescription
+* Time to review laboratory results
+* Number of clicks per common workflow
+* Form abandonment
+* Validation errors
+* Search failure rate
+* Task completion rate
+* User-reported usability problems
+* Page/API response time
+* Error rate
+* Alert dismissal rate
+
+The objective is not simply to make the system prettier.
+
+The objective is to make users:
+
+```
+FASTER
+SAFER
+MORE CONFIDENT
+LESS FRUSTRATED
+```
+
+======================================================================
+51. INFORMATION ARCHITECTURE
+============================
+
+The application should conceptually separate:
+
+PATIENTS
+
+```
+Patient records and patient-centric workflows.
+```
+
+MY WORK
+
+```
+Tasks requiring the current user.
+```
+
+CLINICAL
+
+```
+Clinical workflows and documentation.
+```
+
+OPERATIONS
+
+```
+Appointments, queues, admissions, beds, departments.
+```
+
+PHARMACY
+
+```
+Medication and pharmacy operations.
+```
+
+LABORATORY
+
+```
+Laboratory operations.
+```
+
+RADIOLOGY
+
+```
+Imaging operations.
+```
+
+BILLING
+
+```
+Charges, invoices, payments, insurance.
+```
+
+INVENTORY
+
+```
+Stock and procurement.
+```
+
+REPORTS
+
+```
+Analytics and reporting.
+```
+
+ADMINISTRATION
+
+```
+Configuration, users, roles, permissions.
+```
+
+The exact navigation may differ based on the existing application, but the
+principle should remain.
+
+======================================================================
+52. PATIENT-CENTRIC NAVIGATION RULE
+===================================
+
+When a user is inside a patient context, navigating between relevant patient
+activities should not feel like leaving the patient.
+
+Example:
+
+```
+Patient
+   |
+   +-- Overview
+   +-- Notes
+   +-- Orders
+   +-- Medications
+   +-- Labs
+   +-- Imaging
+   +-- Procedures
+   +-- Admissions
+   +-- Documents
+```
+
+The current patient should remain identifiable throughout the workflow.
+
+======================================================================
+53. DESIGN FOR POWER USERS
+==========================
+
+Healthcare professionals may use the system for many hours every day.
+
+Support where appropriate:
+
+* Keyboard navigation
+* Keyboard shortcuts
+* Fast search
+* Autocomplete
+* Recent patients
+* Recent actions
+* Frequently used options
+* Smart defaults
+* Batch operations where safe
+* Quick filters
+* Persistent preferences
+
+Do not sacrifice simplicity for power-user features.
+
+Use progressive disclosure.
+
+======================================================================
+54. MOBILE / TABLET UX
+======================
+
+Touch interfaces must provide:
+
+* Large enough touch targets
+* Clear primary actions
+* Minimal typing where possible
+* Appropriate sticky actions
+* Readable text
+* Simple navigation
+* Offline/error awareness where applicable
+
+Do not force users to interact with tiny desktop controls on mobile.
+
+======================================================================
+55. OBSERVABILITY
+=================
+
+Engineering teams must be able to diagnose failures.
+
+Implement appropriate:
+
+* Structured logging
+* Error tracking
+* Performance monitoring
+* API monitoring
+* Database monitoring
+* Background-job monitoring
+
+Logs must not unnecessarily contain sensitive patient information.
+
+======================================================================
+56. DOCUMENTATION
+=================
+
+Maintain documentation for:
+
+* Architecture
+* Database
+* APIs
+* Authentication
+* Authorization
+* Design system
+* Major workflows
+* Deployment
+* Environment configuration
+* Migrations
+* Integration points
+* Major architectural decisions
+
+======================================================================
+57. CHANGE MANAGEMENT
+=====================
+
+For major refactoring tasks, coding agents should report:
+
+1. What was inspected.
+2. What was changed.
+3. Why it was changed.
+4. What existing behavior was preserved.
+5. What tests were added/updated.
+6. What tests were run.
+7. Any migration required.
+8. Any known limitations.
+9. Any follow-up work recommended.
+
+======================================================================
+58. FINAL PRODUCT STANDARD
+==========================
+
+The finished HMS should NOT feel like:
+
+```
+"A collection of CRUD screens for hospital databases."
+```
+
+It should feel like:
+
+```
+"A unified digital operating system for the hospital."
+```
+
+A doctor should be able to understand a patient's situation quickly.
+
+A nurse should immediately know what needs to be done.
+
+A receptionist should process patients without unnecessary navigation.
+
+A pharmacist should process prescriptions safely and efficiently.
+
+A laboratory worker should understand the processing queue immediately.
+
+An administrator should see operational information without being exposed
+to unnecessary clinical complexity.
+
+A patient should be able to interact with patient-facing functionality
+without understanding the hospital's internal architecture.
+
+======================================================================
+59. GOLDEN RULE
+===============
+
+Every feature should answer three questions:
+
+```
+WHO is using this?
+
+WHAT are they trying to accomplish?
+
+WHAT information/action do they need RIGHT NOW?
+```
+
+If a proposed UI element does not help answer or accomplish those questions,
+question whether it belongs on the screen.
+
+======================================================================
+60. AGENT INSTRUCTION
+=====================
+
+When implementing this specification:
+
+1. Inspect the existing codebase first.
+2. Build an inventory of existing functionality.
+3. Identify reusable code before creating new code.
+4. Identify risks before changing architecture.
+5. Preserve working business functionality.
+6. Refactor incrementally.
+7. Improve UX through reusable patterns.
+8. Prioritize patient safety and data integrity.
+9. Test critical workflows continuously.
+10. Never trade correctness for visual polish.
+11. Never trade security for convenience.
+12. Never trade clinical safety for speed.
+13. Never silently destroy existing data.
+14. Never introduce fake functionality in production code.
+15. When requirements conflict with existing behavior, document the conflict
+    and choose the safest migration path.
+16. Prefer small, verifiable changes over massive rewrites.
+17. Treat this document as the product/UX direction, not as permission to
+    blindly modify every part of the existing application.
+
+The goal is a progressive transformation of the existing HMS into a
+cohesive, patient-centric, workflow-oriented enterprise healthcare
+platform.   

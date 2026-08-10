@@ -609,6 +609,8 @@ namespace HMS.API.Application.Pharmacy
                 PatientId = prescription.PatientId,
                 VisitId = prescription.VisitId,
                 Status = prescription.Status.ToString(),
+                CreatedAt = prescription.CreatedAt,
+                UpdatedAt = prescription.UpdatedAt,
                 Items = (prescription.Items ?? new List<PrescriptionItem>()).Select(item => new PrescriptionItemDto
                 {
                     Id = item.Id,

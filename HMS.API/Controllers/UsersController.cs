@@ -56,6 +56,7 @@ public class UsersController : ControllerBase
                 r.Id,
                 r.Name,
                 r.Description,
+                IsSystem = HMS.API.Infrastructure.Auth.RoleCatalog.IsCoreRoleName(r.Name),
                 Permissions = r.RolePermissions.Select(rp => rp.Permission.Code)
             })
             .ToListAsync();

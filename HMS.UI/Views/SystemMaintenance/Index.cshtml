@@ -1,0 +1,144 @@
+﻿@model HMS.UI.Models.SystemMaintenanceViewModel
+@{
+    ViewData["Title"] = "System Maintenance";
+    var selectedScope = Model.SelectedScope ?? "tenant-auth-reset";
+}
+
+<div class="container py-4">
+    <div class="portal-card mb-4">
+        <div class="portal-card-body d-flex flex-column flex-lg-row justify-content-between gap-3 align-items-lg-center">
+            <div>
+                <div class="small text-muted-custom">System administration</div>
+                <h3 class="mb-1">System Maintenance</h3>
+                <div class="text-muted">Use these actions to refresh built-in data or reset a tenant scope with explicit confirmation.</div>
+            </div>
+        </div>
+    </div>
+
+    @if (TempData["Error"] != null)
+    {
+        <div class="alert alert-danger">@TempData["Error"]</div>
+    }
+    @if (TempData["Success"] != null)
+    {
+        <div class="alert alert-success">@TempData["Success"]</div>
+    }
+
+    <div class="row g-3 mb-4">
+        <div class="col-12 col-xl-8">
+            <div class="portal-card h-100">
+                <div class="portal-card-body">
+                    <h5 class="mb-2">Maintenance Runner</h5>
+                    <p class="text-muted-custom mb-3">Choose one scope, confirm the action, and submit. Tenant resets require the tenant code as a second check.</p>
+
+                    <form method="post" action="/SystemMaintenance/Run" class="vstack gap-3">
+                        @Html.AntiForgeryToken()
+                        <div>
+                            <label class="form-label">Scope</label>
+                            <select asp-for="SelectedScope" class="form-select">
+                                @foreach (var scope in Model.Scopes)
+                                {
+                                    <option value="@scope.Value">@scope.Label</option>
+                                }
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="form-label">Tenant</label>
+                            <select asp-for="SelectedTenantId" class="form-select">
+                                <option value="">Select tenant</option>
+                                @foreach (var tenant in Model.Tenants)
+                                {
+                                    <option value="@tenant.Id">@tenant.Name (@tenant.Code)</option>
+                                }
+                            </select>
+                            <div class="form-text">Required only for tenant auth reset.</div>
+                        </div>
+
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Confirmation</label>
+                                <input asp-for="Confirmation" class="form-control" placeholder="RESET" />
+                                <div class="form-text">Type <strong>RESET</strong> to allow the action.</div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Tenant code confirmation</label>
+                                <input asp-for="TenantCodeConfirmation" class="form-control" placeholder="Tenant code for reset" />
+                                <div class="form-text">Required only for tenant auth reset. Must match the tenant code exactly.</div>
+                            </div>
+                        </div>
+
+                        <div class="d-flex flex-wrap gap-2">
+                            <button class="btn btn-danger">
+                                <i class="bi bi-shield-exclamation me-1"></i>
+                                Run Maintenance
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-12 col-xl-4">
+            <div class="portal-card h-100">
+                <div class="portal-card-body">
+                    <h5 class="mb-2">Quick Actions</h5>
+                    <p class="text-muted-custom mb-3">Shortcuts for common reseed tasks. These still require the maintenance permission.</p>
+
+                    <div class="d-grid gap-2">
+                        <form method="post" action="/SystemMaintenance/ReseedAuth">
+                            @Html.AntiForgeryToken()
+                            <button class="btn btn-outline-primary w-100">Reseed Auth Catalog</button>
+                        </form>
+                        <form method="post" action="/SystemMaintenance/ReseedPlatform">
+                            @Html.AntiForgeryToken()
+                            <button class="btn btn-outline-primary w-100">Reseed Platform</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="portal-card">
+        <div class="portal-card-body">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <div>
+                    <h5 class="mb-1">Tenant Auth Reset Targets</h5>
+                    <div class="text-muted-custom small">Use the table below to verify the exact tenant before running a reset.</div>
+                </div>
+            </div>
+
+            <div class="table-responsive">
+                <table class="table align-middle">
+                    <thead>
+                        <tr>
+                            <th>Tenant</th>
+                            <th>Code</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var tenant in Model.Tenants)
+                        {
+                            <tr>
+                                <td>@tenant.Name</td>
+                                <td><span class="badge text-bg-light">@tenant.Code</span></td>
+                                <td class="text-end">
+                                    <form method="post" action="/SystemMaintenance/Run" class="d-inline">
+                                        @Html.AntiForgeryToken()
+                                        <input type="hidden" name="SelectedScope" value="tenant-auth-reset" />
+                                        <input type="hidden" name="SelectedTenantId" value="@tenant.Id" />
+                                        <input type="hidden" name="Confirmation" value="RESET" />
+                                        <input type="hidden" name="TenantCodeConfirmation" value="@tenant.Code" />
+                                        <button class="btn btn-sm btn-outline-danger">Reset This Tenant</button>
+                                    </form>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>

@@ -1,12 +1,76 @@
-@page
+﻿@page
 @model HMS.UI.Pages.Admin.AppSettingsModel
+@using System.Linq
 @{
-    
     ViewData["Title"] = "Application Settings";
 }
 
 <div class="container py-4">
-    <h3>Application Settings</h3>
+    <div class="portal-card mb-4">
+        <div class="portal-card-body d-flex flex-column flex-lg-row justify-content-between gap-3 align-items-lg-center">
+            <div>
+                <div class="small text-muted-custom">System configuration</div>
+                <h3 class="mb-1">Application Settings</h3>
+                <div class="text-muted">Use these settings to define the central platform host list and the deployment mode for fresh installations.</div>
+            </div>
+        </div>
+    </div>
+
+    @if (TempData["Success"] != null)
+    {
+        <div class="alert alert-success">@TempData["Success"]</div>
+    }
+    @if (TempData["Error"] != null)
+    {
+        <div class="alert alert-danger">@TempData["Error"]</div>
+    }
+    @if (!ViewData.ModelState.IsValid)
+    {
+        <div class="alert alert-danger">
+            @foreach (var e in ViewData.ModelState.Values.SelectMany(v => v.Errors)) { <div>@e.ErrorMessage</div> }
+        </div>
+    }
+
+    <div class="row g-3 mb-4">
+        <div class="col-12 col-lg-6">
+            <div class="portal-card h-100">
+                <div class="portal-card-body">
+                    <h5 class="mb-2">Deployment Mode</h5>
+                    <p class="text-muted-custom mb-3">Bootstrap is the recommended starting mode for brand-new installations. Switch to Online or OnPrem after setup is complete.</p>
+                    <form method="post" asp-page-handler="DeploymentMode" class="vstack gap-3">
+                        @Html.AntiForgeryToken()
+                        <div>
+                            <label class="form-label">Mode</label>
+                            <select asp-for="DeploymentMode" class="form-select">
+                                <option value="Bootstrap">Bootstrap</option>
+                                <option value="Online">Online</option>
+                                <option value="OnPrem">OnPrem</option>
+                            </select>
+                        </div>
+                        <button class="btn btn-primary">Save Mode</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-12 col-lg-6">
+            <div class="portal-card h-100">
+                <div class="portal-card-body">
+                    <h5 class="mb-2">Platform Hosts</h5>
+                    <p class="text-muted-custom mb-3">Enter the central host names separated by commas or new lines. These hosts resolve to system context and should not be used for tenant routing.</p>
+                    <form method="post" asp-page-handler="PlatformHosts" class="vstack gap-3">
+                        @Html.AntiForgeryToken()
+                        <div>
+                            <label class="form-label">Hosts</label>
+                            <textarea asp-for="PlatformHosts" class="form-control" rows="4" placeholder="abc.com, admin.abc.com, localhost"></textarea>
+                            <div class="form-text">Use this for the single central host, tenant admin host, and local dev host.</div>
+                        </div>
+                        <button class="btn btn-outline-primary">Save Hosts</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <div class="card p-3 mb-4">
         <form method="post">
@@ -25,25 +89,17 @@
         </form>
     </div>
 
-    @if (TempData["Success"] != null)
-    {
-        <div class="alert alert-success">@TempData["Success"]</div>
-    }
-    @if (!ViewData.ModelState.IsValid)
-    {
-        <div class="alert alert-danger">
-            @foreach (var e in ViewData.ModelState.Values.SelectMany(v => v.Errors)) { <div>@e.ErrorMessage</div> }
-        </div>
-    }
-
     <div class="card p-3">
         <h5>Existing Settings</h5>
-        <table class="table">
+        <table class="table align-middle">
             <thead><tr><th>Key</th><th>Value</th></tr></thead>
             <tbody>
-                @foreach(var kv in Model.Items)
+                @foreach (var kv in Model.Items)
                 {
-                    <tr><td>@kv.Key</td><td>@kv.Value</td></tr>
+                    <tr>
+                        <td>@kv.Key</td>
+                        <td class="text-break">@kv.Value</td>
+                    </tr>
                 }
             </tbody>
         </table>

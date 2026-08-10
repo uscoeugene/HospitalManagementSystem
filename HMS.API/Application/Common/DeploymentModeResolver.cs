@@ -1,4 +1,6 @@
+﻿using System;
 using System.Threading.Tasks;
+using HMS.API.Infrastructure.Auth;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Configuration;
 
@@ -6,7 +8,7 @@ namespace HMS.API.Application.Common
 {
     public class DeploymentModeResolver : IDeploymentModeResolver
     {
-        private readonly IAppSettingsService _app; 
+        private readonly IAppSettingsService _app;
         private readonly IMemoryCache _cache;
         private readonly IConfiguration _cfg;
         private readonly MemoryCacheEntryOptions _opts;
@@ -30,19 +32,24 @@ namespace HMS.API.Application.Common
             var v = await _app.GetAsync(key);
             if (!string.IsNullOrWhiteSpace(v))
             {
-                if (v.Equals("Online", System.StringComparison.OrdinalIgnoreCase)) { mode = DeploymentMode.Online; }
-                else { mode = DeploymentMode.OnPrem; }
+                mode = ParseMode(v);
                 _cache.Set(key, mode, _opts);
                 _logger.LogInformation("DeploymentMode resolved from AppSettings: {mode}", mode);
                 return mode;
             }
 
-            // fallback to config
-            var cfg = _cfg.GetValue<string>("Deployment:Mode") ?? "OnPrem";
-            mode = cfg.Equals("Online", System.StringComparison.OrdinalIgnoreCase) ? DeploymentMode.Online : DeploymentMode.OnPrem;
+            var cfg = _cfg.GetValue<string>("Deployment:Mode") ?? "Bootstrap";
+            mode = ParseMode(cfg);
             _cache.Set(key, mode, _opts);
             _logger.LogInformation("DeploymentMode resolved from config fallback: {mode}", mode);
             return mode;
+        }
+
+        private static DeploymentMode ParseMode(string value)
+        {
+            if (value.Equals("Online", StringComparison.OrdinalIgnoreCase)) return DeploymentMode.Online;
+            if (value.Equals("Bootstrap", StringComparison.OrdinalIgnoreCase)) return DeploymentMode.Bootstrap;
+            return DeploymentMode.OnPrem;
         }
     }
 }

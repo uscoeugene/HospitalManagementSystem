@@ -4,6 +4,7 @@ using HMS.API.Application.Profile.DTOs;
 using HMS.API.Infrastructure.Persistence;
 using HMS.API.Domain.Profile;
 using Microsoft.EntityFrameworkCore;
+using HMS.API.Infrastructure.Auth;
 
 namespace HMS.API.Application.Profile
 {
@@ -136,11 +137,14 @@ namespace HMS.API.Application.Profile
             var doctorUserIds = new System.Collections.Generic.HashSet<Guid>();
             if (_authDb != null)
             {
-                // find role id for role named 'doctor' (case-insensitive)
-                var doctorRole = await _authDb.Roles.AsNoTracking().FirstOrDefaultAsync(r => r.Name.ToLower() == "doctor");
-                if (doctorRole != null)
+                var doctorRoles = await _authDb.Roles.AsNoTracking()
+                    .Where(r => !r.IsDeleted && RoleCatalog.IsDoctorRole(r.Name))
+                    .Select(r => r.Id)
+                    .ToArrayAsync();
+
+                if (doctorRoles.Length > 0)
                 {
-                    var ur = await _authDb.UserRoles.AsNoTracking().Where(x => x.RoleId == doctorRole.Id).Select(x => x.UserId).ToArrayAsync();
+                    var ur = await _authDb.UserRoles.AsNoTracking().Where(x => doctorRoles.Contains(x.RoleId)).Select(x => x.UserId).ToArrayAsync();
                     foreach (var uid in ur) doctorUserIds.Add(uid);
                 }
             }

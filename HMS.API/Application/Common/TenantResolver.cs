@@ -1,8 +1,8 @@
-using System;
+﻿using System;
+using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Configuration;
-using HMS.API.Application.Common;
 using HMS.API.Infrastructure.Auth;
 using Microsoft.EntityFrameworkCore;
 
@@ -33,17 +33,14 @@ namespace HMS.API.Application.Common
         public async Task<Guid?> ResolveTenantIdAsync()
         {
             var mode = await _mode.GetModeAsync();
-            if (mode == DeploymentMode.Online)
+            if (mode != DeploymentMode.OnPrem)
             {
-                // In online mode we don't determine tenant here; request should provide via auth/header.
                 return null;
             }
 
-            // OnPrem mode - check cache
             const string keyId = "OnPremise:TenantId";
             if (_cache.TryGetValue(keyId, out Guid tid)) return tid;
 
-            // Try DB-backed AppSettings
             var v = await _app.GetAsync(keyId);
             if (!string.IsNullOrWhiteSpace(v) && Guid.TryParse(v, out var parsed))
             {
@@ -52,7 +49,6 @@ namespace HMS.API.Application.Common
                 return parsed;
             }
 
-            // Fallback to configuration
             var cfgVal = _cfg["OnPremise:TenantId"];
             if (!string.IsNullOrWhiteSpace(cfgVal) && Guid.TryParse(cfgVal, out parsed))
             {
@@ -67,21 +63,26 @@ namespace HMS.API.Application.Common
         public async Task<Guid?> ResolveTenantIdFromHostAsync(string host)
         {
             if (string.IsNullOrWhiteSpace(host)) return null;
-            var key = "domain:" + host.ToLowerInvariant();
+            var normalizedHost = NormalizeHost(host);
+            var key = "domain:" + normalizedHost;
             if (_cache.TryGetValue(key, out Guid? cached)) return cached;
 
             try
             {
-                var h = host.ToLowerInvariant();
-                var td = await _db.Set<HMS.API.Domain.Common.TenantDomain>().AsNoTracking().SingleOrDefaultAsync(d => d.Domain == h && d.IsActive);
+                if (await IsPlatformHostAsync(normalizedHost))
+                {
+                    _cache.Set(key, null as Guid?, _opts);
+                    return null;
+                }
+
+                var td = await _db.Set<HMS.API.Domain.Common.TenantDomain>().AsNoTracking().SingleOrDefaultAsync(d => d.Domain == normalizedHost && d.IsActive);
                 if (td != null)
                 {
                     _cache.Set(key, td.TenantId, _opts);
                     return td.TenantId;
                 }
 
-                // fallback: subdomain -> tenant code
-                var parts = h.Split('.');
+                var parts = normalizedHost.Split('.');
                 if (parts.Length > 2)
                 {
                     var sub = parts[0];
@@ -100,6 +101,53 @@ namespace HMS.API.Application.Common
 
             _cache.Set(key, null as Guid?, _opts);
             return null;
+        }
+
+        private async Task<bool> IsPlatformHostAsync(string host)
+        {
+            var configured = await GetPlatformHostsAsync();
+            return configured.Any(x => string.Equals(NormalizeHost(x), host, StringComparison.OrdinalIgnoreCase));
+        }
+
+        private async Task<string[]> GetPlatformHostsAsync()
+        {
+            var dbValue = await _app.GetAsync("PlatformContext:Hosts");
+            if (!string.IsNullOrWhiteSpace(dbValue)) return SplitHosts(dbValue);
+
+            dbValue = await _app.GetAsync("PlatformHosts");
+            if (!string.IsNullOrWhiteSpace(dbValue)) return SplitHosts(dbValue);
+
+            dbValue = await _app.GetAsync("PlatformDomains");
+            if (!string.IsNullOrWhiteSpace(dbValue)) return SplitHosts(dbValue);
+
+            var preferred = _cfg.GetSection("PlatformContext:Hosts").Get<string[]>();
+            if (preferred != null && preferred.Length > 0) return preferred;
+
+            var legacy = _cfg.GetSection("PlatformHosts").Get<string[]>();
+            if (legacy != null && legacy.Length > 0) return legacy;
+
+            return _cfg.GetSection("PlatformDomains").Get<string[]>() ?? Array.Empty<string>();
+        }
+
+        private static string[] SplitHosts(string value)
+        {
+            return value
+                .Split(new[] { ',', ';', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
+                .Select(x => x.Trim())
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .ToArray();
+        }
+
+        private static string NormalizeHost(string host)
+        {
+            var value = host.Trim().ToLowerInvariant();
+            var colonIndex = value.IndexOf(':');
+            if (colonIndex > 0)
+            {
+                value = value.Substring(0, colonIndex);
+            }
+
+            return value;
         }
     }
 }

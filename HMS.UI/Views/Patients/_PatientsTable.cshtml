@@ -20,6 +20,7 @@
             {
                 var initials =
                 $"{it.FirstName?.FirstOrDefault()}{it.LastName?.FirstOrDefault()}";
+                var detailsUrl = $"/Patients/Details/{it.Id}";
 
                 <tr>
 
@@ -27,16 +28,16 @@
 
                         <div class="d-flex align-items-center gap-2">
 
-                            <div class="avatar-sm"
-                                 style="width:36px;height:36px;font-size:0.8rem;">
+                            <a href="@detailsUrl" class="avatar-sm text-white text-decoration-none"
+                               style="width:36px;height:36px;font-size:0.8rem;">
                                 @initials
-                            </div>
+                            </a>
 
                             <div>
-                                <div class="fw-semibold small">
+                                <a href="@detailsUrl" class="fw-semibold small d-block text-decoration-none">
                                     @(it.FirstName + " " + it.LastName)
-                                </div>
-                                <small class="text-muted-custom">Patient</small>
+                                </a>
+                                <a href="@detailsUrl" class="small text-muted-custom text-decoration-none">Patient profile</a>
                             </div>
 
                         </div>

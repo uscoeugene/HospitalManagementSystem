@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 
 namespace HMS.UI.Models.Roles
@@ -8,10 +8,9 @@ namespace HMS.UI.Models.Roles
         public Guid Id { get; set; }
         public string Name { get; set; } = string.Empty;
         public string Description { get; set; } = string.Empty;
+        public bool IsSystem { get; set; }
         public List<string> Permissions { get; set; } = new List<string>();
-
-        // fields for adding permission
-        public string NewPermissionCode { get; set; } = string.Empty;
-        public string NewPermissionDescription { get; set; } = string.Empty;
+        public List<PermissionOptionViewModel> AvailablePermissions { get; set; } = new List<PermissionOptionViewModel>();
+        public bool CanManagePermissionCatalog { get; set; }
     }
 }

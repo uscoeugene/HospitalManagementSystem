@@ -114,6 +114,16 @@ a {
     margin-left: var(--sidebar-width);
     display: flex;
     flex-direction: column;
+    min-width: 0;
+    overflow-x: hidden;
+}
+
+body.sidebar-collapsed .main-content {
+    margin-left: 72px;
+}
+
+body.sidebar-pinned .main-content {
+    margin-left: var(--sidebar-width);
 }
 
 /* =========================
@@ -132,9 +142,23 @@ a {
     transition: var(--transition);
 }
 
+body.sidebar-collapsed .sidebar {
+    width: 72px;
+}
+
+body.sidebar-collapsed .sidebar:hover,
+body.sidebar-collapsed .sidebar.sidebar-hover,
+body.sidebar-pinned .sidebar {
+    width: var(--sidebar-width);
+}
+
 .sidebar-brand {
     padding: 18px;
     border-bottom: 1px solid rgba(255,255,255,.06);
+}
+
+body.sidebar-collapsed .sidebar-brand {
+    padding: 14px 12px;
 }
 
     .sidebar-brand h3 {
@@ -149,8 +173,33 @@ a {
         margin-top: 4px;
     }
 
+body.sidebar-collapsed .sidebar-brand h3,
+body.sidebar-collapsed .sidebar-brand p,
+body.sidebar-collapsed .sidebar-menu-title,
+body.sidebar-collapsed .sidebar-link span,
+body.sidebar-collapsed .sidebar form button span {
+    display: none;
+}
+
+body.sidebar-collapsed .sidebar:hover .sidebar-brand h3,
+body.sidebar-collapsed .sidebar:hover .sidebar-brand p,
+body.sidebar-collapsed .sidebar:hover .sidebar-menu-title,
+body.sidebar-collapsed .sidebar:hover .sidebar-link span,
+body.sidebar-collapsed .sidebar:hover .sidebar form button span,
+body.sidebar-pinned .sidebar-brand h3,
+body.sidebar-pinned .sidebar-brand p,
+body.sidebar-pinned .sidebar-menu-title,
+body.sidebar-pinned .sidebar-link span,
+body.sidebar-pinned .sidebar form button span {
+    display: inline;
+}
+
 .sidebar-menu {
     padding: 10px 0;
+}
+
+body.sidebar-collapsed .sidebar-menu {
+    padding-top: 6px;
 }
 
 .sidebar-menu-title {
@@ -160,6 +209,11 @@ a {
     letter-spacing: .8px;
     color: rgba(255,255,255,.45);
     font-weight: 700;
+}
+
+body.sidebar-collapsed .sidebar-menu-title {
+    text-align: center;
+    padding: 10px 8px;
 }
 
 .sidebar-link {
@@ -180,6 +234,17 @@ a {
         width: 18px;
     }
 
+body.sidebar-collapsed .sidebar-link {
+    justify-content: center;
+    gap: 0;
+    padding: 10px 8px;
+    margin: 2px 8px;
+}
+
+body.sidebar-collapsed .sidebar-link i {
+    width: auto;
+}
+
     .sidebar-link:hover {
         background: rgba(255,255,255,.06);
         color: white;
@@ -189,6 +254,31 @@ a {
         background: linear-gradient(135deg, var(--primary), var(--secondary));
         color: white;
     }
+
+body.sidebar-collapsed .sidebar form {
+    padding: 0 8px;
+}
+
+body.sidebar-collapsed .sidebar form .btn {
+    width: 100%;
+    padding-left: 0;
+    padding-right: 0;
+}
+
+body.sidebar-collapsed .sidebar form .btn i {
+    margin-right: 0 !important;
+}
+
+body.sidebar-collapsed .sidebar:hover .sidebar-brand,
+body.sidebar-collapsed .sidebar:hover .sidebar-menu,
+body.sidebar-collapsed .sidebar:hover .sidebar-link,
+body.sidebar-collapsed .sidebar:hover .sidebar-menu-title,
+body.sidebar-pinned .sidebar-brand,
+body.sidebar-pinned .sidebar-menu,
+body.sidebar-pinned .sidebar-link,
+body.sidebar-pinned .sidebar-menu-title {
+    text-align: left;
+}
 
 /* =========================
    TOPBAR
@@ -244,6 +334,225 @@ a {
 
 .page-content {
     padding: 18px;
+    min-width: 0;
+}
+
+.patient-chart-shell {
+    min-width: 0;
+    overflow-x: hidden;
+}
+
+.patient-chart-shell .row,
+.patient-chart-shell .col-12,
+.patient-chart-shell .col-md-6,
+.patient-chart-shell .col-xxl-3,
+.patient-chart-shell .col-xl-4,
+.patient-chart-shell .col-xl-8 {
+    min-width: 0;
+}
+
+.patient-chart-shell .portal-card,
+.patient-chart-shell .portal-card-body,
+.patient-chart-shell .tab-content {
+    min-width: 0;
+}
+
+.patient-chart-shell .portal-card-header {
+    min-width: 0;
+}
+
+.patient-chart-shell .chart-workspace-card,
+.patient-chart-shell .chart-workspace-card > .portal-card-body {
+    min-width: 0;
+    max-width: 100%;
+}
+
+.chart-topbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: .75rem 1rem;
+}
+
+.chart-topbar-copy {
+    min-width: 0;
+    flex: 1 1 240px;
+}
+
+.chart-topbar-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    gap: .5rem;
+    flex: 0 1 auto;
+}
+
+.chart-topbar-actions .btn {
+    padding-left: .75rem;
+    padding-right: .75rem;
+}
+
+.visit-switcher-summary {
+    padding: .85rem .95rem;
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+}
+
+.chart-page-quick-actions .btn {
+    padding: .45rem .75rem;
+}
+
+.min-w-0 {
+    min-width: 0;
+}
+
+.timeline-panel {
+    min-width: 0;
+}
+
+.list-query-controls .form-select,
+.list-query-controls .btn {
+    min-height: 36px;
+}
+
+.list-query-controls {
+    margin-bottom: .75rem;
+}
+
+.paged-navigation {
+    margin-top: .75rem;
+}
+
+.clinical-timeline {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    min-width: 0;
+}
+
+.clinical-timeline::before {
+    content: "";
+    position: absolute;
+    left: 17px;
+    top: .5rem;
+    bottom: .5rem;
+    width: 2px;
+    background: linear-gradient(180deg, rgba(13,110,253,.35), rgba(102,16,242,.12));
+}
+
+.clinical-timeline-item {
+    display: grid;
+    grid-template-columns: 36px minmax(0, 1fr);
+    gap: .75rem;
+    align-items: start;
+    min-width: 0;
+}
+
+.clinical-timeline-node {
+    position: relative;
+    z-index: 1;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    box-shadow: 0 8px 18px rgba(15,23,42,.12);
+}
+
+.clinical-timeline-card {
+    min-width: 0;
+    border: 1px solid var(--border-color);
+    border-radius: 16px;
+    background: #fff;
+    padding: .95rem 1rem;
+    box-shadow: var(--shadow-sm);
+}
+
+.timeline-node-primary {
+    background: linear-gradient(135deg, var(--primary), var(--secondary));
+}
+
+.timeline-node-success {
+    background: linear-gradient(135deg, #20c997, #198754);
+}
+
+.timeline-node-info {
+    background: linear-gradient(135deg, #0dcaf0, #0d6efd);
+}
+
+.timeline-node-warning {
+    background: linear-gradient(135deg, #fd7e14, #ffc107);
+}
+
+.timeline-node-danger {
+    background: linear-gradient(135deg, #ff4d6d, #dc3545);
+}
+
+.chart-context-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .5rem;
+}
+
+.workflow-shell {
+    display: grid;
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    gap: 1rem;
+}
+
+.workflow-shell > * {
+    min-width: 0;
+}
+
+.workflow-summary-card {
+    grid-column: span 4;
+    border: 1px solid var(--border-color);
+    border-radius: 16px;
+    padding: 1rem;
+    min-height: 100%;
+    box-shadow: var(--shadow-sm);
+}
+
+.workflow-summary-card-primary {
+    background: linear-gradient(180deg, rgba(13,110,253,.12) 0%, rgba(255,255,255,.95) 100%);
+}
+
+.workflow-summary-card-success {
+    background: linear-gradient(180deg, rgba(25,135,84,.12) 0%, rgba(255,255,255,.95) 100%);
+}
+
+.workflow-summary-card-warning {
+    background: linear-gradient(180deg, rgba(255,193,7,.16) 0%, rgba(255,255,255,.95) 100%);
+}
+
+.workflow-actions-card {
+    grid-column: 1 / -1;
+    border: 1px solid var(--border-color);
+    border-radius: 16px;
+    background: #fff;
+    padding: 1rem;
+    box-shadow: var(--shadow-sm);
+}
+
+.workflow-actions-card .workflow-action-btn {
+    justify-content: center;
+    padding: .5rem .8rem;
+    border-color: rgba(13,110,253,.2);
+    background: rgba(13,110,253,.06);
+    color: var(--primary-dark);
+    font-weight: 600;
+}
+
+.workflow-actions-card .workflow-action-btn:hover,
+.workflow-actions-card .workflow-action-btn:focus {
+    background: rgba(13,110,253,.12);
+    color: var(--primary-dark);
+    border-color: rgba(13,110,253,.35);
 }
 
 /* =========================
@@ -373,6 +682,125 @@ a {
     .btn-success-custom:hover {
         transform: translateY(-1px);
     }
+
+.chart-tabs-wrap {
+    display: flex;
+    align-items: stretch;
+    gap: 8px;
+    min-width: 0;
+    max-width: 100%;
+}
+
+.chart-tabs-scroll {
+    flex: 1 1 auto;
+    min-width: 0;
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.chart-tabs-edge {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    flex: 0 0 28px;
+    color: var(--text-muted);
+    border: 1px solid var(--border-color);
+    border-radius: 999px;
+    background: #fff;
+}
+
+.chart-tabs {
+    flex-wrap: nowrap;
+    min-width: max-content;
+    padding-bottom: 0;
+    width: max-content;
+}
+
+.chart-tabs .nav-item {
+    margin-right: .35rem;
+    flex: 0 0 auto;
+}
+
+.chart-tabs .nav-link {
+    border: 1px solid var(--border-color);
+    border-bottom: 2px solid transparent;
+    border-radius: 14px;
+    background: #fff;
+    color: var(--text-dark);
+    font-weight: 600;
+    white-space: nowrap;
+    padding: .6rem .95rem;
+    box-shadow: 0 1px 0 rgba(15,23,42,.03);
+}
+
+.chart-tabs .nav-link:hover {
+    border-color: rgba(13,110,253,.25);
+    background: #f8fbff;
+}
+
+.chart-tabs .nav-link.active {
+    background: linear-gradient(135deg, var(--primary), var(--secondary));
+    color: white;
+    border-color: transparent;
+}
+
+.chart-summary-card {
+    transition: var(--transition);
+}
+
+.chart-summary-card:hover {
+    transform: translateY(-1px);
+}
+
+.chart-workspace-card {
+    overflow-x: hidden;
+}
+
+.patient-chart-shell .chart-workspace-card > .portal-card-body {
+    padding-bottom: 12px;
+}
+
+.ajax-panel-busy {
+    opacity: .65;
+    pointer-events: none;
+    transition: opacity .2s ease;
+}
+
+@media (max-width: 991.98px) {
+    .workflow-summary-card {
+        grid-column: 1 / -1;
+    }
+}
+
+@media (max-width: 575.98px) {
+    .chart-topbar-actions {
+        width: 100%;
+    }
+
+    .chart-topbar-actions .btn {
+        flex: 1 1 calc(50% - .5rem);
+    }
+
+    .workflow-actions-card .workflow-action-btn {
+        width: 100%;
+    }
+
+    .clinical-timeline::before {
+        left: 15px;
+    }
+
+    .clinical-timeline-item {
+        grid-template-columns: 32px minmax(0, 1fr);
+    }
+
+    .clinical-timeline-node {
+        width: 32px;
+        height: 32px;
+        font-size: .78rem;
+    }
+}
 
 /* =========================
    FORMS
@@ -599,6 +1027,16 @@ body.sidebar-open .sidebar-backdrop {
 
     .table-modern {
         min-width: 700px;
+    }
+
+    .chart-tabs-edge {
+        width: 24px;
+        flex-basis: 24px;
+    }
+
+    .chart-tabs .nav-link {
+        padding-inline: 12px;
+        font-size: .84rem;
     }
 }
 

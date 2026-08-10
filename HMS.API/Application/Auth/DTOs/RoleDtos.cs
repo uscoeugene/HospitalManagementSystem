@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 
@@ -19,6 +19,7 @@ namespace HMS.API.Application.Auth.DTOs
         public Guid Id { get; set; }
         public string Name { get; set; } = string.Empty;
         public string Description { get; set; } = string.Empty;
+        public bool IsSystem { get; set; }
         public IEnumerable<string> Permissions { get; set; } = Array.Empty<string>();
     }
 
@@ -29,6 +30,12 @@ namespace HMS.API.Application.Auth.DTOs
         public string Code { get; set; } = string.Empty;
 
         [MaxLength(500)]
+        public string Description { get; set; } = string.Empty;
+    }
+
+    public class PermissionResponse
+    {
+        public string Code { get; set; } = string.Empty;
         public string Description { get; set; } = string.Empty;
     }
 }

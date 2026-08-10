@@ -20,13 +20,15 @@ namespace HMS.API.Controllers
         private readonly IHostEnvironment _env;
         private readonly ILogger<AdminController> _logger;
         private readonly IAppSettingsService _appSettings;
+        private readonly IDeploymentModeResolver _deploymentModeResolver;
 
-        public AdminController(IServiceProvider services, IHostEnvironment env, ILogger<AdminController> logger, IAppSettingsService appSettings)
+        public AdminController(IServiceProvider services, IHostEnvironment env, ILogger<AdminController> logger, IAppSettingsService appSettings, IDeploymentModeResolver deploymentModeResolver)
         {
             _services = services;
             _env = env;
             _logger = logger;
             _appSettings = appSettings;
+            _deploymentModeResolver = deploymentModeResolver;
         }
 
     public class InvalidateRequest { public string Key { get; set; } = string.Empty; }
@@ -62,6 +64,30 @@ namespace HMS.API.Controllers
             }
         }
 
+        [HttpPost("seed/permissions")]
+        public async Task<IActionResult> SeedPermissions()
+        {
+            if (!_env.IsDevelopment())
+            {
+                return Forbid();
+            }
+
+            try
+            {
+                using var scope = _services.CreateScope();
+                var authDb = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
+
+                await SeedData.EnsurePermissionCatalogAsync(authDb);
+
+                return Ok(new { message = "Permission catalog refreshed" });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Permission catalog seeding failed");
+                return Problem(detail: ex.Message, statusCode: 500);
+            }
+        }
+
         [HttpPost("appsettings/invalidate")]
         public async Task<IActionResult> Invalidate([FromBody] InvalidateRequest req)
         {
@@ -75,8 +101,8 @@ namespace HMS.API.Controllers
         {
             try
             {
-                var v = await _appSettings.GetAsync("System:DeploymentMode");
-                return Ok(new { status = "ok", deploymentMode = v });
+                var mode = await _deploymentModeResolver.GetModeAsync();
+                return Ok(new { status = "ok", deploymentMode = mode.ToString() });
             }
             catch (Exception ex)
             {

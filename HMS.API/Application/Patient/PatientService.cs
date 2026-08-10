@@ -660,7 +660,9 @@ namespace HMS.API.Application.Patient
                 Occupation = patient.Occupation,
                 PhotoUrl = patient.PhotoUrl,
 
-                IsActive = patient.IsActive
+                IsActive = patient.IsActive,
+                CreatedAt = patient.CreatedAt,
+                UpdatedAt = patient.UpdatedAt
             };
         }
     }

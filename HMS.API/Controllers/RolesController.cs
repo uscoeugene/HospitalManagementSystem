@@ -1,9 +1,8 @@
-using System;
+﻿using System;
 using System.Linq;
 using System.Threading.Tasks;
 using HMS.API.Application.Auth.DTOs;
 using HMS.API.Domain.Auth;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using HMS.API.Infrastructure.Auth;
@@ -28,11 +27,16 @@ namespace HMS.API.Controllers
         [HasPermission("roles.manage")]
         public async Task<IActionResult> CreateRole([FromBody] CreateRoleRequest model)
         {
+            if (RoleCatalog.IsCoreRoleName(model.Name))
+            {
+                return BadRequest(new { error = "Built-in role names are reserved." });
+            }
+
             if (await RolesQuery().AnyAsync(r => r.Name == model.Name)) return BadRequest(new { error = "Role exists" });
             var role = new Role { Name = model.Name, Description = model.Description };
             _db.Roles.Add(role);
             await _db.SaveChangesAsync();
-            return CreatedAtAction(nameof(GetRole), new { id = role.Id }, new RoleResponse { Id = role.Id, Name = role.Name, Description = role.Description });
+            return CreatedAtAction(nameof(GetRole), new { id = role.Id }, new RoleResponse { Id = role.Id, Name = role.Name, Description = role.Description, IsSystem = RoleCatalog.IsCoreRoleName(role.Name) });
         }
 
         [HttpPut("{id}")]
@@ -41,8 +45,16 @@ namespace HMS.API.Controllers
         {
             var role = await RolesQuery().SingleOrDefaultAsync(r => r.Id == id);
             if (role == null) return NotFound();
+            if (RoleCatalog.IsCoreRoleName(role.Name))
+            {
+                return BadRequest(new { error = "Built-in roles cannot be edited." });
+            }
+            if (RoleCatalog.IsCoreRoleName(model.Name))
+            {
+                return BadRequest(new { error = "Built-in role names are reserved." });
+            }
 
-             if (await RolesQuery().AnyAsync(r => r.Id != id && r.Name == model.Name)) return BadRequest(new { error = "Role exists" });
+            if (await RolesQuery().AnyAsync(r => r.Id != id && r.Name == model.Name)) return BadRequest(new { error = "Role exists" });
 
             role.Name = model.Name;
             role.Description = model.Description;
@@ -56,7 +68,55 @@ namespace HMS.API.Controllers
         {
             var role = await RolesQuery().Include(r => r.RolePermissions).ThenInclude(rp => rp.Permission).SingleOrDefaultAsync(r => r.Id == id);
             if (role == null) return NotFound();
-            return Ok(new RoleResponse { Id = role.Id, Name = role.Name, Description = role.Description, Permissions = role.RolePermissions.Select(rp => rp.Permission.Code) });
+            return Ok(new RoleResponse { Id = role.Id, Name = role.Name, Description = role.Description, IsSystem = RoleCatalog.IsCoreRoleName(role.Name), Permissions = role.RolePermissions.Select(rp => rp.Permission.Code) });
+        }
+
+        [HttpGet("permissions")]
+        [HasPermission("roles.manage")]
+        public async Task<IActionResult> ListPermissions()
+        {
+            var permissions = await PermissionsQuery()
+                .OrderBy(p => p.Code)
+                .Select(p => new PermissionResponse
+                {
+                    Code = p.Code,
+                    Description = p.Description
+                })
+                .ToListAsync();
+
+            return Ok(permissions);
+        }
+
+        [HttpPost("permissions")]
+        [HasPermission("system.permissions.manage")]
+        public async Task<IActionResult> CreatePermission([FromBody] AddPermissionRequest permission)
+        {
+            var code = permission.Code?.Trim() ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(code))
+            {
+                return BadRequest(new { error = "Permission code is required" });
+            }
+
+            var existing = await PermissionsQuery().SingleOrDefaultAsync(p => p.Code == code);
+            if (existing != null)
+            {
+                return BadRequest(new { error = "Permission already exists" });
+            }
+
+            var created = new Permission
+            {
+                Code = code,
+                Description = permission.Description?.Trim() ?? string.Empty
+            };
+
+            _db.Permissions.Add(created);
+            await _db.SaveChangesAsync();
+
+            return Ok(new PermissionResponse
+            {
+                Code = created.Code,
+                Description = created.Description
+            });
         }
 
         [HttpPost("{roleId}/permissions")]
@@ -65,13 +125,21 @@ namespace HMS.API.Controllers
         {
             var role = await RolesQuery().Include(r => r.RolePermissions).SingleOrDefaultAsync(r => r.Id == roleId);
             if (role == null) return NotFound(new { error = "Role not found" });
+            if (RoleCatalog.IsCoreRoleName(role.Name))
+            {
+                return BadRequest(new { error = "Built-in roles cannot be modified." });
+            }
 
-            var existing = await PermissionsQuery().SingleOrDefaultAsync(p => p.Code == permission.Code);
+            var code = permission.Code?.Trim() ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(code))
+            {
+                return BadRequest(new { error = "Permission code is required" });
+            }
+
+            var existing = await PermissionsQuery().SingleOrDefaultAsync(p => p.Code == code);
             if (existing == null)
             {
-                existing = new Permission { Code = permission.Code, Description = permission.Description };
-                _db.Permissions.Add(existing);
-                await _db.SaveChangesAsync();
+                return BadRequest(new { error = "Permission not found. Use the permission catalog dropdown, or register it as a system permission first." });
             }
 
             if (!role.RolePermissions.Any(rp => rp.PermissionId == existing.Id))
@@ -89,6 +157,10 @@ namespace HMS.API.Controllers
         {
             var role = await RolesQuery().Include(r => r.RolePermissions).ThenInclude(rp => rp.Permission).SingleOrDefaultAsync(r => r.Id == roleId);
             if (role == null) return NotFound(new { error = "Role not found" });
+            if (RoleCatalog.IsCoreRoleName(role.Name))
+            {
+                return BadRequest(new { error = "Built-in roles cannot be modified." });
+            }
 
             var rp = role.RolePermissions.SingleOrDefault(x => x.Permission.Code == permissionCode);
             if (rp == null) return NotFound(new { error = "Permission not found on role" });
@@ -103,7 +175,7 @@ namespace HMS.API.Controllers
         public async Task<IActionResult> ListRoles()
         {
             var roles = await RolesQuery().Include(r => r.RolePermissions).ThenInclude(rp => rp.Permission).OrderBy(r => r.Name).ToListAsync();
-            var resp = roles.Select(r => new RoleResponse { Id = r.Id, Name = r.Name, Description = r.Description, Permissions = r.RolePermissions.Select(rp => rp.Permission.Code) });
+            var resp = roles.Select(r => new RoleResponse { Id = r.Id, Name = r.Name, Description = r.Description, IsSystem = RoleCatalog.IsCoreRoleName(r.Name), Permissions = r.RolePermissions.Select(rp => rp.Permission.Code) });
             return Ok(resp);
         }
 
@@ -117,6 +189,10 @@ namespace HMS.API.Controllers
                 .SingleOrDefaultAsync(r => r.Id == id);
 
             if (role == null) return NotFound();
+            if (RoleCatalog.IsCoreRoleName(role.Name))
+            {
+                return BadRequest(new { error = "Built-in roles cannot be deleted." });
+            }
             if (role.UserRoles.Any()) return BadRequest(new { error = "Role cannot be deleted while assigned to users." });
 
             if (role.RolePermissions.Any())
@@ -156,3 +232,4 @@ namespace HMS.API.Controllers
         }
     }
 }
+

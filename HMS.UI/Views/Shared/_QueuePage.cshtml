@@ -1,0 +1,110 @@
+@model HMS.UI.Models.QueuePageViewModel
+@{
+    var page = Model.ItemsPage ?? new HMS.UI.Models.PagedResult<HMS.UI.Models.QueueItemViewModel>();
+    var items = page.Items ?? Array.Empty<HMS.UI.Models.QueueItemViewModel>();
+    var queryControls = new HMS.UI.Models.ListQueryControlsViewModel
+    {
+        Action = ViewContext.RouteData.Values["action"]?.ToString() ?? string.Empty,
+        Controller = ViewContext.RouteData.Values["controller"]?.ToString() ?? string.Empty,
+        FilterLabel = Model.FilterLabel,
+        FilterName = "status",
+        SelectedFilter = Model.FilterValue,
+        FilterOptions = Model.FilterOptions,
+        PageSizeLabel = "Records per page",
+        PageSizeName = "pageSize",
+        SelectedPageSize = page.PageSize,
+        PageSizeOptions = new[] { 10, 20, 50 },
+        SubmitText = "Apply"
+    };
+
+    var pager = new HMS.UI.Models.PagedNavigationViewModel
+    {
+        Action = ViewContext.RouteData.Values["action"]?.ToString() ?? string.Empty,
+        Controller = ViewContext.RouteData.Values["controller"]?.ToString() ?? string.Empty,
+        RouteValues = new System.Collections.Generic.Dictionary<string, string?>
+        {
+            ["status"] = Model.FilterValue,
+            ["pageSize"] = page.PageSize.ToString()
+        },
+        CurrentPage = page.Page,
+        TotalPages = Math.Max(1, (int)Math.Ceiling((page.TotalCount <= 0 ? items.Length : page.TotalCount) / (double)Math.Max(1, page.PageSize))),
+        TotalCount = page.TotalCount <= 0 ? items.Length : page.TotalCount,
+        PageSize = Math.Max(1, page.PageSize)
+    };
+}
+
+<div class="page-content">
+    <div class="portal-card mb-3">
+        <div class="portal-card-body d-flex flex-column flex-lg-row justify-content-between gap-3 align-items-lg-center">
+            <div>
+                <div class="small text-muted-custom">Role-based queue</div>
+                <h3 class="mb-1">@Model.Title</h3>
+                <div class="text-muted">@Model.Description</div>
+            </div>
+
+            @if (!string.IsNullOrWhiteSpace(Model.PrimaryActionUrl))
+            {
+                <a class="btn btn-primary-custom text-white" href="@Model.PrimaryActionUrl">
+                    @Model.PrimaryActionText
+                </a>
+            }
+        </div>
+    </div>
+
+    <partial name="_ListQueryControls" model="queryControls" />
+
+    @if (items.Length == 0)
+    {
+        <div class="portal-card">
+            <div class="portal-card-body text-muted-custom">@Model.EmptyMessage</div>
+        </div>
+    }
+    else
+    {
+        <div class="row g-3">
+            @foreach (var item in items)
+            {
+                <div class="col-12 col-lg-6">
+                    <div class="portal-card h-100">
+                        <div class="portal-card-body">
+                            <div class="d-flex justify-content-between gap-3 align-items-start">
+                                <div class="min-w-0">
+                                    <div class="fw-semibold text-truncate">@item.Title</div>
+                                    @if (!string.IsNullOrWhiteSpace(item.Subtitle))
+                                    {
+                                        <div class="small text-muted-custom text-truncate">@item.Subtitle</div>
+                                    }
+                                </div>
+                                @if (!string.IsNullOrWhiteSpace(item.Status))
+                                {
+                                    <span class="@item.BadgeClass">@item.Status</span>
+                                }
+                            </div>
+
+                            @if (!string.IsNullOrWhiteSpace(item.Summary))
+                            {
+                                <div class="small text-muted-custom mt-2">@item.Summary</div>
+                            }
+
+                            @if (!string.IsNullOrWhiteSpace(item.Meta))
+                            {
+                                <div class="small text-muted-custom mt-2">@item.Meta</div>
+                            }
+
+                            @if (!string.IsNullOrWhiteSpace(item.LinkUrl))
+                            {
+                                <div class="mt-3">
+                                    <a href="@item.LinkUrl" class="btn btn-sm btn-outline-primary">@item.LinkText</a>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+
+        <div class="mt-3">
+            <partial name="_PagedNavigation" model="pager" />
+        </div>
+    }
+</div>

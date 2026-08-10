@@ -1,0 +1,125 @@
+@model HMS.UI.Models.PatientChartViewModel
+
+@{
+    string Display(string? value) => string.IsNullOrWhiteSpace(value) ? "-" : value;
+    var patient = Model.Patient;
+    var selectedVisit = Model.SelectedVisit;
+    var timelinePage = Model.TimelinePage ?? new HMS.UI.Models.PagedResult<HMS.UI.Models.PatientTimelineEntryViewModel>();
+    var timelineItems = timelinePage.Items ?? Array.Empty<HMS.UI.Models.PatientTimelineEntryViewModel>();
+    var timelineCategories = Model.Timeline
+        .Select(x => x.Category)
+        .Where(x => !string.IsNullOrWhiteSpace(x))
+        .Distinct()
+        .OrderBy(x => x)
+        .ToArray();
+    var totalTimelinePages = Math.Max(1, (int)Math.Ceiling((timelinePage.TotalCount <= 0 ? timelineItems.Length : timelinePage.TotalCount) / (double)Math.Max(1, timelinePage.PageSize)));
+
+    var queryControls = new HMS.UI.Models.ListQueryControlsViewModel
+    {
+        Action = "Chart",
+        Controller = "Patients",
+        HiddenFields = new Dictionary<string, string?>
+        {
+            ["id"] = patient.Id.ToString(),
+            ["visitId"] = selectedVisit?.Id.ToString()
+        },
+        FilterLabel = "Category",
+        FilterName = "timelineCategory",
+        SelectedFilter = Model.TimelineCategory,
+        FilterOptions = (new[] { "All" }).Concat(timelineCategories).Distinct(StringComparer.OrdinalIgnoreCase).ToArray(),
+        SortLabel = "Sort",
+        SortName = "timelineSort",
+        SelectedSort = Model.TimelineSort,
+        SortOptions = new[] { "recent", "oldest" },
+        PageSizeLabel = "Records per page",
+        PageSizeName = "timelinePageSize",
+        SelectedPageSize = Model.TimelinePageSize,
+        PageSizeOptions = new[] { 6, 10, 20, 50 },
+        SubmitText = "Apply Filters",
+        UseAjax = true,
+        AjaxTarget = "#chart-timeline-panel",
+        AjaxSwap = "outerHTML",
+        AjaxExtraQuery = "panel=timeline"
+    };
+
+    var pager = new HMS.UI.Models.PagedNavigationViewModel
+    {
+        Action = "Chart",
+        Controller = "Patients",
+        RouteValues = new Dictionary<string, string?>
+        {
+            ["id"] = patient.Id.ToString(),
+            ["visitId"] = selectedVisit?.Id.ToString(),
+            ["timelineCategory"] = Model.TimelineCategory,
+            ["timelineSort"] = Model.TimelineSort,
+            ["timelinePageSize"] = Model.TimelinePageSize.ToString()
+        },
+        CurrentPage = timelinePage.Page,
+        TotalPages = totalTimelinePages,
+        TotalCount = timelinePage.TotalCount <= 0 ? timelineItems.Length : timelinePage.TotalCount,
+        PageSize = Math.Max(1, timelinePage.PageSize),
+        SummaryLabel = "Showing",
+        UseAjax = true,
+        AjaxTarget = "#chart-timeline-panel",
+        AjaxSwap = "outerHTML",
+        AjaxExtraQuery = "panel=timeline"
+    };
+}
+
+<div id="chart-timeline-panel" data-ajax-panel="timeline">
+    <div class="timeline-panel">
+        <div class="d-flex flex-column flex-lg-row justify-content-between gap-2 mb-3">
+            <div>
+                <div class="fw-semibold">Clinical Timeline</div>
+                <small class="text-muted-custom">Recent activity, compact summaries, and jump links</small>
+            </div>
+            <div class="d-flex flex-wrap gap-2">
+                <span class="badge-soft-primary">Events @Model.Timeline.Length</span>
+                <span class="badge-soft-info">Page @timelinePage.Page / @totalTimelinePages</span>
+                <span class="badge-soft-success">@timelinePage.PageSize per page</span>
+            </div>
+        </div>
+
+        <partial name="_ListQueryControls" model="queryControls" />
+
+        @if (timelineItems.Length == 0)
+        {
+            <div class="border rounded-3 p-4 text-muted-custom bg-white">No timeline entries available yet.</div>
+        }
+        else
+        {
+            <div class="clinical-timeline">
+                @foreach (var entry in timelineItems)
+                {
+                    <div class="clinical-timeline-item">
+                        <div class="clinical-timeline-node @((entry.BadgeClass ?? "badge-soft-primary").Replace("badge-soft-", "timeline-node-"))">
+                            <i class="bi @(string.IsNullOrWhiteSpace(entry.IconClass) ? "bi-dot" : entry.IconClass)"></i>
+                        </div>
+                        <div class="clinical-timeline-card">
+                            <div class="d-flex justify-content-between gap-3 align-items-start">
+                                <div class="min-w-0">
+                                    <div class="small text-muted-custom">@entry.Timestamp.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</div>
+                                    <div class="fw-semibold text-truncate">@entry.Title</div>
+                                </div>
+                                <span class="@entry.BadgeClass">@entry.Category</span>
+                            </div>
+                            <div class="small text-muted-custom mt-1">@Display(entry.Summary)</div>
+                            <div class="d-flex flex-wrap justify-content-between gap-2 align-items-center mt-2">
+                                @if (!string.IsNullOrWhiteSpace(entry.Status))
+                                {
+                                    <div class="small text-muted-custom">@entry.Status</div>
+                                }
+                                @if (!string.IsNullOrWhiteSpace(entry.LinkUrl))
+                                {
+                                    <a href="@entry.LinkUrl" class="btn btn-sm btn-outline-primary">@Display(entry.LinkLabel)</a>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+
+            <partial name="_PagedNavigation" model="pager" />
+        }
+    </div>
+</div>

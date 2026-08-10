@@ -32,6 +32,8 @@ namespace HMS.UI.Models.Pharmacy
         public string? PatientDisplay { get; set; }
         public string? VisitDisplay { get; set; }
         public string Status { get; set; } = string.Empty;
+        public DateTimeOffset CreatedAt { get; set; }
+        public DateTimeOffset? UpdatedAt { get; set; }
         public PrescriptionItemViewModel[] Items { get; set; } = Array.Empty<PrescriptionItemViewModel>();
     }
 }

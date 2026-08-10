@@ -1,0 +1,129 @@
+@model HMS.UI.Models.ListQueryControlsViewModel
+
+@{
+    var baseAction = Url.Action(Model.Action, Model.Controller) ?? string.Empty;
+    var filterOptions = Model.FilterOptions ?? Array.Empty<string>();
+    var sortOptions = Model.SortOptions ?? Array.Empty<string>();
+    var pageSizeOptions = Model.PageSizeOptions ?? Array.Empty<int>();
+    var ajaxAttrs = Model.UseAjax
+        ? $"data-ajax-target=\"{Model.AjaxTarget ?? string.Empty}\" data-ajax-swap=\"{(string.IsNullOrWhiteSpace(Model.AjaxSwap) ? "outerHTML" : Model.AjaxSwap)}\" data-ajax-extra-query=\"{Model.AjaxExtraQuery ?? string.Empty}\""
+        : string.Empty;
+}
+
+@if (Model.UseAjax)
+{
+    <form method="get"
+          action="@baseAction"
+          class="list-query-controls mb-3"
+          data-ajax-target="@Model.AjaxTarget"
+          data-ajax-swap="@(string.IsNullOrWhiteSpace(Model.AjaxSwap) ? "outerHTML" : Model.AjaxSwap)"
+          data-ajax-extra-query="@Model.AjaxExtraQuery">
+        @foreach (var field in Model.HiddenFields)
+        {
+            <input type="hidden" name="@field.Key" value="@field.Value" />
+        }
+
+        <div class="row g-2 align-items-end">
+            @if (!string.IsNullOrWhiteSpace(Model.FilterName) && filterOptions.Length > 0)
+            {
+                <div class="col-12 col-md-4">
+                    <label class="form-label small text-muted-custom mb-1">@Model.FilterLabel</label>
+                    <select class="form-select form-select-sm" name="@Model.FilterName">
+                        @foreach (var option in filterOptions)
+                        {
+                            <option value="@option" selected="@(string.Equals(Model.SelectedFilter, option, StringComparison.OrdinalIgnoreCase) ? "selected" : null)">@option</option>
+                        }
+                    </select>
+                </div>
+            }
+
+            @if (!string.IsNullOrWhiteSpace(Model.SortName) && sortOptions.Length > 0)
+            {
+                <div class="col-12 col-md-4">
+                    <label class="form-label small text-muted-custom mb-1">@Model.SortLabel</label>
+                    <select class="form-select form-select-sm" name="@Model.SortName">
+                        @foreach (var option in sortOptions)
+                        {
+                            <option value="@option" selected="@(string.Equals(Model.SelectedSort, option, StringComparison.OrdinalIgnoreCase) ? "selected" : null)">@option</option>
+                        }
+                    </select>
+                </div>
+            }
+
+            @if (!string.IsNullOrWhiteSpace(Model.PageSizeName) && pageSizeOptions.Length > 0)
+            {
+                <div class="col-12 col-md-3">
+                    <label class="form-label small text-muted-custom mb-1">@Model.PageSizeLabel</label>
+                    <select class="form-select form-select-sm" name="@Model.PageSizeName">
+                        @foreach (var option in pageSizeOptions)
+                        {
+                            <option value="@option" selected="@(Model.SelectedPageSize == option ? "selected" : null)">@option</option>
+                        }
+                    </select>
+                </div>
+            }
+
+            <div class="col-12 col-md-@(string.IsNullOrWhiteSpace(Model.PageSizeName) || pageSizeOptions.Length == 0 ? "4" : "3") d-grid">
+                <button class="btn btn-sm btn-primary-custom text-white">
+                    <i class="bi bi-funnel me-1"></i> @Model.SubmitText
+                </button>
+            </div>
+        </div>
+    </form>
+}
+else
+{
+    <form method="get" action="@baseAction" class="list-query-controls mb-3">
+        @foreach (var field in Model.HiddenFields)
+        {
+            <input type="hidden" name="@field.Key" value="@field.Value" />
+        }
+
+        <div class="row g-2 align-items-end">
+            @if (!string.IsNullOrWhiteSpace(Model.FilterName) && filterOptions.Length > 0)
+            {
+                <div class="col-12 col-md-3">
+                    <label class="form-label small text-muted-custom mb-1">@Model.FilterLabel</label>
+                    <select class="form-select form-select-sm" name="@Model.FilterName">
+                        @foreach (var option in filterOptions)
+                        {
+                            <option value="@option" selected="@(string.Equals(Model.SelectedFilter, option, StringComparison.OrdinalIgnoreCase) ? "selected" : null)">@option</option>
+                        }
+                    </select>
+                </div>
+            }
+
+            @if (!string.IsNullOrWhiteSpace(Model.SortName) && sortOptions.Length > 0)
+            {
+                <div class="col-12 col-md-3">
+                    <label class="form-label small text-muted-custom mb-1">@Model.SortLabel</label>
+                    <select class="form-select form-select-sm" name="@Model.SortName">
+                        @foreach (var option in sortOptions)
+                        {
+                            <option value="@option" selected="@(string.Equals(Model.SelectedSort, option, StringComparison.OrdinalIgnoreCase) ? "selected" : null)">@option</option>
+                        }
+                    </select>
+                </div>
+            }
+
+            @if (!string.IsNullOrWhiteSpace(Model.PageSizeName) && pageSizeOptions.Length > 0)
+            {
+                <div class="col-12 col-md-3">
+                    <label class="form-label small text-muted-custom mb-1">@Model.PageSizeLabel</label>
+                    <select class="form-select form-select-sm" name="@Model.PageSizeName">
+                        @foreach (var option in pageSizeOptions)
+                        {
+                            <option value="@option" selected="@(Model.SelectedPageSize == option ? "selected" : null)">@option</option>
+                        }
+                    </select>
+                </div>
+            }
+
+            <div class="col-12 col-md-@(string.IsNullOrWhiteSpace(Model.PageSizeName) || pageSizeOptions.Length == 0 ? "4" : "3") d-grid">
+                <button class="btn btn-sm btn-primary-custom text-white">
+                    <i class="bi bi-funnel me-1"></i> @Model.SubmitText
+                </button>
+            </div>
+        </div>
+    </form>
+}

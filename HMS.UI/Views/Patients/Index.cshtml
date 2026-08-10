@@ -6,6 +6,20 @@
 
     var currentQ = ViewContext.HttpContext.Request.Query["q"];
     var totalPages = Math.Max(1, (int)Math.Ceiling((double)Model.TotalCount / Model.PageSize));
+    var pager = new HMS.UI.Models.PagedNavigationViewModel
+    {
+        Action = "Index",
+        Controller = "Patients",
+        RouteValues = new System.Collections.Generic.Dictionary<string, string?>
+        {
+            ["q"] = currentQ
+        },
+        CurrentPage = Model.Page,
+        TotalPages = totalPages,
+        TotalCount = Model.TotalCount,
+        PageSize = Model.PageSize,
+        SummaryLabel = "Showing"
+    };
 }
 
 <div class="container py-3">
@@ -100,28 +114,7 @@
         @if (totalPages > 1)
         {
             <div class="portal-card-body border-top py-2">
-
-                <div class="d-flex justify-content-between align-items-center">
-
-                    <small class="text-muted-custom">
-                        Page @Model.Page of @totalPages
-                    </small>
-
-                    <ul class="pagination pagination-sm mb-0">
-
-                        @for (int i = 1; i <= totalPages; i++)
-                        {
-                            <li class="page-item @(i == Model.Page ? "active" : "")">
-                                <a class="page-link" href="?q=@currentQ&page=@i">
-                                    @i
-                                </a>
-                            </li>
-                        }
-
-                    </ul>
-
-                </div>
-
+                <partial name="_PagedNavigation" model="pager" />
             </div>
         }
 
