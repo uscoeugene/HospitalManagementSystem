@@ -324,7 +324,7 @@ public class ApiClient
                     if (!string.IsNullOrWhiteSpace(proto) && !client.DefaultRequestHeaders.Contains("X-Forwarded-Proto"))
                         client.DefaultRequestHeaders.TryAddWithoutValidation("X-Forwarded-Proto", proto);
                 }
-                catch { }
+                catch (Exception ex) { try { System.Diagnostics.Trace.TraceError(ex.ToString()); } catch { } }
             }
         }
         catch (Exception ex)

@@ -67,9 +67,10 @@ namespace HMS.API.Middleware
             catch (Exception ex)
             {
                 // Do not block request on diagnostics failures
-                try { _logger.LogError(ex, "RequestDiagnosticsMiddleware unexpected error"); } catch { }
-                await _next(context);
-            }
+                _logger.LogError(ex, "RequestDiagnosticsMiddleware unexpected error");
+            } //catch (Exception ex) { try { System.Diagnostics.Trace.TraceError(ex.ToString()); } catch { } }
+            await _next(context);
         }
     }
 }
+

@@ -54,7 +54,7 @@ namespace HMS.API.Application.Common
                         var arr = System.Text.Json.JsonSerializer.Deserialize<Guid[]>(deptClaim.Value);
                         if (arr != null) return arr.Distinct();
                     }
-                    catch { }
+                    catch (Exception ex) { try { System.Diagnostics.Trace.TraceError(ex.ToString()); } catch { } }
                 }
 
                 var ids = user.Claims.Where(c => string.Equals(c.Type, "department_id", System.StringComparison.OrdinalIgnoreCase)).Select(c => { if (Guid.TryParse(c.Value, out var g)) return g; return Guid.Empty; }).Where(g => g != Guid.Empty).Distinct();

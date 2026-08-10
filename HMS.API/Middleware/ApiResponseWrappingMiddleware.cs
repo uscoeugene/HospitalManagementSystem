@@ -88,7 +88,7 @@ namespace HMS.API.Middleware
                     dataObj = new { items = payload };
                 }
             }
-            catch { }
+            catch (Exception ex) { try { System.Diagnostics.Trace.TraceError(ex.ToString()); } catch { } }
 
             var wrapped = ApiResponse<object>.ForSuccess(dataObj, status);
 

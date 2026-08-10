@@ -59,7 +59,13 @@ namespace HMS.UI.Controllers
                         var inv = await _api.GetAsync<HMS.UI.Models.Billing.InvoiceViewModel>($"/billing/{id}");
                         if (inv != null) return RedirectToAction("Details", "Billing", new { id = id });
                     }
-                    catch { }
+                    catch (Exception ex)
+                    {
+                        // non-fatal: invoice lookup failed while handling missing payment id
+                        // use debug-level to reduce noise in production logs
+                        var logger = HttpContext.RequestServices.GetService(typeof(Microsoft.Extensions.Logging.ILogger<PaymentsController>)) as Microsoft.Extensions.Logging.ILogger;
+                        logger?.LogDebug(ex, "Failed to resolve invoice {Id} while resolving payment details", id);
+                    }
 
                     return NotFound();
                 }

@@ -515,7 +515,7 @@ namespace HMS.API.Application.Billing
                     _db.OutboxMessages.Add(new OutboxMessage { Type = "DebtPaymentCreated", Content = JsonSerializer.Serialize(new { DebtId = debt.Id, PaymentAmount = toApply, InvoiceId = invoice.Id }), OccurredAt = DateTimeOffset.UtcNow });
                     await _db.SaveChangesAsync();
                 }
-                catch { }
+                catch (Exception ex) { try { System.Diagnostics.Trace.TraceError(ex.ToString()); } catch { } }
             }
             catch
             {
@@ -630,7 +630,7 @@ namespace HMS.API.Application.Billing
                     _db.OutboxMessages.Add(new OutboxMessage { Type = "DebtBatchPaymentCreated", Content = JsonSerializer.Serialize(new { Count = requests.Count() }), OccurredAt = DateTimeOffset.UtcNow });
                     await _db.SaveChangesAsync();
                 }
-                catch { }
+                catch (Exception ex) { try { System.Diagnostics.Trace.TraceError(ex.ToString()); } catch { } }
 
                 return results;
             }

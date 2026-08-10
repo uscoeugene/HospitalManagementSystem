@@ -18,11 +18,13 @@ namespace HMS.UI.Controllers
     {
         private readonly ApiClient _api;
         private readonly StaticDataService _static;
+        private readonly Microsoft.Extensions.Logging.ILogger<PatientsController> _logger;
 
-        public PatientsController(ApiClient api, StaticDataService staticData)
+        public PatientsController(ApiClient api, StaticDataService staticData, Microsoft.Extensions.Logging.ILogger<PatientsController> logger)
         {
             _api = api;
             _static = staticData;
+            _logger = logger;
         }
 
         [HasPermission("patients.view")]
@@ -103,9 +105,32 @@ namespace HMS.UI.Controllers
                 PagedResult<HMS.UI.Models.Lab.LabRequestViewModel>? labPage = null;
                 PagedResult<HMS.UI.Models.Pharmacy.PrescriptionViewModel>? prescriptionPage = null;
 
-                try { invoicePage = await _api.GetAsync<PagedResult<HMS.UI.Models.Billing.InvoiceViewModel>>($"/billing?patientId={id}&page=1&pageSize=50"); } catch { }
-                try { labPage = await _api.GetAsync<PagedResult<HMS.UI.Models.Lab.LabRequestViewModel>>($"/lab/requests?patientId={id}&page=1&pageSize=50"); } catch { }
-                try { prescriptionPage = await _api.GetAsync<PagedResult<HMS.UI.Models.Pharmacy.PrescriptionViewModel>>($"/pharmacy/prescriptions?patientId={id}&page=1&pageSize=50"); } catch { }
+                try
+                {
+                    invoicePage = await _api.GetAsync<PagedResult<HMS.UI.Models.Billing.InvoiceViewModel>>($"/billing?patientId={id}&page=1&pageSize=50");
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogDebug(ex, "Failed to load invoices for patient {PatientId}", id);
+                }
+
+                try
+                {
+                    labPage = await _api.GetAsync<PagedResult<HMS.UI.Models.Lab.LabRequestViewModel>>($"/lab/requests?patientId={id}&page=1&pageSize=50");
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogDebug(ex, "Failed to load lab requests for patient {PatientId}", id);
+                }
+
+                try
+                {
+                    prescriptionPage = await _api.GetAsync<PagedResult<HMS.UI.Models.Pharmacy.PrescriptionViewModel>>($"/pharmacy/prescriptions?patientId={id}&page=1&pageSize=50");
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogDebug(ex, "Failed to load prescriptions for patient {PatientId}", id);
+                }
 
                 var chart = new HMS.UI.Models.PatientChartViewModel
                 {
@@ -148,7 +173,8 @@ namespace HMS.UI.Controllers
                 var c = await _api.GetAsync<HMS.UI.Models.ConsultationViewModel>($"/patients/consultations/{id}");
                 if (c == null) return NotFound();
                 // populate patient header
-                try { ViewBag.Patient = await _api.GetAsync<HMS.UI.Models.PatientDetailsViewModel>($"/patients/{c.PatientId}"); } catch { ViewBag.Patient = null; }
+                try { ViewBag.Patient = await _api.GetAsync<HMS.UI.Models.PatientDetailsViewModel>($"/patients/{c.PatientId}"); }
+                catch (Exception ex) { _logger.LogDebug(ex, "Failed to load patient {PatientId} for consultation {ConsultationId}", c.PatientId, id); ViewBag.Patient = null; }
 
                 // providers map
                 try
@@ -161,7 +187,7 @@ namespace HMS.UI.Controllers
                     }
                     ViewBag.ProvidersMap = providerMap;
                 }
-                catch { ViewBag.ProvidersMap = null; }
+                catch (Exception ex) { _logger.LogDebug(ex, "Failed to load providers map for consultation details"); ViewBag.ProvidersMap = null; }
 
                 return View(c);
             }
@@ -439,20 +465,27 @@ namespace HMS.UI.Controllers
                                     else if (root.TryGetProperty("title", out var t) && t.ValueKind == System.Text.Json.JsonValueKind.String) friendly = t.GetString();
                                 }
                             }
-                            catch { }
+                            catch (Exception ex)
+                            {
+                                _logger.LogDebug(ex, "Failed to parse API error body while listing patients");
+                            }
 
                             TempData["Error"] = string.IsNullOrWhiteSpace(friendly) ? ($"Failed to load patients (API {status})") : friendly;
                         }
                     }
-                    catch { }
+                    catch (Exception ex)
+                    {
+                        _logger.LogDebug(ex, "Failed to inspect API debug info while listing patients");
+                    }
 
                     return View(new PagedResult<PatientListItemViewModel>());
                 }
 
                 return View(res);
             }
-            catch
+            catch (Exception ex)
             {
+                _logger.LogWarning(ex, "Failed to list patients for user {User}", User?.Identity?.Name);
                 return View(new PagedResult<PatientListItemViewModel>());
             }
         }
@@ -749,7 +782,11 @@ namespace HMS.UI.Controllers
                 var types = await _api.GetAsync<string[]>("/visittypes");
                 ViewBag.VisitTypes = types ?? Array.Empty<string>();
             }
-            catch { ViewBag.VisitTypes = Array.Empty<string>(); }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "Failed to load visit types for CreateVisit");
+                ViewBag.VisitTypes = Array.Empty<string>();
+            }
             return View(vm);
         }
 
@@ -957,7 +994,11 @@ namespace HMS.UI.Controllers
                     var types = await _api.GetAsync<string[]>("/visittypes");
                     ViewBag.VisitTypes = types ?? Array.Empty<string>();
                 }
-                catch { ViewBag.VisitTypes = Array.Empty<string>(); }
+                catch (Exception ex)
+                {
+                    _logger.LogDebug(ex, "Failed to load visit types for VisitEdit");
+                    ViewBag.VisitTypes = Array.Empty<string>();
+                }
                 return View(vm);
             }
             catch

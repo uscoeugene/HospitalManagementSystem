@@ -34,7 +34,7 @@ namespace HMS.API.Middleware
                     logger?.LogWarning("TenantMiddleware: invalid X-Tenant-Id header value: {Value}", tid);
                 }
             }
-            catch { }
+            catch (Exception ex) { try { System.Diagnostics.Trace.TraceError(ex.ToString()); } catch { } }
 
             try
             {

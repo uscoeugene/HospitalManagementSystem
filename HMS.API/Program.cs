@@ -48,7 +48,7 @@ try
             var sinkOpts = new Serilog.Sinks.MSSqlServer.MSSqlServerSinkOptions { TableName = "Logs", AutoCreateSqlTable = true };
             var columnOptions = new Serilog.Sinks.MSSqlServer.ColumnOptions();
             // remove LogEvent column to avoid storing large payloads; keep defaults otherwise
-            try { columnOptions.Store.Remove(Serilog.Sinks.MSSqlServer.StandardColumn.LogEvent); } catch { }
+            try { columnOptions.Store.Remove(Serilog.Sinks.MSSqlServer.StandardColumn.LogEvent); } catch (Exception ex) { try { System.Diagnostics.Trace.TraceError(ex.ToString()); } catch { } }
 
             loggerConfig = loggerConfig.WriteTo.MSSqlServer(connStr, sinkOpts, columnOptions: columnOptions);
         }
@@ -69,7 +69,7 @@ try
 catch (Exception ex)
 {
     // fallback: ensure a simple file-based logger
-    try { Serilog.Log.Logger = new LoggerConfiguration().WriteTo.File("logs/fallback.log").CreateLogger(); } catch { }
+     Serilog.Log.Logger = new LoggerConfiguration().WriteTo.File("logs/fallback.log").CreateLogger();  
 }
 
 
@@ -413,12 +413,8 @@ using (var scope = app.Services.CreateScope())
     {
         // Do not crash the entire process in production for migration issues.
         // Log the full exception and rethrow only in Development so startup fails fast there.
-        try
-        {
-            Log.Logger?.Error(ex, "Database migration or seed failed during startup");
-        }
-        catch { }
-
+        Log.Logger?.Error(ex, "Database migration or seed failed during startup");
+      
         if (app.Environment.IsDevelopment())
         {
             // In development we want to see and fail fast so issues are addressed early

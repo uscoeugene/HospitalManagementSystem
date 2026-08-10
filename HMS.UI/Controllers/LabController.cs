@@ -9,8 +9,9 @@ namespace HMS.UI.Controllers
     public class LabController : Controller
     {
         private readonly ApiClient _api;
+        private readonly ILogger<LabController> _logger;
 
-        public LabController(ApiClient api) { _api = api; }
+        public LabController(ApiClient api, ILogger<LabController> logger) { _api = api; _logger = logger; }
 
         public IActionResult Index()
         {
@@ -69,7 +70,11 @@ namespace HMS.UI.Controllers
                     var p = await _api.GetAsync<HMS.UI.Models.PatientDetailsViewModel>($"/patients/{patientId}");
                     vm.Patient = p;
                 }
-                catch { vm.Patient = null; }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to load patient {PatientId} for lab request view", patientId);
+                    vm.Patient = null;
+                }
                 return View(vm);
             }
             catch (Exception ex)
@@ -88,8 +93,10 @@ namespace HMS.UI.Controllers
             {
                 ModelState.AddModelError(string.Empty, "Select at least one test");
                 TempData["Error"] = "Select at least one test";
-                try { model.AvailableTests = await _api.GetAsync<LabTestViewModel[]>("/lab/tests") ?? Array.Empty<LabTestViewModel>(); } catch { model.AvailableTests = Array.Empty<LabTestViewModel>(); }
-                try { model.Patient = await _api.GetAsync<HMS.UI.Models.PatientDetailsViewModel>($"/patients/{model.PatientId}"); } catch { model.Patient = null; }
+                try { model.AvailableTests = await _api.GetAsync<LabTestViewModel[]>("/lab/tests") ?? Array.Empty<LabTestViewModel>(); }
+                catch (Exception ex) { _logger.LogWarning(ex, "Failed to load available lab tests"); model.AvailableTests = Array.Empty<LabTestViewModel>(); }
+                try { model.Patient = await _api.GetAsync<HMS.UI.Models.PatientDetailsViewModel>($"/patients/{model.PatientId}"); }
+                catch (Exception ex) { _logger.LogWarning(ex, "Failed to load patient {PatientId} while posting lab request", model.PatientId); model.Patient = null; }
                 return View(model);
             }
 
@@ -110,8 +117,10 @@ namespace HMS.UI.Controllers
                     var b = await resp.Content.ReadAsStringAsync();
                     ModelState.AddModelError(string.Empty, "Failed to create lab request: " + b);
                     TempData["Error"] = "Failed to create lab request: " + b;
-                    try { model.AvailableTests = await _api.GetAsync<LabTestViewModel[]>("/lab/tests") ?? Array.Empty<LabTestViewModel>(); } catch { model.AvailableTests = Array.Empty<LabTestViewModel>(); }
-                    try { model.Patient = await _api.GetAsync<HMS.UI.Models.PatientDetailsViewModel>($"/patients/{model.PatientId}"); } catch { model.Patient = null; }
+                try { model.AvailableTests = await _api.GetAsync<LabTestViewModel[]>("/lab/tests") ?? Array.Empty<LabTestViewModel>(); }
+                catch (Exception ex) { _logger.LogDebug(ex, "Failed to load available tests for lab request"); model.AvailableTests = Array.Empty<LabTestViewModel>(); }
+                try { model.Patient = await _api.GetAsync<HMS.UI.Models.PatientDetailsViewModel>($"/patients/{model.PatientId}"); }
+                catch (Exception ex) { _logger.LogDebug(ex, "Failed to load patient {PatientId} for lab request", model.PatientId); model.Patient = null; }
                     return View(model);
                 }
 
@@ -132,7 +141,10 @@ namespace HMS.UI.Controllers
                         }
                     }
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    _logger.LogDebug(ex, "Failed to inspect billing for visit {VisitId}", model.VisitId);
+                }
 
                 TempData["Success"] = "Lab request created";
                 if (invoiceId.HasValue) TempData["ShowInvoiceId"] = invoiceId.Value.ToString();

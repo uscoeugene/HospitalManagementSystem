@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
@@ -110,7 +110,7 @@ namespace HMS.API.Middleware
                         var hf = context.Request.Headers;
                         logger?.LogDebug("Tenant resolution headers: Host={HostHeader}, X-Tenant-Host={XTenantHost}, X-Original-Host={XOriginalHost}, X-Forwarded-Host={XForwardedHost}, RemoteIp={RemoteIp}", hf.ContainsKey("Host") ? hf["Host"].ToString() : string.Empty, hf.ContainsKey("X-Tenant-Host") ? hf["X-Tenant-Host"].ToString() : string.Empty, hf.ContainsKey("X-Original-Host") ? hf["X-Original-Host"].ToString() : string.Empty, hf.ContainsKey("X-Forwarded-Host") ? hf["X-Forwarded-Host"].ToString() : string.Empty, context.Connection.RemoteIpAddress?.ToString());
                     }
-                    catch { }
+                    catch (Exception ex) { try { System.Diagnostics.Trace.TraceError(ex.ToString()); } catch { } }
 
                     if (tid == null && tenantResolver != null)
                     {

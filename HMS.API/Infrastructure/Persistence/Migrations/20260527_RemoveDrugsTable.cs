@@ -16,7 +16,7 @@ namespace HMS.API.Infrastructure.Persistence.Migrations
                     name: "FK_PrescriptionItems_Drugs_DrugId",
                     table: "PrescriptionItems");
             }
-            catch { }
+            catch (Exception ex) { try { System.Diagnostics.Trace.TraceError(ex.ToString()); } catch { } }
 
             // drop index on DrugId
             try
@@ -25,7 +25,7 @@ namespace HMS.API.Infrastructure.Persistence.Migrations
                     name: "IX_PrescriptionItems_DrugId",
                     table: "PrescriptionItems");
             }
-            catch { }
+            catch (Exception ex) { try { System.Diagnostics.Trace.TraceError(ex.ToString()); } catch { } }
 
             // drop DrugId column from PrescriptionItems if present
             try
@@ -34,7 +34,7 @@ namespace HMS.API.Infrastructure.Persistence.Migrations
                     name: "DrugId",
                     table: "PrescriptionItems");
             }
-            catch { }
+            catch (Exception ex) { try { System.Diagnostics.Trace.TraceError(ex.ToString()); } catch { } }
 
             // finally drop the Drugs table
             try
@@ -42,7 +42,7 @@ namespace HMS.API.Infrastructure.Persistence.Migrations
                 migrationBuilder.DropTable(
                     name: "Drugs");
             }
-            catch { }
+            catch (Exception ex) { try { System.Diagnostics.Trace.TraceError(ex.ToString()); } catch { } }
         }
 
         protected override void Down(MigrationBuilder migrationBuilder)

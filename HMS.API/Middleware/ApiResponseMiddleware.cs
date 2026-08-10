@@ -58,11 +58,9 @@ namespace HMS.API.Middleware
             // In development include stacktrace in message to ease debugging
             if (_env.IsDevelopment())
             {
-                try
-                {
+              
                     message = ex.ToString();
-                }
-                catch { }
+              
             }
 
             // Build structured error with optional detail

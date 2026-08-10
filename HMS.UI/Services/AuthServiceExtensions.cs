@@ -6,7 +6,7 @@ namespace HMS.UI.Services;
 
 public static class AuthServiceExtensions
 {
-    public static async Task<bool> TrySetAuthCookieFromResponseAsync(this ApiClient client, HttpResponseMessage resp, HttpContext httpContext)
+    public static async Task<bool> TrySetAuthCookieFromResponseAsync(this ApiClient client, HttpResponseMessage resp, HttpContext httpContext, ILogger? logger = null)
     {
         if (resp == null || httpContext == null) return false;
 
@@ -21,7 +21,10 @@ public static class AuthServiceExtensions
                     httpContext.Response.Headers.Append("Set-Cookie", sc);
                 }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                logger?.LogDebug(ex, "Failed to copy Set-Cookie headers from API response");
+            }
             return true;
         }
 
@@ -87,12 +90,16 @@ public static class AuthServiceExtensions
                     }
                 }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                logger?.LogDebug(ex, "Failed to extract tenant name from auth response");
+            }
 
             return true;
         }
-        catch
+        catch (Exception ex)
         {
+            logger?.LogDebug(ex, "Failed to set auth cookie from response");
             return false;
         }
     }

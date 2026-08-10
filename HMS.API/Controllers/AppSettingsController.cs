@@ -57,7 +57,7 @@ namespace HMS.API.Controllers
                 var svc = HttpContext.RequestServices.GetService(typeof(HMS.API.Application.Common.IAppSettingsService)) as HMS.API.Application.Common.IAppSettingsService;
                 if (svc != null) await svc.InvalidateAsync(dto.Key);
             }
-            catch { }
+            catch (Exception ex) { try { System.Diagnostics.Trace.TraceError(ex.ToString()); } catch { } }
             return Ok(new { key = e.Key, value = e.Value });
         }
     }

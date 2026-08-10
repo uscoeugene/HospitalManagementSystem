@@ -54,7 +54,7 @@ namespace HMS.API.Controllers
                 else if (!string.IsNullOrWhiteSpace(xForwardedHost)) host = xForwardedHost.Split(',')[0].Trim();
                 else if (!string.IsNullOrWhiteSpace(hostHeaderRaw)) host = hostHeaderRaw.Split(',')[0].Trim();
             }
-            catch { }
+            catch (Exception ex) { try { System.Diagnostics.Trace.TraceError(ex.ToString()); } catch { } }
 
             // normalize
             if (!string.IsNullOrWhiteSpace(host))
@@ -100,7 +100,7 @@ namespace HMS.API.Controllers
                     }
                 }
             }
-            catch { }
+            catch (Exception ex) { try { System.Diagnostics.Trace.TraceError(ex.ToString()); } catch { } }
 
             var result = new
             {

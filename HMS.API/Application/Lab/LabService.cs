@@ -93,7 +93,7 @@ namespace HMS.API.Application.Lab
                 var p = await _db.Patients.AsNoTracking().Where(x => x.Id == request.PatientId).Select(x => new { x.FirstName, x.LastName }).SingleOrDefaultAsync();
                 if (p != null) dto.PatientName = (p.FirstName + " " + p.LastName).Trim();
             }
-            catch { }
+            catch (Exception ex) { try { System.Diagnostics.Trace.TraceError(ex.ToString()); } catch { } }
 
             // try resolve linked invoice summary by matching invoice items source id
             try
@@ -117,7 +117,7 @@ namespace HMS.API.Application.Lab
                     };
                 }
             }
-            catch { }
+            catch (Exception ex) { try { System.Diagnostics.Trace.TraceError(ex.ToString()); } catch { } }
 
             return dto;
         }

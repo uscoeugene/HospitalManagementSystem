@@ -9,10 +9,12 @@ namespace HMS.UI.Controllers
     public class ProfileController : Controller
     {
         private readonly ApiClient _api;
+        private readonly ILogger<ProfileController> _logger;
 
-        public ProfileController(ApiClient api)
+        public ProfileController(ApiClient api, ILogger<ProfileController> logger)
         {
             _api = api;
+            _logger = logger;
         }
 
         [HttpGet]
@@ -92,7 +94,10 @@ namespace HMS.UI.Controllers
                         TempData["Success"] = "Avatar uploaded";
                     }
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    _logger.LogDebug(ex, "Failed to parse avatar upload response JSON");
+                }
             }
             catch (Exception ex)
             {

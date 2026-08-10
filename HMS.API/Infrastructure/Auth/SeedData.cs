@@ -403,6 +403,7 @@ namespace HMS.API.Infrastructure.Auth
                 db.Set<HMS.API.Domain.Common.TenantSubscription>().AddRange(subA, subB);
                 await db.SaveChangesAsync();
             }
+        }
 
         // Ensure some critical app settings exist so the UI and runtime can resolve deployment mode reliably
         private static async Task EnsureAppSettingsAsync(AuthDbContext db)
@@ -425,7 +426,6 @@ namespace HMS.API.Infrastructure.Auth
             }
 
             await db.SaveChangesAsync();
-        }
         }
 
         public static async Task EnsurePermissionCatalogAsync(AuthDbContext db)

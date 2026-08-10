@@ -257,7 +257,6 @@ namespace HMS.API.Infrastructure.Outbox
                         CurrentTenantAccessor.CurrentTenantId = previousTenant;
                     }
                 }
-                catch (OperationCanceledException) { }
                 catch (Exception ex)
                 {
                     _logger.LogError(ex, "Outbox loop failed");

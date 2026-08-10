@@ -136,7 +136,7 @@ namespace HMS.API.Infrastructure.Common
                     close?.Invoke(_connection, null);
                 }
             }
-            catch { }
+            catch (Exception ex) { try { System.Diagnostics.Trace.TraceError(ex.ToString()); } catch { } }
         }
     }
 }

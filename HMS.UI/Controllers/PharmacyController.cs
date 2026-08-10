@@ -12,10 +12,12 @@ namespace HMS.UI.Controllers
     public class PharmacyController : Controller
     {
         private readonly ApiClient _api;
+        private readonly ILogger<PharmacyController> _logger;
 
-        public PharmacyController(ApiClient api)
+        public PharmacyController(ApiClient api, ILogger<PharmacyController> logger)
         {
             _api = api;
+            _logger = logger;
         }
 
         public async Task<IActionResult> Index()
@@ -55,7 +57,7 @@ namespace HMS.UI.Controllers
                         var patient = await _api.GetAsync<HMS.UI.Models.PatientDetailsViewModel>($"/patients/{p.PatientId}");
                         if (patient != null) p.PatientDisplay = string.Join(' ', new[] { patient.FirstName, patient.MiddleName, patient.LastName }.Where(x => !string.IsNullOrWhiteSpace(x))).Trim();
                     }
-                    catch { p.PatientDisplay = null; }
+                    catch (Exception ex) { _logger.LogWarning(ex, "Failed to resolve patient display for prescription {PrescriptionId}", p.Id); p.PatientDisplay = null; }
 
                     try
                     {
@@ -65,7 +67,7 @@ namespace HMS.UI.Controllers
                             if (visit != null) p.VisitDisplay = $"{visit.VisitType} - {visit.VisitAt:yyyy-MM-dd HH:mm}";
                         }
                     }
-                    catch { p.VisitDisplay = null; }
+                    catch (Exception ex) { _logger.LogWarning(ex, "Failed to resolve visit display for prescription {PrescriptionId}", p.Id); p.VisitDisplay = null; }
                 }
 
                 return View(vm);
@@ -204,7 +206,10 @@ namespace HMS.UI.Controllers
                         prescription.PatientDisplay = string.Join(' ', new[] { patient.FirstName, patient.MiddleName, patient.LastName }.Where(x => !string.IsNullOrWhiteSpace(x))).Trim();
                     }
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    _logger.LogDebug(ex, "Failed to resolve patient display for prescription {PrescriptionId}", prescription.Id);
+                }
 
                 // try to resolve visit display
                 try
@@ -218,7 +223,10 @@ namespace HMS.UI.Controllers
                         }
                     }
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    _logger.LogDebug(ex, "Failed to resolve visit display for prescription {PrescriptionId}", prescription.Id);
+                }
 
                 ViewBag.AvailableInventoryItems = await _api.GetAsync<InventoryItemViewModel[]>("/pharmacy/inventory") ?? Array.Empty<InventoryItemViewModel>();
                 return View(prescription);
@@ -667,9 +675,7 @@ namespace HMS.UI.Controllers
                     }
                 }
             }
-            catch
-            {
-            }
+            catch (Exception ex) { try { System.Diagnostics.Trace.TraceError(ex.ToString()); } catch { } }
 
             return raw;
         }

@@ -32,7 +32,6 @@ namespace HMS.API.Infrastructure.Pharmacy
                     await svc.CleanupExpiredReservationsAsync();
                     await Task.Delay(TimeSpan.FromMinutes(5), stoppingToken);
                 }
-                catch (OperationCanceledException) { }
                 catch (Exception ex)
                 {
                     _logger.LogError(ex, "Reservation cleanup failed");

@@ -37,7 +37,7 @@ namespace HMS.API.Infrastructure.Logging
                         entries.Add(new { source = Path.GetFileName(f), raw = l });
                     }
                 }
-                catch { }
+                catch (Exception ex) { try { System.Diagnostics.Trace.TraceError(ex.ToString()); } catch { } }
             }
             return entries;
         }

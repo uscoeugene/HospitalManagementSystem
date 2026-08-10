@@ -58,6 +58,7 @@ namespace HMS.API.Infrastructure.Persistence
         public DbSet<HMS.API.Domain.Pharmacy.InventoryItem> InventoryItems { get; set; } = null!;
         public DbSet<HMS.API.Domain.Pharmacy.InventoryCategory> InventoryCategories { get; set; } = null!;
         public DbSet<HMS.API.Domain.Pharmacy.InventoryAudit> InventoryAudits { get; set; } = null!;
+        public DbSet<HMS.API.Domain.Patient.PatientNoteAudit> PatientNoteAudits { get; set; } = null!;
         public DbSet<HMS.API.Domain.Pharmacy.UnitOfMeasure> Units { get; set; } = null!;
         public DbSet<HMS.API.Domain.Pharmacy.ItemUnitConversion> ItemUnitConversions { get; set; } = null!;
         public DbSet<HMS.API.Domain.Pharmacy.Store> Stores { get; set; } = null!;

@@ -19,13 +19,15 @@ namespace HMS.UI.Controllers
         private readonly RefreshService _refresh;
         private readonly IHostEnvironment _env;
         private readonly IDeploymentModeService _deploymentModeService;
+        private readonly Microsoft.Extensions.Logging.ILogger<AccountController> _logger;
 
-        public AccountController(ApiClient api, RefreshService refresh, IHostEnvironment env, IDeploymentModeService deploymentModeService)
+        public AccountController(ApiClient api, RefreshService refresh, IHostEnvironment env, IDeploymentModeService deploymentModeService, Microsoft.Extensions.Logging.ILogger<AccountController> logger)
         {
             _api = api;
             _refresh = refresh;
             _env = env;
             _deploymentModeService = deploymentModeService;
+            _logger = logger;
         }
 
         [HttpGet]
@@ -61,7 +63,10 @@ namespace HMS.UI.Controllers
                 {
                     await _api.PostAsync<object>("/auth/logout", new { RefreshToken = refresh });
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    _logger.LogDebug(ex, "Failed to revoke refresh token during logout for user {User}", User?.Identity?.Name);
+                }
             }
 
             // Clear API cookies
@@ -75,7 +80,10 @@ namespace HMS.UI.Controllers
             {
                 await HttpContext.SignOutAsync(Microsoft.AspNetCore.Authentication.Cookies.CookieAuthenticationDefaults.AuthenticationScheme);
             }
-            catch { }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "Failed to sign out local cookie during logout for user {User}", User?.Identity?.Name);
+            }
 
             return RedirectToAction("Login");
         }
@@ -161,7 +169,7 @@ namespace HMS.UI.Controllers
                 //            TempData["ApiDebug"] = System.Text.Json.JsonSerializer.Serialize(dbg, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
                 //        }
                 //    }
-                //    catch { }
+                //    catch (Exception ex) { try { System.Diagnostics.Trace.TraceError(ex.ToString()); } catch { } }
                 //    // Log or surface a friendly error
                 //    ModelState.AddModelError(string.Empty, resp.Content. + "Invalid credentials");
                 //    return View();
@@ -210,7 +218,10 @@ namespace HMS.UI.Controllers
                                 });
                         }
                     }
-                    catch { }
+                    catch (Exception ex)
+                    {
+                        _logger.LogDebug(ex, "Failed to capture API debug info during login error handling");
+                    }
 
                     ModelState.AddModelError(string.Empty, errorMessage);
 
@@ -268,7 +279,10 @@ namespace HMS.UI.Controllers
                             }
                         }
                     }
-                    catch { }
+                    catch (Exception ex)
+                    {
+                        _logger.LogDebug(ex, "Failed to enumerate login response properties for roles");
+                    }
 
                     // permissions property may be camelCase or PascalCase depending on serializer settings; find case-insensitively
                     System.Text.Json.JsonElement? permsElem = null;
@@ -283,7 +297,10 @@ namespace HMS.UI.Controllers
                             }
                         }
                     }
-                    catch { }
+                    catch (Exception ex)
+                    {
+                        _logger.LogDebug(ex, "Failed to enumerate login response properties for permissions");
+                    }
 
                     if (permsElem.HasValue && permsElem.Value.ValueKind == System.Text.Json.JsonValueKind.Array)
                     {
@@ -350,7 +367,10 @@ namespace HMS.UI.Controllers
                         principal,
                         authProperties);
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    _logger.LogDebug(ex, "Failed to sign in local cookie after successful API login");
+                }
 
                 return RedirectToAction("Dashboard");
             }
@@ -362,7 +382,10 @@ namespace HMS.UI.Controllers
                     var dbg = _api.GetLastDebug();
                     if (dbg != null) TempData["ApiDebug"] = System.Text.Json.JsonSerializer.Serialize(dbg, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
                 }
-                catch { }
+                catch (Exception dbgEx)
+                {
+                    _logger.LogDebug(dbgEx, "Failed to get API debug info during login exception handling");
+                }
                 ModelState.AddModelError(string.Empty, "Login failed. " + ex.Message);
                 return View();
             }
@@ -491,7 +514,10 @@ namespace HMS.UI.Controllers
                     displayName = profile.FirstName;
                 }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "Failed to load current user profile for dashboard display name");
+            }
 
             var tenantName = await ResolveTenantNameAsync();
             var queueCounts = await LoadQueueCountsAsync();
@@ -544,7 +570,10 @@ namespace HMS.UI.Controllers
                     }
                 }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "Failed to resolve tenant id from HttpContext items or cookies");
+            }
 
             if (!resolvedTid.HasValue)
             {

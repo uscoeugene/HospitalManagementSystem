@@ -13,11 +13,13 @@ namespace HMS.API.Application.Patient
     {
         private readonly HmsDbContext _db;
         private readonly Infrastructure.Auth.AuthDbContext _authDb;
+        private readonly ICurrentUserService _currentUserService;
 
-        public PatientService(HmsDbContext db, Infrastructure.Auth.AuthDbContext authDb)
+        public PatientService(HmsDbContext db, Infrastructure.Auth.AuthDbContext authDb, ICurrentUserService currentUserService)
         {
             _db = db;
             _authDb = authDb;
+            _currentUserService = currentUserService;
         }
 
         private static VitalSignResponse MapToVitalSignResponse(HMS.API.Domain.Patient.VitalSign v)
@@ -127,6 +129,26 @@ namespace HMS.API.Application.Patient
 
             _db.Set<HMS.API.Domain.Patient.Consultation>().Add(c);
             await _db.SaveChangesAsync();
+
+            // Audit: created consultation
+            try
+            {
+                var details = System.Text.Json.JsonSerializer.Serialize(new { c.ChiefComplaint, c.HistoryOfPresentIllness, c.PhysicalExamination, c.DiagnosisCodes, c.Procedures, c.Notes });
+                _db.PatientNoteAudits.Add(new HMS.API.Domain.Patient.PatientNoteAudit
+                {
+                    EntityType = "Consultation",
+                    EntityId = c.Id,
+                    PatientId = c.PatientId,
+                    VisitId = c.VisitId,
+                    ChangeType = "Created",
+                    Details = details,
+                    PerformedBy = _currentUserService.UserId ?? Guid.Empty,
+                    PerformedAt = DateTimeOffset.UtcNow
+                });
+                await _db.SaveChangesAsync();
+            }
+            catch (Exception ex) { try { System.Diagnostics.Trace.TraceError(ex.ToString()); } catch { } }
+
             return MapToConsultationResponse(c);
         }
 
@@ -134,8 +156,27 @@ namespace HMS.API.Application.Patient
         {
             var c = await _db.Set<HMS.API.Domain.Patient.Consultation>().SingleOrDefaultAsync(x => x.Id == id && !x.IsDeleted);
             if (c == null) throw new InvalidOperationException("Consultation not found");
+            var details = System.Text.Json.JsonSerializer.Serialize(new { c.ChiefComplaint, c.HistoryOfPresentIllness, c.PhysicalExamination, c.DiagnosisCodes, c.Procedures, c.Notes });
             c.SoftDelete();
             await _db.SaveChangesAsync();
+
+            // Audit: consultation deleted
+            try
+            {
+                _db.PatientNoteAudits.Add(new HMS.API.Domain.Patient.PatientNoteAudit
+                {
+                    EntityType = "Consultation",
+                    EntityId = c.Id,
+                    PatientId = c.PatientId,
+                    VisitId = c.VisitId,
+                    ChangeType = "Deleted",
+                    Details = details,
+                    PerformedBy = _currentUserService.UserId ?? Guid.Empty,
+                    PerformedAt = DateTimeOffset.UtcNow
+                });
+                await _db.SaveChangesAsync();
+            }
+            catch (Exception ex) { try { System.Diagnostics.Trace.TraceError(ex.ToString()); } catch { } }
         }
 
         public async Task<ConsultationResponse?> GetConsultationAsync(Guid id)
@@ -326,7 +367,7 @@ namespace HMS.API.Application.Patient
                     var tenant = await _authDb.Tenants.AsNoTracking().SingleOrDefaultAsync(t => t.Id == tid.Value);
                     if (tenant != null && !string.IsNullOrWhiteSpace(tenant.Code)) prefix = tenant.Code.ToUpperInvariant();
                 }
-                catch { }
+                catch (Exception ex) { try { System.Diagnostics.Trace.TraceError(ex.ToString()); } catch { } }
             }
 
             // Search existing MRNs for this tenant (or null tenant for central) with the same prefix
@@ -398,6 +439,25 @@ namespace HMS.API.Application.Patient
             _db.Visits.Add(visit);
             await _db.SaveChangesAsync();
 
+            // Audit: visit created
+            try
+            {
+                var details = System.Text.Json.JsonSerializer.Serialize(new { visit.VisitAt, visit.VisitType, visit.Notes });
+                _db.PatientNoteAudits.Add(new HMS.API.Domain.Patient.PatientNoteAudit
+                {
+                    EntityType = "Visit",
+                    EntityId = visit.Id,
+                    PatientId = visit.PatientId,
+                    VisitId = visit.Id,
+                    ChangeType = "Created",
+                    Details = details,
+                    PerformedBy = _currentUserService.UserId ?? Guid.Empty,
+                    PerformedAt = DateTimeOffset.UtcNow
+                });
+                await _db.SaveChangesAsync();
+            }
+            catch (Exception ex) { try { System.Diagnostics.Trace.TraceError(ex.ToString()); } catch { } }
+
             return new VisitResponse
             {
                 Id = visit.Id,
@@ -431,10 +491,33 @@ namespace HMS.API.Application.Patient
                 throw new InvalidOperationException("Invalid visit type");
             }
 
+            var before = new { v.VisitAt, v.VisitType, v.Notes };
+
             v.VisitAt = request.VisitAt;
             v.VisitType = request.VisitType;
             v.Notes = request.Notes ?? string.Empty;
             await _db.SaveChangesAsync();
+
+            // Audit: visit updated
+            try
+            {
+                var after = new { v.VisitAt, v.VisitType, v.Notes };
+                var details = System.Text.Json.JsonSerializer.Serialize(new { before, after });
+                _db.PatientNoteAudits.Add(new HMS.API.Domain.Patient.PatientNoteAudit
+                {
+                    EntityType = "Visit",
+                    EntityId = v.Id,
+                    PatientId = v.PatientId,
+                    VisitId = v.Id,
+                    ChangeType = "Updated",
+                    Details = details,
+                    PerformedBy = _currentUserService.UserId ?? Guid.Empty,
+                    PerformedAt = DateTimeOffset.UtcNow
+                });
+                await _db.SaveChangesAsync();
+            }
+            catch (Exception ex) { try { System.Diagnostics.Trace.TraceError(ex.ToString()); } catch { } }
+
             return new VisitResponse { Id = v.Id, VisitAt = v.VisitAt, VisitType = v.VisitType, Notes = v.Notes };
         }
 
@@ -442,8 +525,27 @@ namespace HMS.API.Application.Patient
         {
             var v = await _db.Visits.SingleOrDefaultAsync(x => x.Id == id && !x.IsDeleted);
             if (v == null) throw new InvalidOperationException("Visit not found");
+            var details = System.Text.Json.JsonSerializer.Serialize(new { v.VisitAt, v.VisitType, v.Notes });
             v.SoftDelete();
             await _db.SaveChangesAsync();
+
+            // Audit: visit deleted
+            try
+            {
+                _db.PatientNoteAudits.Add(new HMS.API.Domain.Patient.PatientNoteAudit
+                {
+                    EntityType = "Visit",
+                    EntityId = v.Id,
+                    PatientId = v.PatientId,
+                    VisitId = v.Id,
+                    ChangeType = "Deleted",
+                    Details = details,
+                    PerformedBy = _currentUserService.UserId ?? Guid.Empty,
+                    PerformedAt = DateTimeOffset.UtcNow
+                });
+                await _db.SaveChangesAsync();
+            }
+            catch (Exception ex) { try { System.Diagnostics.Trace.TraceError(ex.ToString()); } catch { } }
         }
 
         public async Task<PagedResult<PatientResponse>> ListPatientsAsync(string? search, int page = 1, int pageSize = 20)

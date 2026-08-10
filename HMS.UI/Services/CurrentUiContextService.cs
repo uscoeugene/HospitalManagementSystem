@@ -19,9 +19,7 @@ namespace HMS.UI.Services
                 var cookie = _ctx.HttpContext?.Request?.Cookies["HmsTenantId"];
                 if (Guid.TryParse(cookie, out var tid)) return tid;
             }
-            catch
-            {
-            }
+            catch (Exception ex) { try { System.Diagnostics.Trace.TraceError(ex.ToString()); } catch { } }
             return null;
         }
     }
